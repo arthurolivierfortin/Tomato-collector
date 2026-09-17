@@ -1,0 +1,11 @@
+node_modules/
+dist/
+data/episodes/
+data/shots/
+data/*.json
+test-results/
+playwright-report/
+.worktrees/
+*.log
+.env*
+!.env.example
