@@ -12,6 +12,8 @@ export interface SceneHandle {
   camera: PerspectiveCamera;
   controls: OrbitControls;
   addObject(obj: Object3D): void;
+  /** Rappel à chaque frame avec le dt réel en secondes, avant le rendu. */
+  onFrame(cb: (dtS: number) => void): () => void;
   dispose(): void;
 }
 
@@ -67,9 +69,14 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
   observer.observe(canvas);
   resize();
 
+  const frameCallbacks = new Set<(dtS: number) => void>();
   let running = true;
-  function loop(): void {
+  let last = performance.now();
+  function loop(now: number): void {
     if (!running) return;
+    const dtS = Math.min((now - last) / 1000, 0.1);
+    last = now;
+    for (const cb of frameCallbacks) cb(dtS);
     controls.update();
     renderer.render(scene, camera);
     requestAnimationFrame(loop);
@@ -82,6 +89,10 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
     camera,
     controls,
     addObject: (obj) => scene.add(obj),
+    onFrame: (cb) => {
+      frameCallbacks.add(cb);
+      return () => frameCallbacks.delete(cb);
+    },
     dispose: () => {
       running = false;
       observer.disconnect();

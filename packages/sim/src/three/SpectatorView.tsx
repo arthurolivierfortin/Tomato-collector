@@ -1,13 +1,12 @@
 import { useEffect, useRef } from 'react';
-import type { Object3D } from 'three';
 import { createScene, type SceneHandle } from './createScene';
 
 interface Props {
-  /** Fabrique les objets à ajouter à la scène ; appelée une fois au montage. */
-  build: () => Object3D[];
+  /** Appelé une fois au montage avec la scène prête ; peut retourner un nettoyage. */
+  onReady: (scene: SceneHandle) => void | (() => void);
 }
 
-export function SpectatorView({ build }: Props) {
+export function SpectatorView({ onReady }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const handleRef = useRef<SceneHandle | null>(null);
 
@@ -15,10 +14,13 @@ export function SpectatorView({ build }: Props) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const handle = createScene(canvas);
-    for (const obj of build()) handle.addObject(obj);
     handleRef.current = handle;
-    return () => handle.dispose();
-  }, [build]);
+    const cleanup = onReady(handle);
+    return () => {
+      cleanup?.();
+      handle.dispose();
+    };
+  }, [onReady]);
 
   return <canvas ref={canvasRef} data-testid="spectator" className="h-full w-full block" />;
 }
