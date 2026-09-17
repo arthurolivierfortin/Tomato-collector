@@ -51,7 +51,9 @@ export function scissorsCommands(camId: CameraId, pose: CameraPose, s: ScissorsP
     line(cut, axisEnd, PALETTE.bladeAxis, 2),
     text([axisEnd[0] + LABEL_GAP_PX, axisEnd[1] + 4], 'lame', PALETTE.bladeAxis),
     line(cut, normalEnd, PALETTE.bladeNormal, 2),
-    text([normalEnd[0] + LABEL_GAP_PX, normalEnd[1] + 4], 'normale', PALETTE.bladeNormal),
+    // Au-dessus du bout de la normale : en vue top la normale pointe vers la caméra et son
+    // étiquette viendrait sinon coller celle de l'axe lame.
+    text([normalEnd[0] + LABEL_GAP_PX, normalEnd[1] - 2 * LABEL_GAP_PX], 'normale', PALETTE.bladeNormal),
     text([pivot[0] + 10, pivot[1] - 12], angles, PALETTE.bladeAxis),
   ];
 }
