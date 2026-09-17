@@ -79,7 +79,7 @@ export interface WorldState {
 export const VIEW_SIZE_PX = 800;
 
 export const DEFAULT_LIMITS: Limits = {
-  scissorsBaseCm: [70, -40, 0],
+  scissorsBaseCm: [60, -30, 0],
   scissorsReachCm: 110,
   basketRailCm: { x: [-40, 40], y: [-40, 40] },
   cameraRailsCm: {
