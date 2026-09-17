@@ -92,3 +92,10 @@ Crée hub, bridge, session, journal, MCP + Express, puis (M6) le runner d'agent.
 ## Vérification de fin d'étape (spec section 9)
 
 Test d'intégration serveur (Vitest, `packages/server/src/integration/episode.test.ts`) : hub + bridge + session + MCP montés en mémoire avec un faux client sim (répond aux actions avec un monde scripté), un script d'appels d'outils (`get_views` → `move_basket` → `move_scissors` ×3 → `open_scissors` → `cut` → `report`) aboutit en `harvested` ; le même script avec le panier mal placé aboutit en `missed` ; le journal d'épisode est écrit. Et, dans le navigateur, le dashboard affiche la trace et les vues d'un épisode rejoué.
+
+## Décisions de contrat fixées par le plan M5 (à respecter par M6 et M7)
+
+- M6 exporte `createAgentRunner` depuis `packages/server/src/agent/index.ts` ; `index.ts` du serveur le charge par import dynamique (`loadAgentRunner`), avec repli sur un runner no-op si le fichier est absent ou `TOMATO_AGENT=off`.
+- M6 diffuse `episode_start` et `episode_end` (M5 ne le fait jamais) ; le journal M5 complète `costUsd` à partir de l'`episode_end` reçu.
+- M7 alimente `createFakeBridge` directement avec `record.messages` renvoyé par `GET /episodes/:id`.
+- Transport MCP : streamable HTTP sans session (`sessionIdGenerator` omis), un transport et un `McpServer` par requête POST.
