@@ -1,0 +1,95 @@
+import type { BasketPose, CameraId, CameraPose, ScissorsPose, TomatoView, Vec2, Vec3, ViewsPayload } from '@tomato/shared';
+import { projectToPixel } from './ortho';
+import { line, text, type OverlayCommand } from './overlayTypes';
+import { PALETTE } from './palette';
+import { scissorsPoints } from './scissorsGeometry';
+
+const CUT_CROSS_PX = 10;
+const BASKET_CROSS_PX = 8;
+const LABEL_GAP_PX = 6;
+const FALL_DASH: Vec2 = [6, 6];
+
+const fmt = (v: number): string => v.toFixed(1);
+
+/** Tige cible : polyligne cyan du pédoncule (branche → fruit), point d'attache marqué. */
+export function stemCommands(camId: CameraId, pose: CameraPose, target: TomatoView | undefined): OverlayCommand[] {
+  if (!target) return [];
+  const a = projectToPixel(camId, pose, target.stem.fromCm);
+  const b = projectToPixel(camId, pose, target.stem.toCm);
+  return [
+    line(a, b, PALETTE.stem, 3),
+    { kind: 'circle', center: a, radiusPx: 4, color: PALETTE.stem, width: 1, fill: PALETTE.stem },
+    text([b[0] + LABEL_GAP_PX, b[1] + 16], 'tige cible', PALETTE.stem),
+  ];
+}
+
+/** Ciseaux : pivot, deux lames, croix du point de coupe, axe lame (magenta) et normale (blanc-bleu), angles en texte. */
+export function scissorsCommands(camId: CameraId, pose: CameraPose, s: ScissorsPose): OverlayCommand[] {
+  const p = scissorsPoints(s);
+  const px = (v: Vec3): Vec2 => projectToPixel(camId, pose, v);
+  const pivot = px(p.pivot);
+  const cut = px(p.cutPoint);
+  const axisEnd = px(p.axisEnd);
+  const normalEnd = px(p.normalEnd);
+  const angles = `ciseaux lacet ${s.yawDeg.toFixed(0)}° tangage ${s.pitchDeg.toFixed(0)}° roulis ${s.rollDeg.toFixed(0)}° ouverture ${s.openingDeg.toFixed(0)}°`;
+  return [
+    line(pivot, px(p.tipA), PALETTE.bladeAxis, 2.5),
+    line(pivot, px(p.tipB), PALETTE.bladeAxis, 2.5),
+    { kind: 'circle', center: pivot, radiusPx: 5, color: PALETTE.bladeAxis, width: 1, fill: PALETTE.bladeAxis },
+    { kind: 'cross', center: cut, sizePx: CUT_CROSS_PX, color: PALETTE.bladeAxis, width: 2 },
+    line(cut, axisEnd, PALETTE.bladeAxis, 2),
+    text([axisEnd[0] + LABEL_GAP_PX, axisEnd[1] + 4], 'lame', PALETTE.bladeAxis),
+    line(cut, normalEnd, PALETTE.bladeNormal, 2),
+    text([normalEnd[0] + LABEL_GAP_PX, normalEnd[1] + 4], 'normale', PALETTE.bladeNormal),
+    text([pivot[0] + 10, pivot[1] - 12], angles, PALETTE.bladeAxis),
+  ];
+}
+
+/** Panier : rectangle du fond et du bord projetés, arêtes verticales, centre en croix, position en texte. */
+export function basketCommands(camId: CameraId, pose: CameraPose, b: BasketPose): OverlayCommand[] {
+  const [cx, cy, z0] = b.centerCm;
+  const hx = b.sizeCm[0] / 2;
+  const hy = b.sizeCm[1] / 2;
+  const ring = (z: number): Vec2[] => {
+    const corners: Vec3[] = [[cx - hx, cy - hy, z], [cx + hx, cy - hy, z], [cx + hx, cy + hy, z], [cx - hx, cy + hy, z]];
+    return corners.map((v) => projectToPixel(camId, pose, v));
+  };
+  const floor = ring(z0);
+  const rim = ring(z0 + b.depthCm);
+  const out: OverlayCommand[] = [
+    { kind: 'polygon', points: floor, color: PALETTE.basket, width: 2.5 },
+    { kind: 'polygon', points: rim, color: PALETTE.basket, width: 1 },
+  ];
+  for (let i = 0; i < 4; i++) out.push(line(floor[i]!, rim[i]!, PALETTE.basket, 1));
+  const c = projectToPixel(camId, pose, b.centerCm);
+  out.push(
+    { kind: 'cross', center: c, sizePx: BASKET_CROSS_PX, color: PALETTE.basket, width: 2 },
+    text([c[0] + 8, c[1] - 8], `panier (${cx.toFixed(0)}, ${cy.toFixed(0)}) z=${z0.toFixed(0)}`, PALETTE.basket),
+  );
+  return out;
+}
+
+/** Verticale de chute : pointillé de la tomate cible vers le plan du fond du panier (même X, Y), impact marqué. */
+export function fallLineCommands(camId: CameraId, pose: CameraPose, target: TomatoView | undefined, basket: BasketPose): OverlayCommand[] {
+  if (!target) return [];
+  const [x, y] = target.positionCm;
+  const impact: Vec3 = [x, y, basket.centerCm[2]];
+  const a = projectToPixel(camId, pose, target.positionCm);
+  const b = projectToPixel(camId, pose, impact);
+  return [
+    { kind: 'dashedLine', from: a, to: b, color: PALETTE.fall, width: 1.5, dash: FALL_DASH },
+    { kind: 'circle', center: b, radiusPx: 6, color: PALETTE.basket, width: 2 },
+    text([b[0] + 8, b[1] + 5], `impact (${fmt(x)}, ${fmt(y)})`, PALETTE.fall),
+  ];
+}
+
+/** Couche 4 : tige cible, panier, verticale de chute, ciseaux. */
+export function toolCommands(camId: CameraId, pose: CameraPose, payload: ViewsPayload): OverlayCommand[] {
+  const target = payload.tomatoes.find((t) => t.id === payload.targetTomatoId);
+  return [
+    ...stemCommands(camId, pose, target),
+    ...basketCommands(camId, pose, payload.basket),
+    ...fallLineCommands(camId, pose, target, payload.basket),
+    ...scissorsCommands(camId, pose, payload.scissors),
+  ];
+}
