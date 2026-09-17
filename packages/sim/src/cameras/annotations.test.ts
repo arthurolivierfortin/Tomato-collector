@@ -3,7 +3,7 @@ import { VIEW_SIZE_PX, createDefaultWorld, vlen, vsub, type CameraId, type Views
 import { buildOverlay } from './annotations';
 import { LABEL_MARGIN_PX, labelWidthPx } from './clampLabel';
 import { gridSegments } from './gridLines';
-import { HEADER_HEIGHT_PX } from './layerGrid';
+import { HEADER_HEIGHT_PX, LEFT_LABEL_X } from './layerGrid';
 import { MARKER_RADIUS_PX, OCCLUDED_LABEL } from './layerMarkers';
 import { projectToPixel } from './ortho';
 import { type OverlayCommand, type OverlayKind } from './overlayTypes';
@@ -120,6 +120,16 @@ function over(rgba: string, bg: [number, number, number]): [number, number, numb
   const a = m[4] === undefined ? 1 : Number(m[4]);
   return [0, 1, 2].map((i) => Number(m[i + 1]) * a + bg[i]! * (1 - a)) as [number, number, number];
 }
+
+describe('vertical axis graduation', () => {
+  it('labels 0 in the left margin as well as on the horizontal axis, in every view', () => {
+    for (const camId of CAM_IDS) {
+      const labels = ofKind(buildOverlay(camId, world.cameras[camId], payload, 10), 'text');
+      expect(labels.some((t) => t.text === '0' && t.at[0] === LEFT_LABEL_X), `left 0 in ${camId}`).toBe(true);
+      expect(labels.some((t) => t.text === '0' && t.align === 'center'), `bottom 0 in ${camId}`).toBe(true);
+    }
+  });
+});
 
 describe('header band visibility', () => {
   it('fills the band with a colour clearly distinct from the darkened background', () => {

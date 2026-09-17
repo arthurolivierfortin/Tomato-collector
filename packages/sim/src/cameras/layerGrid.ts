@@ -8,12 +8,14 @@ import { FONT_PX, FONT_PX_LARGE, PALETTE } from './palette';
 export const HEADER_HEIGHT_PX = 44;
 /** Ligne de base des valeurs de l'axe horizontal (marge basse) et abscisse des valeurs de l'axe vertical (marge gauche). */
 const BOTTOM_LABEL_Y = VIEW_SIZE_PX - 8;
-const LEFT_LABEL_X = 6;
+export const LEFT_LABEL_X = 6;
 const SCALE_BAR_ORIGIN: Vec2 = [24, VIEW_SIZE_PX - 34];
 const AXIS_LINE_WIDTH = 1.5;
 /** Marges où la valeur d'axe serait tronquée par le bord ou recouverte par le nom de l'axe (`X →`). */
 const LABEL_MARGIN_LEFT_PX = 18;
 const LABEL_MARGIN_RIGHT_PX = 56;
+/** Hauteur réservée en bas pour la rangée de valeurs de l'axe horizontal. */
+const LABEL_MARGIN_BOTTOM_PX = 20;
 
 /** Abscisse du point du segment d'ordonnée y ; null si le segment est horizontal ou n'atteint pas y. */
 export function xAtY(s: GridSegment, y: number): number | null {
@@ -50,7 +52,11 @@ export function gridCommands(camId: CameraId, pose: CameraPose, spacingCm: numbe
       }
     } else {
       const y = yAtX(s, LEFT_LABEL_X);
-      if (y !== null && y > HEADER_HEIGHT_PX + FONT_PX && y < VIEW_SIZE_PX - 40) out.push(text([LEFT_LABEL_X, y + 4], String(s.valueCm), PALETTE.axes));
+      // La borne basse descend jusqu'au-dessus de la rangée horizontale : sans cela le 0 de l'axe
+      // vertical (py = 760 en front/side) tombait juste hors bornes et n'était jamais étiqueté.
+      if (y !== null && y > HEADER_HEIGHT_PX + FONT_PX && y < VIEW_SIZE_PX - LABEL_MARGIN_BOTTOM_PX) {
+        out.push(text([LEFT_LABEL_X, y + 4], String(s.valueCm), PALETTE.axes));
+      }
     }
   }
   out.push(text([VIEW_SIZE_PX - 8, BOTTOM_LABEL_Y], `${horizontal} →`, PALETTE.text, FONT_PX_LARGE, 'right'));
