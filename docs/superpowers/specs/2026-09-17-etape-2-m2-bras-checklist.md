@@ -5,7 +5,7 @@ Périmètre des fichiers : `packages/sim/src/robot/**`, une ligne dans `packages
 
 ## Code
 - [x] [SPEC-1] Rotations 3×3 `rotX/rotY/rotZ`, `composeZYX` = Rz·Ry·Rx, Rodrigues, `orientationVectors` depuis `bladeAxis = [-1,0,0]`, `bladeNormal = [0,0,1]`, `transverse = bladeNormal × bladeAxis` — `packages/sim/src/robot/rotation.ts`
-- [ ] [SPEC-2] Géométrie des ciseaux : lames de 6 cm, `pivot = cutPoint − bladeAxis·3`, pointes à ±ouverture/2 autour de `bladeNormal` ; `poseFromAngles` remplit `bladeAxis`/`bladeNormal` — `packages/sim/src/robot/scissorsGeometry.ts`
+- [x] [SPEC-2] Géométrie des ciseaux : lames de 6 cm, `pivot = cutPoint − bladeAxis·3`, pointes à ±ouverture/2 autour de `bladeNormal` ; `poseFromAngles` remplit `bladeAxis`/`bladeNormal` — `packages/sim/src/robot/scissorsGeometry.ts`
 - [ ] [SPEC-3] Distances point-segment et segment-segment, angle entre directions dans [0, 90] — `packages/sim/src/robot/geometry.ts`
 - [ ] [SPEC-4] Règle de coupe pure : cible = `targetId` ou pédoncule le plus proche ; `stem_cut` si distance ≤ 0,6 cm et angle(tige, `bladeNormal`) < 45° ; sinon `misaligned` (≤ 3 cm) avec distance et angle ; `leaf_cut` si feuille à moins de 3 cm et aucune tige ; `nothing_between_blades` sinon — `packages/sim/src/robot/cutRule.ts`
 - [ ] [SPEC-5] Portée : distance à la base ≤ `scissorsReachCm` et z ≥ 5 cm — `packages/sim/src/robot/reach.ts`
@@ -18,7 +18,7 @@ Périmètre des fichiers : `packages/sim/src/robot/**`, une ligne dans `packages
 
 ## Tests
 - [x] [TEST-1] `packages/sim/src/robot/rotation.test.ts` — `elementary rotations`, `orientationVectors` (yaw 90 → `[0,-1,0]`, pitch vers +Z, roll sans effet sur l'axe, vecteurs unitaires orthogonaux)
-- [ ] [TEST-2] `packages/sim/src/robot/scissorsGeometry.test.ts` — `scissorsPoints` (pivot/pointes fermés et ouverts à 60°), `poseFromAngles`
+- [x] [TEST-2] `packages/sim/src/robot/scissorsGeometry.test.ts` — `scissorsPoints` (pivot/pointes fermés et ouverts à 60°), `poseFromAngles`
 - [ ] [TEST-3] `packages/sim/src/robot/geometry.test.ts` — `distancePointSegment`, `distanceSegmentSegment`, `angleBetweenDeg`
 - [ ] [TEST-4] `packages/sim/src/robot/cutRule.test.ts` — `evaluateCut` : `stem_cut` (0 cm, 0,5 cm, 44°), `misaligned` (1,5 cm ; 90° ; 46°), respect de `targetId`, `leaf_cut`, `nothing_between_blades`, distance infinie sans tige
 - [ ] [TEST-5] `packages/sim/src/robot/reach.test.ts` — `isReachable` (dans/hors sphère, z < 5)
