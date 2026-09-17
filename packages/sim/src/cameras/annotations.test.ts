@@ -5,6 +5,7 @@ import { LABEL_MARGIN_PX, labelWidthPx } from './clampLabel';
 import { gridSegments } from './gridLines';
 import { HEADER_HEIGHT_PX, LEFT_LABEL_X } from './layerGrid';
 import { MARKER_RADIUS_PX, OCCLUDED_LABEL } from './layerMarkers';
+import { BLADE_TIP_RADIUS_PX } from './layerTools';
 import { projectToPixel } from './ortho';
 import { type OverlayCommand, type OverlayKind } from './overlayTypes';
 import { PALETTE } from './palette';
@@ -120,6 +121,26 @@ function over(rgba: string, bg: [number, number, number]): [number, number, numb
   const a = m[4] === undefined ? 1 : Number(m[4]);
   return [0, 1, 2].map((i) => Number(m[i + 1]) * a + bg[i]! * (1 - a)) as [number, number, number];
 }
+
+describe('closed scissors tips', () => {
+  const tipMarks = (openingDeg: number): Extract<OverlayCommand, { kind: 'circle' }>[] => {
+    const p = { ...payload, scissors: { ...payload.scissors, openingDeg } };
+    return ofKind(buildOverlay('side', world.cameras.side, p, 10), 'circle').filter((c) => c.radiusPx === BLADE_TIP_RADIUS_PX);
+  };
+
+  it('marks both blade tips with a 3 px circle when the opening is 0°, where the blades overlap', () => {
+    const marks = tipMarks(0);
+    expect(marks.length).toBe(2);
+    const pts = scissorsPoints({ ...world.scissors, openingDeg: 0 });
+    expect(marks[0]!.center).toEqual(projectToPixel('side', world.cameras.side, pts.tipA));
+    expect(marks[1]!.center).toEqual(projectToPixel('side', world.cameras.side, pts.tipB));
+    expect(marks.every((m) => m.color === PALETTE.bladeAxis)).toBe(true);
+  });
+
+  it('drops the tip marks once the blades are visibly apart', () => {
+    expect(tipMarks(40).length).toBe(0);
+  });
+});
 
 describe('vertical axis graduation', () => {
   it('labels 0 in the left margin as well as on the horizontal axis, in every view', () => {
