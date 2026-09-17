@@ -113,6 +113,29 @@ describe('buildOverlay', () => {
 
 const CAM_IDS: CameraId[] = ['top', 'front', 'side'];
 
+/** Composite d'une couleur `rgba(r,g,b,a)` sur un fond opaque, comme le fait le canvas 2D. */
+function over(rgba: string, bg: [number, number, number]): [number, number, number] {
+  const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/.exec(rgba);
+  if (!m) throw new Error(`not an rgba colour: ${rgba}`);
+  const a = m[4] === undefined ? 1 : Number(m[4]);
+  return [0, 1, 2].map((i) => Number(m[i + 1]) * a + bg[i]! * (1 - a)) as [number, number, number];
+}
+
+describe('header band visibility', () => {
+  it('fills the band with a colour clearly distinct from the darkened background', () => {
+    // Fond mesuré sur les captures de la PR #9 : le rendu assombri tourne autour de RGB(5, 8, 8).
+    const bg: [number, number, number] = [5, 8, 8];
+    const band = over(PALETTE.band, bg);
+    const delta = Math.max(...band.map((c, i) => Math.abs(c - bg[i]!)));
+    expect(delta).toBeGreaterThanOrEqual(15);
+  });
+
+  it('writes the band text in white', () => {
+    const [, r, g, b] = /^#(\w\w)(\w\w)(\w\w)$/.exec(PALETTE.text) ?? [];
+    expect([r, g, b].every((c) => parseInt(c!, 16) >= 240)).toBe(true);
+  });
+});
+
 describe('buildOverlay label clamping', () => {
   for (const camId of CAM_IDS) {
     it(`keeps every text of the ${camId} view inside the 800×800 frame`, () => {

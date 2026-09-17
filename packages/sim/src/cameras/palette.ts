@@ -14,7 +14,8 @@ export const PALETTE = {
   axes: '#9ca3af',
   text: '#f5f5f5',
   halo: 'rgba(0,0,0,0.8)',
-  band: 'rgba(0,0,0,0.7)',
+  /** Bandeau : bleu-gris foncé quasi opaque — le noir se confondait avec le rendu déjà assombri. */
+  band: 'rgba(30,41,59,0.92)',
   fall: '#ffffff',
   warn: '#fb923c',
 } as const;
