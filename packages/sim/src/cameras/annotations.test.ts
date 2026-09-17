@@ -8,7 +8,7 @@ import { MARKER_RADIUS_PX, OCCLUDED_LABEL } from './layerMarkers';
 import { BLADE_TIP_RADIUS_PX } from './layerTools';
 import { projectToPixel } from './ortho';
 import { type OverlayCommand, type OverlayKind } from './overlayTypes';
-import { PALETTE } from './palette';
+import { FONT_PX, PALETTE } from './palette';
 import { toViewsPayload } from './payload';
 import { BLADE_LENGTH_CM, scissorsPoints } from './scissorsGeometry';
 import { testTomato } from './testTomato';
@@ -139,6 +139,20 @@ describe('closed scissors tips', () => {
 
   it('drops the tip marks once the blades are visibly apart', () => {
     expect(tipMarks(40).length).toBe(0);
+  });
+});
+
+describe('scissors axis labels', () => {
+  it('never lets « lame » and « normale » overlap, even when the normal points straight at the camera', () => {
+    for (const camId of CAM_IDS) {
+      const labels = ofKind(buildOverlay(camId, world.cameras[camId], payload, 10), 'text');
+      const a = labels.find((t) => t.text === 'lame')!;
+      const b = labels.find((t) => t.text === 'normale')!;
+      const GAP_PX = 6;
+      const nearX =
+        a.at[0] < b.at[0] + labelWidthPx(b.text, b.sizePx) + GAP_PX && b.at[0] < a.at[0] + labelWidthPx(a.text, a.sizePx) + GAP_PX;
+      expect(!nearX || Math.abs(a.at[1] - b.at[1]) >= FONT_PX, `lame/normale in ${camId}`).toBe(true);
+    }
   });
 });
 
