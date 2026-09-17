@@ -2,16 +2,15 @@ import { useCallback } from 'react';
 import { createDefaultWorld } from '@tomato/shared';
 import { createRuntime, type SimRuntime } from './core/runtime';
 import type { SimModule } from './core/module';
-import { buildPlantMesh } from './plant/buildPlantMesh';
-import { generatePlant } from './plant/generatePlant';
+import { plantModule } from './plant/plantModule';
 import { robotModule } from './robot/robotModule';
 import { SpectatorView } from './three/SpectatorView';
 import type { SceneHandle } from './three/createScene';
 
 const SEED = 20260917;
 
-/** Modules de la sim, dans l'ordre de dispatch des actions. Remplis par M1 (plant), M2 (robot), M3 (cameras). */
-const MODULES: SimModule[] = [robotModule];
+/** Modules de la sim, dans l'ordre de dispatch des actions : M1 (plant), puis M2 (robot), M3 (cameras). */
+const MODULES: SimModule[] = [plantModule, robotModule];
 
 declare global {
   interface Window {
@@ -21,8 +20,6 @@ declare global {
 
 export function App() {
   const onReady = useCallback((scene: SceneHandle) => {
-    // Plant statique de l'Étape 1 ; M1 le remplace par un module.
-    scene.addObject(buildPlantMesh(generatePlant(SEED)));
     let stopFrames: (() => void) | null = null;
     void createRuntime(createDefaultWorld(SEED), scene, MODULES).then((runtime) => {
       window.__tomato = { runtime };
