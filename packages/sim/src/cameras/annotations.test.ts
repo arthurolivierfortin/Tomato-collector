@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultWorld, vlen, vsub, type ViewsPayload } from '@tomato/shared';
+import { VIEW_SIZE_PX, createDefaultWorld, vlen, vsub, type CameraId, type ViewsPayload } from '@tomato/shared';
 import { buildOverlay } from './annotations';
+import { LABEL_MARGIN_PX, labelWidthPx } from './clampLabel';
 import { gridSegments } from './gridLines';
 import { HEADER_HEIGHT_PX } from './layerGrid';
 import { MARKER_RADIUS_PX, OCCLUDED_LABEL } from './layerMarkers';
@@ -106,6 +107,37 @@ describe('buildOverlay', () => {
     for (const t of ofKind(cmds, 'text')) {
       expect(t.sizePx).toBeGreaterThanOrEqual(13);
       expect(t.halo).toBe(true);
+    }
+  });
+});
+
+const CAM_IDS: CameraId[] = ['top', 'front', 'side'];
+
+describe('buildOverlay label clamping', () => {
+  for (const camId of CAM_IDS) {
+    it(`keeps every text of the ${camId} view inside the 800×800 frame`, () => {
+      const list = buildOverlay(camId, world.cameras[camId], payload, 10);
+      const labels = ofKind(list, 'text');
+      expect(labels.length).toBeGreaterThan(0);
+      for (const t of labels) {
+        const w = labelWidthPx(t.text, t.sizePx);
+        const left = t.at[0] - (t.align === 'center' ? w / 2 : t.align === 'right' ? w : 0);
+        expect(left).toBeGreaterThanOrEqual(LABEL_MARGIN_PX - 1e-6);
+        expect(left + w).toBeLessThanOrEqual(VIEW_SIZE_PX - LABEL_MARGIN_PX + 1e-6);
+        expect(t.at[1]).toBeGreaterThanOrEqual(LABEL_MARGIN_PX);
+        expect(t.at[1]).toBeLessThanOrEqual(VIEW_SIZE_PX - LABEL_MARGIN_PX);
+      }
+    });
+  }
+
+  it('brings the scissors angles and normal labels back inside when the tool sits at the right edge', () => {
+    for (const camId of CAM_IDS) {
+      const labels = ofKind(buildOverlay(camId, world.cameras[camId], payload, 10), 'text');
+      for (const needle of ['ciseaux lacet', 'normale', 'lame']) {
+        const t = labels.find((c) => c.text.startsWith(needle));
+        expect(t, `${needle} in ${camId}`).toBeDefined();
+        expect(t!.at[0] + labelWidthPx(t!.text, t!.sizePx)).toBeLessThanOrEqual(VIEW_SIZE_PX - LABEL_MARGIN_PX + 1e-6);
+      }
     }
   });
 });
