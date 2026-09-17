@@ -20,12 +20,19 @@ declare global {
 
 export function App() {
   const onReady = useCallback((scene: SceneHandle) => {
+    // StrictMode monte la scène deux fois : la scène déjà détruite ne doit pas publier son runtime,
+    // sinon window.__tomato pointe une scène qui ne rend plus et les actions restent invisibles.
+    let disposed = false;
     let stopFrames: (() => void) | null = null;
     void createRuntime(createDefaultWorld(SEED), scene, MODULES).then((runtime) => {
+      if (disposed) return;
       window.__tomato = { runtime };
       stopFrames = scene.onFrame((dt) => runtime.step(dt));
     });
-    return () => stopFrames?.();
+    return () => {
+      disposed = true;
+      stopFrames?.();
+    };
   }, []);
 
   return (

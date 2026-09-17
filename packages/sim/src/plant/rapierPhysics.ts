@@ -47,8 +47,15 @@ function createBasketBody(world: World, pose: BasketPose): RigidBody {
   return body;
 }
 
+/**
+ * `RAPIER.init()` réinstancie le module WASM à chaque appel, ce qui invalide les corps
+ * d'un monde déjà créé (React StrictMode monte la scène deux fois). Une seule initialisation par page.
+ */
+let rapierReady: Promise<void> | null = null;
+const initRapier = (): Promise<void> => (rapierReady ??= RAPIER.init());
+
 export async function createRapierPhysics(): Promise<PlantPhysics> {
-  await RAPIER.init();
+  await initRapier();
   const world: World = new RAPIER.World({ x: 0, y: -GRAVITY_CM_S2, z: 0 });
   world.timestep = FIXED_DT_S;
   world.createCollider(
