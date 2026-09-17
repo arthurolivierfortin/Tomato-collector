@@ -8,7 +8,7 @@
 | Étape | Modules | État |
 |---|---|---|
 | S:1 Fondations | monorepo, shared, scène minimale, plant v1, README, cycle, issues | terminée 2026-09-17 |
-| S:2 Sim | M1 plant complet, M2 bras et outils, M3 caméras et annotations | en cours |
+| S:2 Sim | M1 plant complet (en cours), M2 bras et outils (mergé PR #8), M3 caméras et annotations (PR #9 en revue) | en cours |
 | S:3 Perception, serveur, agent, dashboard | M4, M5, M6, M7 | à faire |
 | S:4 Intégration et tournage | — | à faire |
 
@@ -23,3 +23,4 @@
 
 - 2026-09-17 : spec approuvée, plan de l'Étape 1 écrit, Étape 1 en cours.
 - 2026-09-17 : Étape 1 terminée, capture approuvée par le propriétaire. Étape 2 lancée : builders M1, M2, M3 en parallèle.
+- 2026-09-17 : M2 (PR #8) mergé après judge + visual-checker approuvés.
