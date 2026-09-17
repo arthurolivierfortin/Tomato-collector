@@ -4,13 +4,14 @@ import { createRuntime, type SimRuntime } from './core/runtime';
 import type { SimModule } from './core/module';
 import { buildPlantMesh } from './plant/buildPlantMesh';
 import { generatePlant } from './plant/generatePlant';
+import { robotModule } from './robot/robotModule';
 import { SpectatorView } from './three/SpectatorView';
 import type { SceneHandle } from './three/createScene';
 
 const SEED = 20260917;
 
 /** Modules de la sim, dans l'ordre de dispatch des actions. Remplis par M1 (plant), M2 (robot), M3 (cameras). */
-const MODULES: SimModule[] = [];
+const MODULES: SimModule[] = [robotModule];
 
 declare global {
   interface Window {
