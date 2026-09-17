@@ -5,6 +5,10 @@ import { PALETTE } from './palette';
 import { scissorsPoints } from './scissorsGeometry';
 
 const CUT_CROSS_PX = 10;
+/** Rayon des marques de pointe de lame (spec : cercles de 3 px). */
+export const BLADE_TIP_RADIUS_PX = 3;
+/** En dessous de cet angle les deux lames se confondent : on marque les pointes pour les situer. */
+const CLOSED_OPENING_DEG = 5;
 const BASKET_CROSS_PX = 8;
 const LABEL_GAP_PX = 6;
 const FALL_DASH: Vec2 = [6, 6];
@@ -32,9 +36,16 @@ export function scissorsCommands(camId: CameraId, pose: CameraPose, s: ScissorsP
   const axisEnd = px(p.axisEnd);
   const normalEnd = px(p.normalEnd);
   const angles = `ciseaux lacet ${s.yawDeg.toFixed(0)}° tangage ${s.pitchDeg.toFixed(0)}° roulis ${s.rollDeg.toFixed(0)}° ouverture ${s.openingDeg.toFixed(0)}°`;
+  const tipA = px(p.tipA);
+  const tipB = px(p.tipB);
+  const closed = Math.abs(s.openingDeg) < CLOSED_OPENING_DEG;
+  const tipMarks: OverlayCommand[] = closed
+    ? [tipA, tipB].map((c) => ({ kind: 'circle', center: c, radiusPx: BLADE_TIP_RADIUS_PX, color: PALETTE.bladeAxis, width: 1.5 }))
+    : [];
   return [
-    line(pivot, px(p.tipA), PALETTE.bladeAxis, 2.5),
-    line(pivot, px(p.tipB), PALETTE.bladeAxis, 2.5),
+    line(pivot, tipA, PALETTE.bladeAxis, 2.5),
+    line(pivot, tipB, PALETTE.bladeAxis, 2.5),
+    ...tipMarks,
     { kind: 'circle', center: pivot, radiusPx: 5, color: PALETTE.bladeAxis, width: 1, fill: PALETTE.bladeAxis },
     { kind: 'cross', center: cut, sizePx: CUT_CROSS_PX, color: PALETTE.bladeAxis, width: 2 },
     line(cut, axisEnd, PALETTE.bladeAxis, 2),
