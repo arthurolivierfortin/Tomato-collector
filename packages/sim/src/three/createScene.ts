@@ -25,7 +25,7 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
   scene.background = new Color('#0f1214');
 
   const camera = new PerspectiveCamera(40, 1, 1, 2000);
-  camera.position.copy(worldToThree([160, -180, 110]));
+  camera.position.copy(worldToThree([110, -130, 85]));
   camera.lookAt(worldToThree([0, 0, 45]));
 
   const controls = new OrbitControls(camera, canvas);
