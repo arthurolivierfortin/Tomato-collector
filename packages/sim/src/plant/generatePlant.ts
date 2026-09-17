@@ -1,9 +1,11 @@
-import { degToRad, vadd, vlen, vnorm, vscale, vsub, type Vec3 } from '@tomato/shared';
+import { degToRad, vadd, vnorm, vscale, type Vec3 } from '@tomato/shared';
 import { between, createRng, intBetween } from './random';
 
 export interface BranchSpec {
   /** Point d'attache sur la tige principale. */
   fromCm: Vec3;
+  /** Point de contrôle (Bézier quadratique) : la branche s'arque au-dessus de sa corde. */
+  midCm: Vec3;
   /** Extrémité de la branche. */
   toCm: Vec3;
 }
@@ -24,7 +26,7 @@ export interface TomatoSpec {
   /** Centre du fruit. */
   centerCm: Vec3;
   radiusCm: number;
-  /** Instant sim (s) où le fruit devient mûr. */
+  /** Instant (s) où le fruit devient mûr, relatif à la création du plant. */
   ripenAtS: number;
 }
 
@@ -44,6 +46,32 @@ export interface PlantOptions {
 }
 
 const STEM_SEGMENTS = 8;
+
+/** Point de la branche courbe à t ∈ [0, 1] (Bézier quadratique from → mid → to). */
+export function branchPoint(b: BranchSpec, t: number): Vec3 {
+  const u = 1 - t;
+  return vadd(vadd(vscale(b.fromCm, u * u), vscale(b.midCm, 2 * u * t)), vscale(b.toCm, t * t));
+}
+
+function unitFromAngles(tiltRad: number, azRad: number, zSign: 1 | -1): Vec3 {
+  return vnorm([Math.sin(tiltRad) * Math.cos(azRad), Math.sin(tiltRad) * Math.sin(azRad), zSign * Math.cos(tiltRad)]);
+}
+
+function leafletsAt(rng: () => number, nodeCm: Vec3): LeafSpec[] {
+  const count = intBetween(rng, 2, 3);
+  const leaflets: LeafSpec[] = [];
+  for (let i = 0; i < count; i++) {
+    const az = degToRad(between(rng, 0, 360));
+    const offset = between(rng, 1.5, 4);
+    leaflets.push({
+      positionCm: vadd(nodeCm, [Math.cos(az) * offset, Math.sin(az) * offset, between(rng, -1, 1)]),
+      normal: unitFromAngles(degToRad(between(rng, 10, 45)), degToRad(between(rng, 0, 360)), 1),
+      sizeCm: between(rng, 8, 14),
+      spinDeg: between(rng, 0, 360),
+    });
+  }
+  return leaflets;
+}
 
 export function generatePlant(seed: number, options: PlantOptions = {}): PlantSpec {
   const rng = createRng(seed);
@@ -70,26 +98,14 @@ export function generatePlant(seed: number, options: PlantOptions = {}): PlantSp
     const length = between(rng, 18, 30);
     const droop = between(rng, -4, 6);
     const to: Vec3 = [from[0] + Math.cos(azimuth) * length, from[1] + Math.sin(azimuth) * length, from[2] + droop];
-    branches.push({ fromCm: from, toCm: to });
+    const mid: Vec3 = vadd(vscale(vadd(from, to), 0.5), [0, 0, between(rng, 3, 8)]);
+    branches.push({ fromCm: from, midCm: mid, toCm: to });
   }
 
   const leaves: LeafSpec[] = [];
   for (const b of branches) {
-    const axis = vsub(b.toCm, b.fromCm);
-    const branchLen = vlen(axis);
-    const n = intBetween(rng, 2, 4);
-    for (let i = 0; i < n; i++) {
-      const t = between(rng, 0.35, 1);
-      const pos = vadd(b.fromCm, vscale(vnorm(axis), t * branchLen));
-      const tilt = degToRad(between(rng, 10, 45));
-      const az = degToRad(between(rng, 0, 360));
-      leaves.push({
-        positionCm: pos,
-        normal: vnorm([Math.sin(tilt) * Math.cos(az), Math.sin(tilt) * Math.sin(az), Math.cos(tilt)]),
-        sizeCm: between(rng, 8, 14),
-        spinDeg: between(rng, 0, 360),
-      });
-    }
+    const nodes = intBetween(rng, 3, 5);
+    for (let i = 0; i < nodes; i++) leaves.push(...leafletsAt(rng, branchPoint(b, between(rng, 0.25, 1))));
   }
 
   const tomatoCount = intBetween(rng, 4, 8);
@@ -97,18 +113,15 @@ export function generatePlant(seed: number, options: PlantOptions = {}): PlantSp
   const order = Array.from({ length: tomatoCount }, (_, i) => i).sort(() => rng() - 0.5);
   for (let i = 0; i < tomatoCount; i++) {
     const b = branches[i % branches.length]!;
-    const t = between(rng, 0.3, 0.95);
-    const anchor: Vec3 = vadd(b.fromCm, vscale(vsub(b.toCm, b.fromCm), t));
+    const anchor = branchPoint(b, between(rng, 0.3, 0.95));
     const pedicel = between(rng, 4, 6);
-    const tilt = degToRad(between(rng, 0, 60));
-    const az = degToRad(between(rng, 0, 360));
-    const dir: Vec3 = [Math.sin(tilt) * Math.cos(az), Math.sin(tilt) * Math.sin(az), -Math.cos(tilt)];
+    const dir = unitFromAngles(degToRad(between(rng, 0, 60)), degToRad(between(rng, 0, 360)), -1);
     tomatoes.push({
       id: i + 1,
       anchorCm: anchor,
       centerCm: vadd(anchor, vscale(dir, pedicel)),
       radiusCm: between(rng, 2.5, 3.5),
-      ripenAtS: (order[i]! + 1) * ripenIntervalS,
+      ripenAtS: order[i]! * ripenIntervalS + ripenIntervalS / 2,
     });
   }
 
