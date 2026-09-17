@@ -28,4 +28,4 @@
 - [x] [GATE-2] npm run typecheck
 - [x] [GATE-3] npm test
 - [x] [GATE-4] npm run build
-- [ ] [GATE-5] npm run shot → `data/shots/scene.png` approuvée par le propriétaire
+- [x] [GATE-5] npm run shot → `data/shots/scene.png` approuvée par le propriétaire
