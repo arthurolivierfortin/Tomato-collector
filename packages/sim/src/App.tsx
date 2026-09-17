@@ -1,9 +1,13 @@
 import { useCallback } from 'react';
 import type { Object3D } from 'three';
+import { buildPlantMesh } from './plant/buildPlantMesh';
+import { generatePlant } from './plant/generatePlant';
 import { SpectatorView } from './three/SpectatorView';
 
+const SEED = 20260917;
+
 export function App() {
-  const build = useCallback((): Object3D[] => [], []);
+  const build = useCallback((): Object3D[] => [buildPlantMesh(generatePlant(SEED))], []);
   return (
     <main className="h-full w-full grid grid-cols-[55fr_45fr]">
       <section className="relative h-full">
