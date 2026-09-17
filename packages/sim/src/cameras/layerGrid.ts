@@ -11,6 +11,9 @@ const BOTTOM_LABEL_Y = VIEW_SIZE_PX - 8;
 const LEFT_LABEL_X = 6;
 const SCALE_BAR_ORIGIN: Vec2 = [24, VIEW_SIZE_PX - 34];
 const AXIS_LINE_WIDTH = 1.5;
+/** Marges où la valeur d'axe serait tronquée par le bord ou recouverte par le nom de l'axe (`X →`). */
+const LABEL_MARGIN_LEFT_PX = 18;
+const LABEL_MARGIN_RIGHT_PX = 56;
 
 /** Abscisse du point du segment d'ordonnée y ; null si le segment est horizontal ou n'atteint pas y. */
 export function xAtY(s: GridSegment, y: number): number | null {
@@ -42,7 +45,9 @@ export function gridCommands(camId: CameraId, pose: CameraPose, spacingCm: numbe
   for (const s of segments) {
     if (s.axis === horizontal) {
       const x = xAtY(s, BOTTOM_LABEL_Y);
-      if (x !== null && x >= 0 && x <= VIEW_SIZE_PX) out.push(text([x, BOTTOM_LABEL_Y], String(s.valueCm), PALETTE.axes, FONT_PX, 'center'));
+      if (x !== null && x >= LABEL_MARGIN_LEFT_PX && x <= VIEW_SIZE_PX - LABEL_MARGIN_RIGHT_PX) {
+        out.push(text([x, BOTTOM_LABEL_Y], String(s.valueCm), PALETTE.axes, FONT_PX, 'center'));
+      }
     } else {
       const y = yAtX(s, LEFT_LABEL_X);
       if (y !== null && y > HEADER_HEIGHT_PX + FONT_PX && y < VIEW_SIZE_PX - 40) out.push(text([LEFT_LABEL_X, y + 4], String(s.valueCm), PALETTE.axes));
