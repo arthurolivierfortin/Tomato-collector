@@ -25,6 +25,10 @@ Tout le code M3 est dans `packages/sim/src/cameras/` ; hors de ce dossier, seuls
 - [x] [SPEC-18] Pipeline `renderViews(cameras)` : passe d'identifiants → `store.tomatoes[i].visibleIn` → payload → rendu → assombri 35 % → contours → annotations → PNG base64 sans préfixe `data:` ; renvoie `ViewsResult` — `packages/sim/src/cameras/renderViews.ts`
 - [x] [SPEC-19] `cameraModule: SimModule` ('cameras') : `init` crée caméras/targets/helpers et `renderViews` quand la scène existe, `update` re-pose les caméras depuis `store.cameras`, `handle('move_camera')` ; `getRenderViews`, `subscribeViews` — `packages/sim/src/cameras/cameraModule.ts`
 - [x] [SPEC-20] Composant `AgentViews` (trois dernières vues, nom de caméra, bouton « Rafraîchir les vues ») dans l'`aside` ; `cameraModule` dans `MODULES` ; `window.__tomato = { runtime, renderViews }` — `packages/sim/src/cameras/AgentViews.tsx`, `packages/sim/src/App.tsx`
+- [x] [SPEC-21] (correctif VIS-5) `clampLabel(x, y, texte, fontPx, size)` et la passe pure `clampCommands` ramènent chaque étiquette entièrement dans le cadre 800×800 (marge 4 px, largeur estimée 7,5 px/caractère à 13 px, alignement conservé) ; `buildOverlay` l'applique à toutes ses commandes — `packages/sim/src/cameras/clampLabel.ts`, `annotations.ts`
+- [x] [SPEC-22] (correctif) bandeau visible : fond `rgba(30,41,59,0.92)` nettement distinct du rendu assombri, texte blanc — `packages/sim/src/cameras/palette.ts`
+- [x] [SPEC-23] (correctif) graduation `0` étiquetée sur l'axe vertical comme sur l'horizontal — `packages/sim/src/cameras/layerGrid.ts`
+- [x] [SPEC-24] (correctif) à ouverture 0° les deux pointes de lame portent une marque de 3 px ; l'étiquette « normale » se place selon le sens de la normale pour ne pas coller « lame » — `packages/sim/src/cameras/layerTools.ts`
 
 ## Tests
 - [x] [TEST-1] `packages/sim/src/cameras/ortho.test.ts` — point à 10 cm à droite → px = 400 + 10·pxPerCm ; point plus haut → py plus petit ; top : +Y vers le haut ; lacet 90° sur front : +X devient profondeur ; base orthonormée ; plan de grille
@@ -41,6 +45,8 @@ Tout le code M3 est dans `packages/sim/src/cameras/` ; hors de ce dossier, seuls
 - [x] [TEST-13] `packages/sim/src/cameras/cameraState.test.ts` — translation ; `out_of_rail` avec détails ; pivot borné ; zoom et bornes ; zoom invalide ; cumul relatif
 - [x] [TEST-19] `packages/sim/src/cameras/cameraModule.test.ts` — `handle` écrit le store, ignore les autres actions, `getRenderViews()` null sans scène
 - [x] [TEST-20] `packages/sim/tests/views.spec.ts` (Playwright) — `renderViews(['top','front','side'])` → trois images 800×800 PNG base64 sans préfixe, JSON avec les trois caméras et autant de tomates que le store, `visibleIn` > 0 quelque part quand des tomates existent, `data/shots/view-*.png` écrits, bouton « Rafraîchir les vues » affiche une image
+- [x] [TEST-21] `packages/sim/src/cameras/clampLabel.test.ts` — texte près du bord droit, du bord bas, du coin, déjà dans le cadre (inchangé), hors cadre à gauche/en haut, texte plus large que l'image ; `clampCommands` laisse les autres commandes intactes et conserve les alignements `center`/`right`
+- [x] [TEST-22] `packages/sim/src/cameras/annotations.test.ts` — dans les trois vues, aucune étiquette ne sort du cadre 800×800 ; « ciseaux lacet … », « normale » et « lame » entièrement visibles ; « lame » et « normale » ne se recouvrent pas ; `0` étiqueté en marge gauche ; bandeau nettement distinct du fond ; marques de pointe de 3 px à ouverture 0° et absentes au-delà
 
 ## Gates
 - [x] [GATE-1] npm run lint
