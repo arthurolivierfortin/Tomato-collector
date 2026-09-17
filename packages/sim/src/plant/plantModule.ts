@@ -1,6 +1,8 @@
 import { fail, ok } from '@tomato/shared';
 import type { SimContext, SimModule } from '../core/module';
 import { createFakePhysics } from './fakePhysics';
+import { createFallTracker } from './falling';
+import type { FallTracker } from './falling';
 import { generatePlant } from './generatePlant';
 import type { PlantSpec, TomatoSpec } from './generatePlant';
 import type { PlantPhysics } from './physics';
@@ -31,6 +33,7 @@ export function createPlantModule(deps: PlantModuleDeps = {}): SimModule {
   /** Instant sim de maturité par tomate (relatif à la création du plant, modifié par ripen_next). */
   const ripenAt = new Map<number, number>();
   let physics: PlantPhysics = createFakePhysics();
+  let fall: FallTracker | null = null;
   let view: PlantView | null = null;
 
   function loadPlant(ctx: SimContext, seed: number): PlantSpec {
@@ -44,6 +47,7 @@ export function createPlantModule(deps: PlantModuleDeps = {}): SimModule {
     }
     ctx.registry.plantSpec = spec;
     physics.clear();
+    fall?.reset();
     const tomatoes = tomatoesFromSpec(spec, 0);
     for (const t of tomatoes) physics.attach(t.id, t.positionCm, t.radiusCm);
     ctx.store.update((s) => ({ ...s, seed, tomatoes, targetTomatoId: null }));
@@ -52,8 +56,8 @@ export function createPlantModule(deps: PlantModuleDeps = {}): SimModule {
     return spec;
   }
 
-  /** Recalcule les tomates depuis le store (mûrissement des attachées, position des détachées) et pousse la vue. */
-  function refresh(ctx: SimContext): void {
+  /** Mûrit les attachées, suit les détachées, pousse la vue, puis décide les chutes et émet tomato_landed. */
+  function refresh(ctx: SimContext, dtSimS: number): void {
     const s = ctx.store.get();
     const tomatoes = s.tomatoes.map((t) => {
       const spec = specById.get(t.id);
@@ -63,21 +67,36 @@ export function createPlantModule(deps: PlantModuleDeps = {}): SimModule {
     });
     ctx.store.update((st) => ({ ...st, tomatoes }));
     view?.sync(tomatoes);
+    const landed = fall?.advance(dtSimS, tomatoes, s.basket) ?? [];
+    for (const l of landed) ctx.emitEvent({ type: 'tomato_landed', tomatoId: l.tomatoId, inBasket: l.inBasket });
+  }
+
+  function onCut(ctx: SimContext, tomatoId: number): void {
+    const t = ctx.store.get().tomatoes.find((x) => x.id === tomatoId);
+    if (!t || !t.attached || !fall) return;
+    if (!fall.release(t)) return;
+    ctx.store.update((s) => ({
+      ...s,
+      tomatoes: s.tomatoes.map((x) => (x.id === tomatoId ? { ...x, attached: false } : x)),
+    }));
+    view?.sync(ctx.store.get().tomatoes);
   }
 
   return {
     name: 'plant',
     async init(ctx) {
       physics = await (deps.createPhysics ?? defaultPhysics)(ctx);
+      fall = createFallTracker(physics);
       view = await (deps.createView ?? defaultView)(ctx);
       physics.setBasket(ctx.store.get().basket);
       loadPlant(ctx, ctx.store.get().seed);
+      ctx.signals.on('tomato_cut', (sig) => onCut(ctx, sig.tomatoId));
     },
     update(dtSimS, ctx) {
       if (dtSimS <= 0) return;
       physics.setBasket(ctx.store.get().basket);
       physics.step(dtSimS);
-      refresh(ctx);
+      refresh(ctx, dtSimS);
     },
     handle(action, ctx) {
       const s = ctx.store.get();
@@ -86,7 +105,7 @@ export function createPlantModule(deps: PlantModuleDeps = {}): SimModule {
           const id = nextToRipen(s.tomatoes, ripenAt);
           if (id === null) return fail(s, 'not_available', 'no unripe tomato left on the plant');
           ripenAt.set(id, s.simTimeS);
-          refresh(ctx);
+          refresh(ctx, 0);
           return ok(ctx.store.get(), `tomato ${id} is ripe`);
         }
         case 'new_plant': {

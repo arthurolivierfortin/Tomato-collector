@@ -131,3 +131,55 @@ describe('plantModule actions', () => {
     expect(mod.handle!({ type: 'cut' }, ctx)).toBeNull();
   });
 });
+
+describe('plantModule cut and landing', () => {
+  /** La tomate la plus haute : elle a toujours de la place pour tomber dans le panier. */
+  function highest(ctx: SimContext) {
+    return [...ctx.store.get().tomatoes].sort((a, b) => b.positionCm[2] - a.positionCm[2])[0]!;
+  }
+
+  it('releases a cut tomato, follows it in the store and emits tomato_landed once with inBasket = true', async () => {
+    const { ctx, mod, events } = await setup();
+    const t0 = highest(ctx);
+    ctx.store.update((s) => ({ ...s, basket: { ...s.basket, centerCm: [t0.positionCm[0], t0.positionCm[1], 5] } }));
+    ctx.signals.emit({ type: 'tomato_cut', tomatoId: t0.id });
+    expect(ctx.store.get().tomatoes.find((t) => t.id === t0.id)!.attached).toBe(false);
+    tick(mod, ctx, 1);
+    expect(events.filter((e) => e.type === 'tomato_landed')).toEqual([{ type: 'tomato_landed', tomatoId: t0.id, inBasket: true }]);
+    const after = ctx.store.get().tomatoes.find((t) => t.id === t0.id)!;
+    expect(after.positionCm[2]).toBeCloseTo(5 + after.radiusCm);
+    expect(after.positionCm[2]).toBeLessThan(t0.positionCm[2]);
+    tick(mod, ctx, 3);
+    expect(events.filter((e) => e.type === 'tomato_landed')).toHaveLength(1);
+  });
+
+  it('emits inBasket = false when the tomato lands on the floor', async () => {
+    const { ctx, mod, events } = await setup();
+    const t0 = highest(ctx);
+    ctx.store.update((s) => ({ ...s, basket: { ...s.basket, centerCm: [t0.positionCm[0] + 30, t0.positionCm[1] + 30, 5] } }));
+    ctx.signals.emit({ type: 'tomato_cut', tomatoId: t0.id });
+    tick(mod, ctx, 1);
+    expect(events.filter((e) => e.type === 'tomato_landed')).toEqual([{ type: 'tomato_landed', tomatoId: t0.id, inBasket: false }]);
+    const after = ctx.store.get().tomatoes.find((t) => t.id === t0.id)!;
+    expect(after.positionCm[2]).toBeCloseTo(after.radiusCm);
+  });
+
+  it('ignores a cut for an unknown or already cut tomato', async () => {
+    const { ctx, mod, events } = await setup();
+    const t0 = highest(ctx);
+    ctx.signals.emit({ type: 'tomato_cut', tomatoId: 999 });
+    ctx.signals.emit({ type: 'tomato_cut', tomatoId: t0.id });
+    ctx.signals.emit({ type: 'tomato_cut', tomatoId: t0.id });
+    tick(mod, ctx, 4);
+    expect(events.filter((e) => e.type === 'tomato_landed')).toHaveLength(1);
+  });
+
+  it('forgets a falling tomato on new_plant', async () => {
+    const { ctx, mod, events } = await setup();
+    ctx.signals.emit({ type: 'tomato_cut', tomatoId: highest(ctx).id });
+    mod.handle!({ type: 'new_plant', seed: 5 }, ctx);
+    tick(mod, ctx, 4);
+    expect(events.filter((e) => e.type === 'tomato_landed')).toEqual([]);
+    for (const t of ctx.store.get().tomatoes) expect(t.attached).toBe(true);
+  });
+});
