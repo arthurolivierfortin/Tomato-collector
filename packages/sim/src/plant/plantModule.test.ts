@@ -42,8 +42,10 @@ describe('plantModule init', () => {
     expect(tomatoes.map((t) => t.id)).toEqual(spec.tomatoes.map((t) => t.id));
     for (const t of tomatoes) {
       expect(t.attached).toBe(true);
+      // La première tomate mûrit à 10 s (plant v2) : sa rampe de 15 s a déjà commencé au chargement,
+      // mais aucune tomate n'est mûre ni même en transition (ripeness < 0,35).
       expect(t.state).toBe('unripe');
-      expect(t.ripeness).toBe(0);
+      expect(t.ripeness).toBeLessThan(0.35);
       expect(t.visibleIn).toEqual({ top: 1, front: 1, side: 1 });
     }
     const t0 = tomatoes[0]!;

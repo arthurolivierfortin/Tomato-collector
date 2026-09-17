@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { vlen, vsub } from '@tomato/shared';
-import { generatePlant } from './generatePlant';
+import { branchPoint, generatePlant } from './generatePlant';
 
 describe('generatePlant', () => {
   const spec = generatePlant(123);
@@ -44,5 +44,39 @@ describe('generatePlant', () => {
       expect(leaf.sizeCm).toBeGreaterThanOrEqual(8);
       expect(leaf.sizeCm).toBeLessThanOrEqual(14);
     }
+  });
+});
+
+describe('generatePlant v2', () => {
+  const v2 = generatePlant(123);
+
+  it('curves every branch through a control point above its chord', () => {
+    for (const b of v2.branches) {
+      expect(b.midCm[2]).toBeGreaterThan((b.fromCm[2] + b.toCm[2]) / 2);
+      expect(branchPoint(b, 0)).toEqual(b.fromCm);
+      expect(branchPoint(b, 1)).toEqual(b.toCm);
+      const mid = branchPoint(b, 0.5);
+      expect(mid[2]).toBeGreaterThan((b.fromCm[2] + b.toCm[2]) / 2);
+    }
+  });
+
+  it('anchors every tomato on a curved branch', () => {
+    for (const t of v2.tomatoes) {
+      let best = Infinity;
+      for (const b of v2.branches) {
+        for (let i = 0; i <= 100; i++) best = Math.min(best, vlen(vsub(branchPoint(b, i / 100), t.anchorCm)));
+      }
+      expect(best).toBeLessThan(0.5);
+    }
+  });
+
+  it('is denser: at least six leaflets per branch, grouped 2-3 per node', () => {
+    expect(v2.leaves.length).toBeGreaterThanOrEqual(v2.branches.length * 6);
+  });
+
+  it('staggers ripening so the first tomato is already turning shortly after load', () => {
+    const times = v2.tomatoes.map((t) => t.ripenAtS).sort((a, b) => a - b);
+    expect(times[0]).toBe(10);
+    for (let i = 1; i < times.length; i++) expect(times[i]! - times[i - 1]!).toBe(20);
   });
 });
