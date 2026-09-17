@@ -11,6 +11,7 @@
     "shot": "playwright test"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.20.0",
     "@tomato/shared": "*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
