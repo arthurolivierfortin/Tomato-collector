@@ -27,6 +27,16 @@ export function stemCommands(camId: CameraId, pose: CameraPose, target: TomatoVi
   ];
 }
 
+/**
+ * Ancre de l'étiquette « normale » : au-dessus du bout de la normale quand celle-ci monte dans
+ * l'image, en dessous sinon — en vue top la normale pointe vers la caméra, son glyphe se réduit à
+ * un point et l'étiquette viendrait sinon coller celle de l'axe lame.
+ */
+function normalLabelAt(cut: Vec2, normalEnd: Vec2): Vec2 {
+  const goesUp = normalEnd[1] - cut[1] < -LABEL_GAP_PX;
+  return [normalEnd[0] + LABEL_GAP_PX, normalEnd[1] + (goesUp ? -2 * LABEL_GAP_PX : 3 * LABEL_GAP_PX)];
+}
+
 /** Ciseaux : pivot, deux lames, croix du point de coupe, axe lame (magenta) et normale (blanc-bleu), angles en texte. */
 export function scissorsCommands(camId: CameraId, pose: CameraPose, s: ScissorsPose): OverlayCommand[] {
   const p = scissorsPoints(s);
@@ -51,9 +61,7 @@ export function scissorsCommands(camId: CameraId, pose: CameraPose, s: ScissorsP
     line(cut, axisEnd, PALETTE.bladeAxis, 2),
     text([axisEnd[0] + LABEL_GAP_PX, axisEnd[1] + 4], 'lame', PALETTE.bladeAxis),
     line(cut, normalEnd, PALETTE.bladeNormal, 2),
-    // Au-dessus du bout de la normale : en vue top la normale pointe vers la caméra et son
-    // étiquette viendrait sinon coller celle de l'axe lame.
-    text([normalEnd[0] + LABEL_GAP_PX, normalEnd[1] - 2 * LABEL_GAP_PX], 'normale', PALETTE.bladeNormal),
+    text(normalLabelAt(cut, normalEnd), 'normale', PALETTE.bladeNormal),
     text([pivot[0] + 10, pivot[1] - 12], angles, PALETTE.bladeAxis),
   ];
 }
