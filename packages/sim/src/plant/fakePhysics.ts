@@ -1,4 +1,4 @@
-import type { BasketPose, Vec3 } from '@tomato/shared';
+import type { BasketPose } from '@tomato/shared';
 import type { PlantPhysics } from './physics';
 
 export const GRAVITY_CM_S2 = 981;
