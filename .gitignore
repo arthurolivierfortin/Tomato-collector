@@ -2,6 +2,7 @@ node_modules/
 dist/
 data/episodes/
 data/shots/
+data/video/
 data/*.json
 test-results/
 playwright-report/
