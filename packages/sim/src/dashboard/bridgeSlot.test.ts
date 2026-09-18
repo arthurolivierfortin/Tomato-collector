@@ -51,6 +51,25 @@ describe('createBridgeSlot', () => {
     expect(store.get().phase).toBe('harvesting');
   });
 
+  // Issue #31 : le replay repart d'une scène propre — la page remet le bras à sa pose de repos.
+  it('warns its reset listeners when a replay starts, and stops warning once unsubscribed', () => {
+    const store = createDashboardStore();
+    const slot = createBridgeSlot(store);
+    let resets = 0;
+    const off = slot.onReset(() => {
+      resets += 1;
+    });
+    slot.setLive(createFakeBridge([]));
+    expect(resets).toBe(0);
+    slot.play(createFakeBridge([]));
+    expect(resets).toBe(1);
+    slot.stop();
+    expect(resets).toBe(1);
+    off();
+    slot.play(createFakeBridge([]));
+    expect(resets).toBe(1);
+  });
+
   it('stop without a live bridge reports disconnected, and a closed replay bridge propagates its status', () => {
     const store = createDashboardStore();
     const slot = createBridgeSlot(store);

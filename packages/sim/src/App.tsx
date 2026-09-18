@@ -52,6 +52,7 @@ export function App() {
       // sinon window.__tomato pointe une scène qui ne rend plus et les actions restent invisibles.
       let disposed = false;
       let stopFrames: (() => void) | null = null;
+      let offReset: (() => void) | null = null;
       let live: Bridge | null = null;
       void createRuntime(atRest(createDefaultWorld(SEED)), scene, MODULES).then((rt) => {
         if (disposed) return;
@@ -66,6 +67,8 @@ export function App() {
         });
         window.__tomato = { ...window.__tomato, runtime: rt, bridge: live };
         slot.setLive(live);
+        // Issue #31 : un replay repart d'une scène propre — le bras revient se garer.
+        offReset = slot.onReset(() => rt.ctx.store.update(atRest));
         stopFrames = scene.onFrame((dt) => rt.step(dt));
         setRuntime(rt);
         void fetchServerModel().then((model) => {
@@ -74,6 +77,7 @@ export function App() {
       });
       return () => {
         disposed = true;
+        offReset?.();
         stopFrames?.();
         live?.close();
         slot.setLive(null);

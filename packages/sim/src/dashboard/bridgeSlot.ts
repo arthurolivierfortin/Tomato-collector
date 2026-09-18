@@ -12,12 +12,15 @@ export interface BridgeSlot {
   play(bridge: DashboardBridge): void;
   stop(): void;
   mode(): SlotMode;
+  /** Prévenu au démarrage d'un replay (issue #31 : la sim remet le bras à sa pose de repos). */
+  onReset(fn: () => void): () => void;
 }
 
 export function createBridgeSlot(store: DashboardStore): BridgeSlot {
   let live: DashboardBridge | null = null;
   let replay: DashboardBridge | null = null;
   let unsubscribe: (() => void)[] = [];
+  const resetListeners = new Set<() => void>();
 
   const connectionOf = (kind: 'live' | 'replay', status: BridgeStatus): 'connected' | 'disconnected' | 'replay' =>
     kind === 'replay' ? 'replay' : status;
@@ -52,6 +55,7 @@ export function createBridgeSlot(store: DashboardStore): BridgeSlot {
       replay?.close();
       replay = bridge;
       store.dispatch({ type: 'local_reset' });
+      for (const fn of resetListeners) fn();
       listen(bridge, 'replay');
     },
     stop() {
@@ -63,5 +67,9 @@ export function createBridgeSlot(store: DashboardStore): BridgeSlot {
       else disconnected();
     },
     mode: () => (replay ? 'replay' : live ? 'live' : 'none'),
+    onReset(fn) {
+      resetListeners.add(fn);
+      return () => resetListeners.delete(fn);
+    },
   };
 }
