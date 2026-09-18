@@ -1,4 +1,5 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 import { parseMessage } from '@tomato/shared';
@@ -57,7 +58,7 @@ export function wakeFollowUp(status: number, body: unknown): 'follow' | 'staged'
 }
 
 export function transcriptPath(tomatoId: number, now: Date = new Date(), dir: string = EPISODES_DIR): string {
-  return `${dir.replace(/[\\/]?$/, '/')}wake-${tomatoId}-${now.toISOString().replace(/[:.]/g, '-')}.log`;
+  return join(dir, `wake-${tomatoId}-${now.toISOString().replace(/[:.]/g, '-')}.log`);
 }
 
 /** Hub du serveur, ou null s'il est injoignable : le réveil part quand même, sans trace en direct. */
