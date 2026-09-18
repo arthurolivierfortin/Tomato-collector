@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EPISODES_DIR, formatTraceLine, transcriptPath } from './wakeCli';
+import { EPISODES_DIR, formatTraceLine, transcriptPath, wakeFollowUp } from './wakeCli';
 
 describe('wake CLI formatting', () => {
   it('formats the messages that matter for a console transcript', () => {
@@ -31,5 +31,14 @@ describe('wake CLI formatting', () => {
   it('writes transcripts under data/episodes at the repository root', () => {
     expect(EPISODES_DIR.replace(/\\/g, '/')).toMatch(/\/data\/episodes\/$/);
     expect(transcriptPath(3, new Date('2026-09-17T10:20:30.000Z')).replace(/\\/g, '/')).toMatch(/data\/episodes\/wake-3-2026-09-17T10-20-30-000Z\.log$/);
+  });
+});
+
+describe('wake CLI follow-up (issue #29)', () => {
+  it('follows the episode when the agent took it, stops after a staged wake, fails otherwise', () => {
+    expect(wakeFollowUp(202, { queued: true, agent: 'on', tomatoId: 3, behindRunningEpisode: false })).toBe('follow');
+    expect(wakeFollowUp(202, { ok: true, agent: 'off', tomatoId: 3 })).toBe('staged');
+    expect(wakeFollowUp(404, { error: 'unknown_tomato', tomatoId: 9, known: [3] })).toBe('error');
+    expect(wakeFollowUp(202, 'pas du JSON')).toBe('follow');
   });
 });
