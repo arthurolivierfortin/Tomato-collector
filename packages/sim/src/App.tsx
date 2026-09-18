@@ -14,6 +14,7 @@ import { buildDemoScript } from './dashboard/demoScript';
 import { fetchServerModel } from './dashboard/episodesApi';
 import { perceptionModule } from './perception/perceptionModule';
 import { plantModule } from './plant/plantModule';
+import { atRest } from './robot/restPose';
 import { robotModule } from './robot/robotModule';
 import type { SceneHandle } from './three/createScene';
 
@@ -52,7 +53,7 @@ export function App() {
       let disposed = false;
       let stopFrames: (() => void) | null = null;
       let live: Bridge | null = null;
-      void createRuntime(createDefaultWorld(SEED), scene, MODULES).then((rt) => {
+      void createRuntime(atRest(createDefaultWorld(SEED)), scene, MODULES).then((rt) => {
         if (disposed) return;
         const renderViews = getRenderViews();
         const dev = import.meta.env.DEV ? { fakeBridge: createFakeBridge, attachBridge: slot.play, stopReplay: slot.stop, demoScript: buildDemoScript } : {};
