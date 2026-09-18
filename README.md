@@ -28,12 +28,22 @@ Prérequis : Claude Code CLI connecté (l'agent utilise l'auth de la machine).
 
 Ouvrir http://localhost:5173 et attendre **serveur connecté** dans le bandeau du haut.
 
+Une seule tomate mûrit à la fois : la première démarre sa rampe 3 s après le chargement du plant,
+la suivante 4 s après que la précédente a été coupée ou est tombée. La rampe vert → rouge dure
+15 s sim : à ×1, il s'écoule donc une vingtaine de secondes entre deux épisodes.
+
 Déroulé d'un épisode :
 
-1. Cliquer « Mûrir la prochaine tomate ».
+1. Attendre que la tomate en cours rougisse, ou cliquer « Mûrir la prochaine tomate » pour l'y forcer.
 2. La perception (contours HSV ou détecteur ONNX) détecte la tomate mûre.
-3. Le serveur réveille l'agent (phase `detected` → réveil automatique de la file du runner).
+3. Le serveur réveille l'agent (phase `detected` → réveil automatique de la file du runner) ; le schéma
+   bloc s'allume perception → serveur (« tomate #3 mûre, yolo 0,56 ») puis serveur → agent (« réveil »).
 4. Suivre la trace dans le panneau de droite (texte de l'agent, appels d'outils MCP, résultats) jusqu'à `harvested` ou `missed`.
+
+Le serveur diffuse aussi le flux brut de la session Claude Code (`agent_raw` : `init` avec l'identifiant
+de session et le statut du MCP robot, `tool_use`, `tool_result`, `text`, `result`, `stderr`) et un
+événement de réveil explicite (`agent_wake` : tomate, détecteur, confiance). `npm run wake` les écrit
+dans son transcript ; le panneau « Session agent (brut) » du dashboard viendra les afficher.
 
 Réveil manuel, sans attendre la détection (utile aussi avec `TOMATO_AGENT=off`) :
 
