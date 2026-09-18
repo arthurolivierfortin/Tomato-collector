@@ -56,6 +56,7 @@ export function createAgentRunner(deps: ServerAgentRunnerDeps): ServerAgentRunne
     model: deps.model === '' ? env.model : deps.model,
     systemPrompt: deps.systemPrompt.trim() === '' ? loadSystemPrompt() : deps.systemPrompt,
     statusText: () => summarizeWorld(sim?.latestState() ?? null),
+    resolveWake: (id) => (sim === null ? null : resolveWakeEvent(sim, id)),
     log,
     ...(deps.query === undefined ? {} : { query: deps.query }),
     ...(deps.onDelta === undefined ? {} : { onDelta: deps.onDelta }),

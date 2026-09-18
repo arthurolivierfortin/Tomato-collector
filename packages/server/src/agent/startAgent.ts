@@ -55,6 +55,7 @@ export async function startAgent(deps: StartAgentDeps): Promise<AgentHandle> {
     model,
     systemPrompt: loadSystemPrompt(),
     statusText: () => summarizeWorld(deps.sim.latestState()),
+    resolveWake: (id) => resolveWakeEvent(deps.sim, id),
     log,
     ...(deps.query === undefined ? {} : { query: deps.query }),
     ...(deps.onDelta === undefined ? {} : { onDelta: deps.onDelta }),

@@ -3,8 +3,11 @@ import type { WakeEvent } from '../state/session';
 
 /** Module d'agent factice pour tester `loadAgentRunner` (même forme que `src/agent/index.ts` de M6). */
 export const wakes: WakeEvent[] = [];
+/** Dernières dépendances reçues : vérifie que `index.ts` passe bien le pont sim à M6. */
+export let lastDeps: AgentRunnerDeps | null = null;
 
 export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
+  lastDeps = deps;
   return {
     wake: (event) => {
       wakes.push(event);

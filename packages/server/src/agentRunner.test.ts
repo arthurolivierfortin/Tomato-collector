@@ -6,8 +6,9 @@ import { createFakeHub, createFakeSim, createMemoryJournal, type FakeHub } from 
 
 function deps(): AgentRunnerDeps & { hub: FakeHub } {
   const hub = createFakeHub();
-  const session = createSession(hub, { sim: createFakeSim(createDefaultWorld(1)), journal: createMemoryJournal() });
-  return { hub, session, mcpUrl: 'http://localhost:7331/mcp', model: 'claude-opus-5', systemPrompt: '' };
+  const sim = createFakeSim(createDefaultWorld(1));
+  const session = createSession(hub, { sim, journal: createMemoryJournal() });
+  return { hub, session, sim, mcpUrl: 'http://localhost:7331/mcp', model: 'claude-opus-5', systemPrompt: '' };
 }
 
 describe('agent runner hook', () => {
@@ -33,5 +34,13 @@ describe('agent runner hook', () => {
     d.session.handleSimEvent({ type: 'ripe_detected', tomatoId: 2, detector: 'hsv', confidence: 1 });
     expect(runner.busy()).toBe(true);
     expect(d.hub.broadcasts.at(-1)).toMatchObject({ type: 'episode_start', tomatoId: 2 });
+  });
+
+  it('passes the sim bridge to the agent module so it can resolve tomatoes at wake-up', async () => {
+    const d = deps();
+    await loadAgentRunner(d, undefined, './testing/fakeAgent.js');
+    const { lastDeps } = await import('./testing/fakeAgent.js');
+    expect(lastDeps?.sim).toBe(d.sim);
+    expect(lastDeps?.sim?.latestState()?.seed).toBe(1);
   });
 });

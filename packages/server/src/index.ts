@@ -37,7 +37,7 @@ async function main(): Promise<void> {
 
   const systemPrompt = await readFile(SYSTEM_PROMPT_PATH, 'utf8').catch(() => '');
   const runner = config.agent === 'on'
-    ? await loadAgentRunner({ hub, session, mcpUrl, model: config.model, systemPrompt }, log)
+    ? await loadAgentRunner({ hub, session, sim, mcpUrl, model: config.model, systemPrompt }, log)
     : createNoopRunner(log);
   session.onWake((e) => runner.wake(e));
 
