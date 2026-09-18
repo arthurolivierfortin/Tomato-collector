@@ -1,3 +1,4 @@
+import { createWakeServer, readWakePort, resolveWakeEvent } from './agent/wakeServer';
 import type { Hub } from './hub/hub';
 import { silentLogger, type Logger } from './log';
 import type { SimBridge } from './sim/simBridge';
@@ -18,6 +19,8 @@ export interface AgentRunnerDeps {
   systemPrompt: string;
   /** Pont sim : résumé d'état joint au réveil et résolution des identifiants de `POST /wake/<id>` (M6). */
   sim?: SimBridge;
+  /** Port de réveil laissé à M6 ; `-1` : le serveur de réveil est celui d'ici, dans les deux modes (issue #29). */
+  wakePort?: number;
 }
 
 export type CreateAgentRunner = (deps: AgentRunnerDeps) => AgentRunner;
@@ -100,4 +103,56 @@ export async function loadAgentRunner(deps: AgentRunnerDeps, log: Logger = silen
     return createNoopRunner(log);
   }
   return mod.createAgentRunner(deps);
+}
+
+export interface RunnerOptions {
+  agent: 'on' | 'off';
+  /** Défaut : `TOMATO_WAKE_PORT` (7333) ; 0 = port libre (tests) ; négatif = pas de serveur. */
+  wakePort?: number;
+  log?: Logger;
+  /** Module d'agent à charger (les tests en passent un factice). */
+  module?: string;
+}
+
+export interface RunnerHandle {
+  runner: AgentRunner;
+  /** Port du serveur de réveil manuel, null s'il n'a pas pu démarrer. */
+  wakePort: number | null;
+  /** Arrête le runner puis ferme le serveur de réveil. */
+  stop(): Promise<void>;
+}
+
+/**
+ * Branchement de `index.ts` : le runner du mode demandé et le serveur de réveil manuel, qui écoute
+ * dans les deux modes (issue #29). M6 reçoit `wakePort: -1` pour ne pas ouvrir un second serveur.
+ */
+export async function startRunner(deps: AgentRunnerDeps, opts: RunnerOptions): Promise<RunnerHandle> {
+  const log = opts.log ?? silentLogger;
+  const sim = deps.sim;
+  const runner =
+    opts.agent === 'on'
+      ? await loadAgentRunner({ ...deps, wakePort: -1 }, log, opts.module ?? AGENT_MODULE)
+      : createNoopRunner(log, { hub: deps.hub, session: deps.session });
+  const port = opts.wakePort ?? readWakePort();
+  const wake =
+    port < 0
+      ? null
+      : await createWakeServer({
+          port,
+          agent: opts.agent,
+          runner,
+          resolve: (id) => (sim === undefined ? null : resolveWakeEvent(sim, id)),
+          knownIds: () => (sim?.latestState()?.tomatoes ?? []).map((t) => t.id),
+        }).catch((e: unknown) => {
+          log(`agent: serveur de réveil indisponible sur le port ${port} (${String(e)})`);
+          return null;
+        });
+  return {
+    runner,
+    wakePort: wake?.port ?? null,
+    stop: async () => {
+      runner.stop();
+      await wake?.close();
+    },
+  };
 }
