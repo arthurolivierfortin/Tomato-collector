@@ -1,2 +1,31 @@
 @import 'tailwindcss';
+
+/* Palette de la spec (section 6) : chaque couleur porte une information, jamais une décoration. */
+@theme {
+  --color-ripe: #c8261b;
+  --color-turning: #e08a1e;
+  --color-unripe: #3f9a3a;
+  --color-stem: #22d3ee;
+  --color-scissors: #e879f9;
+  --color-basket: #facc15;
+  --color-axes: #9ca3af;
+  --color-ink: #e6e8ea;
+  --color-ink-dim: #8a9097;
+  --color-panel: #0f1214;
+  --color-panel-2: #171b1e;
+  --color-line: #272c31;
+  --font-mono: ui-monospace, 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
+}
+
 html, body, #root { height: 100%; margin: 0; }
+body { background: var(--color-panel); color: var(--color-ink); }
+
+/* Flash bref du cadre des vues à chaque message `views`. */
+@keyframes views-flash {
+  from { box-shadow: inset 0 0 0 3px var(--color-stem); }
+  to { box-shadow: inset 0 0 0 0 transparent; }
+}
+.views-flash { animation: views-flash 400ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .views-flash { animation: none; box-shadow: inset 0 0 0 2px var(--color-stem); }
+}
