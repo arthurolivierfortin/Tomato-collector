@@ -6,6 +6,10 @@ import type { ScenarioStep } from './scenario';
 import './pageGlobals';
 
 const DEFAULT_TIMEOUT_MS = 90_000;
+/** Cellule « mûrissement » du bandeau de statuts (`StatusBar`, M7). */
+const RIPENING = '[data-testid="ripening"]';
+/** Période de scrutation du mûrissement : le pourcentage monte d'un point toutes les 150 ms. */
+const RIPENING_POLL_MS = 120;
 
 export interface StepContext {
   readonly log: MarkerLog;
@@ -19,15 +23,29 @@ function phaseSelector(phase: string): string {
   return `[data-phase="${phase}"][aria-current="step"]`;
 }
 
-async function injectDemo(page: Page, speed: number): Promise<void> {
-  await page.evaluate(async (s: number) => {
-    const t = window.__tomato;
-    if (t?.attachBridge === undefined || t.fakeBridge === undefined || t.demoScript === undefined) {
-      throw new Error('page sans pont simulé : lancer la sim avec « npm run dev » (mode développement)');
+/**
+ * Maturité lue dans la cellule « mûrissement » : « tomate 1 : mûrit 62 % » → 62, « tomate 1 : mûre »
+ * → 100, « — » (rien ne mûrit) → `null`. Pur, testé sans navigateur.
+ */
+export function ripeningPercent(text: string): number | null {
+  const percent = /mûrit\s+(\d+)\s*%/u.exec(text);
+  if (percent !== null) return Number(percent[1]);
+  return /mûre/u.test(text) ? 100 : null;
+}
+
+/** Attend le seuil de maturité en scrutant le bandeau, plutôt que de viser un pour cent précis. */
+async function waitForRipeness(page: Page, minPercent: number, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let last = '';
+  for (;;) {
+    last = (await page.locator(RIPENING).first().textContent()) ?? '';
+    const percent = ripeningPercent(last);
+    if (percent !== null && percent >= minPercent) return;
+    if (Date.now() >= deadline) {
+      throw new Error(`mûrissement : ${minPercent} % jamais atteint en ${timeoutMs} ms (bandeau : « ${last} »)`);
     }
-    const views = t.renderViews === undefined ? null : await t.renderViews(['top', 'front', 'side']);
-    t.attachBridge(t.fakeBridge(t.demoScript(views, t.runtime.ctx.store.get()), s));
-  }, speed);
+    await page.waitForTimeout(RIPENING_POLL_MS);
+  }
 }
 
 async function injectReplay(page: Page, entries: readonly ScriptEntry[], speed: number): Promise<void> {
@@ -70,13 +88,17 @@ export async function runStep(page: Page, step: ScenarioStep, ctx: StepContext):
         { timeout: step.timeoutMs ?? DEFAULT_TIMEOUT_MS },
       );
       return;
+    case 'waitForSelector':
+      ctx.onStep?.(`élément ${step.selector}`);
+      await page.locator(step.selector).first().waitFor({ state: 'visible', timeout: step.timeoutMs ?? DEFAULT_TIMEOUT_MS });
+      return;
+    case 'waitForRipeness':
+      ctx.onStep?.(`mûrissement ≥ ${step.minPercent} %`);
+      await waitForRipeness(page, step.minPercent, step.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+      return;
     case 'marker':
       ctx.log.mark(step.name);
       ctx.onStep?.(`marqueur ${step.name}`);
-      return;
-    case 'demo':
-      ctx.onStep?.(`épisode scripté ×${step.speed ?? 1}`);
-      await injectDemo(page, step.speed ?? 1);
       return;
     case 'replay':
       ctx.onStep?.(`replay du journal ×${step.speed ?? 1}`);
