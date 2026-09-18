@@ -117,3 +117,16 @@ export function captionLineHeight(style: TextStyle): number {
 export function bandHeight(style: TextStyle, lines: number): number {
   return Math.max(1, lines) * captionLineHeight(style) + 2 * style.bandPadding;
 }
+
+/**
+ * Le bandeau pleine largeur : de bord à bord, du haut de la boîte de texte jusqu'au bas de l'image.
+ *
+ * Sur le dashboard, le fond du sous-titre épouse le texte et c'est très bien : le bas de la colonne
+ * spectateur est vide. Sur un écran plein format, tout ce qui reste à droite du texte se lit encore
+ * à moitié ; la bande descend donc jusqu'en bas pour qu'aucun fragment ne dépasse ni à droite ni
+ * dessous.
+ */
+export function captionBandRect(style: TextStyle, lines: number, format: Format): Rect {
+  const y = format.height - style.captionBottom - bandHeight(style, lines);
+  return { x: 0, y, w: format.width, h: format.height - y };
+}

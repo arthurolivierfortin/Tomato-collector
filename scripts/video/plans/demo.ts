@@ -13,7 +13,7 @@
  * Le découpage lui-même est dans `part1.ts` et `part2.ts`, la géographie de l'écran dans `zones.ts`.
  */
 import type { EndCardData } from '../lib/episodes';
-import type { MontagePlan, PlanEntry } from '../lib/plan';
+import { zoomLines, type MontagePlan, type PlanEntry } from '../lib/plan';
 import { part1 } from './part1';
 import { part2 } from './part2';
 
@@ -46,7 +46,12 @@ export function burnedTexts(plan: MontagePlan): string[] {
     }
     if (entry.title !== undefined) out.push(entry.title.text, ...(entry.title.subtitle === undefined ? [] : [entry.title.subtitle]));
     if (entry.caption !== undefined) out.push(entry.caption);
-    for (const f of entry.freezeAt ?? []) out.push(f.caption);
+    for (const f of entry.freezeAt ?? []) {
+      out.push(f.caption);
+      // Les trois éléments d'un agrandissement sont gravés eux aussi : ils passent donc la même
+      // relecture que le reste (anglais, aucun tiret long).
+      if (f.zoom !== undefined) out.push(...zoomLines(f.zoom));
+    }
   }
   return out;
 }

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  captionBackdropFilter,
+  captionBandRect,
   captionFilters,
   chain,
+  CAPTION_BACKDROP_OPACITY,
   escapeDrawtextText,
   escapeFilterPath,
   normalizeFilters,
@@ -134,6 +137,31 @@ describe('highlightFilter', () => {
   it('entoure la zone donnée par le plan, sans la remplir', () => {
     expect(highlightFilter({ x: 480, y: 980, w: 960, h: 96 }, DEFAULT_STYLE)).toBe(
       'drawbox=x=480:y=980:w=960:h=96:color=0x38BDF8@0.95:t=4',
+    );
+  });
+});
+
+describe('captionBandRect et captionBackdropFilter', () => {
+  const format = { width: 1920, height: 1080, fps: 30 };
+  const pipelineStyle = { ...DEFAULT_STYLE, captionBottom: 14 };
+
+  it('donne une bande qui va d’un bord à l’autre et jusqu’au bas de l’image', () => {
+    // C'est la réponse au fragment de légende française qui dépassait à droite du sous-titre sur
+    // l'écran plein format : rien ne doit rester lisible ni à côté, ni en dessous.
+    const rect = captionBandRect(pipelineStyle, 1, format);
+    expect(rect.x).toBe(0);
+    expect(rect.w).toBe(format.width);
+    expect(rect.y + rect.h).toBe(format.height);
+    expect(rect.y).toBe(format.height - 14 - bandHeight(pipelineStyle, 1));
+  });
+
+  it('monte avec le nombre de lignes, pour rester sous le texte', () => {
+    expect(captionBandRect(pipelineStyle, 2, format).y).toBeLessThan(captionBandRect(pipelineStyle, 1, format).y);
+  });
+
+  it('remplit le rectangle, sans bordure : c’est un fond, pas un cadre', () => {
+    expect(captionBackdropFilter({ x: 0, y: 985, w: 1920, h: 95 }, CAPTION_BACKDROP_OPACITY)).toBe(
+      'drawbox=x=0:y=985:w=1920:h=95:color=black@1:t=fill',
     );
   });
 });

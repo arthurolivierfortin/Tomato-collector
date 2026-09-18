@@ -4,6 +4,7 @@
  * `demo.test.ts` le vérifie. Les zones citées sont dans `zones.ts`.
  */
 import type { PlanEntry } from '../lib/plan';
+import { detectionSegments } from './detection';
 import { pipelineSegments } from './pipeline';
 import { PIP, ZONE } from './zones';
 
@@ -39,58 +40,75 @@ export const part1: PlanEntry[] = [
       },
     ],
   },
-  // (b) Le plant et la tomate qui mûrit.
+  // (b) Le plant et la tomate qui mûrit. Le mûrissement s'arrête quatre secondes avant la détection :
+  // la suite, c'est la prise « detection » qui la montre, du point de vue du modèle.
   {
     take: CONCEPTS,
     from: { marker: 'ripening_50' },
-    to: { marker: 'detected' },
+    to: { marker: 'detected', offsetS: -4 },
     title: { text: 'The plant and the ripening tomato', durationS: 3.5 },
     caption: 'One tomato ripens at a time; green to red takes 15 s of simulated time',
     freezeAt: [{ at: { marker: 'ripening_50' }, durationS: 4.5, caption: 'The status bar follows the tomato that is ripening', highlight: ZONE.ripening }],
   },
-  // (c) La perception détecte.
+  // (c) La perception décide : prise « detection », filmée à part, agent coupé, donc gratuite. Elle
+  // remplace le passage tiré de `concepts` (un bandeau qui s'allume) par ce que le modèle voit
+  // vraiment, avant, pendant et après le mûrissement. Le réveil, lui, reste sur `concepts`.
+  ...detectionSegments,
+  // (d) Le serveur réveille l'agent. Le pilote ouvre le panneau « Perception » 36 ms après ce
+  // marqueur : les trois segments qui suivent se relaient sans jamais remontrer les mêmes secondes.
+  // La v2 les remontrait : le segment « Perception » jouait 22,2 → 26,0 s, puis le segment du réveil
+  // rejouait 22,2 → 28,3 s, soit 3,8 s deux fois de suite (le juge de #34 l'avait demandé : aucune
+  // seconde deux fois). Ils sont maintenant rangés dans l'ordre de la prise et découpés bout à bout.
   {
     take: CONCEPTS,
-    from: { marker: 'detected' },
-    to: { marker: 'wake_agent' },
-    title: { text: 'Perception detects a ripe tomato', durationS: 3.5 },
-    caption: 'Contours (Canny + CLAHE), then YOLOv8 (ONNX) or HSV colour thresholding',
+    from: { marker: 'wake_agent' },
+    to: { marker: 'wake_agent', offsetS: 0.9 },
+    title: {
+      text: 'The server wakes the agent',
+      durationS: 3.5,
+      subtitle: 'The block diagram lights one arrow at a time, from perception to the agent',
+    },
+    highlight: ZONE.blockDiagram,
+    // L'arrêt tombe à la fin du segment : le sous-plan vidéo le précède, rien ne le suit. Et la
+    // seconde de vidéo n'a pas de sous-titre à elle : une phrase entière posée puis retirée en
+    // moins d'une seconde ne se lit pas ; c'est le carton, puis l'arrêt sur image, qui parlent.
     freezeAt: [
       {
-        at: { marker: 'detected', offsetS: 0.5 },
-        durationS: 4.5,
-        caption: 'Ripe tomato spotted. The server is about to wake the agent.',
-        highlight: ZONE.wakeBanner,
+        at: { marker: 'wake_agent', offsetS: 0.9 },
+        durationS: 4,
+        caption: 'Server to agent: wake up, tomato 1 is ripe. The agent does not exist until it is woken.',
       },
     ],
   },
-  // Panneau « Perception » (touche `p`) : présent seulement quand l'issue #36 est mergée.
+  // Panneau « Perception » (touche `p`) : présent seulement quand l'issue #36 est mergée. Reprend
+  // la prise là où le segment du réveil l'a laissée, et la rend au segment suivant.
   {
     take: CONCEPTS,
     optional: true,
-    from: { marker: 'perception_panel' },
-    to: { marker: 'perception_panel', offsetS: 3.8 },
+    from: { marker: 'perception_panel', offsetS: 0.9 },
+    // Le panneau se referme quatre secondes après son ouverture, et le marqueur est posé une
+    // demi-seconde après l'ouverture réelle (latence de scrutation du pilote) : l'arrêt sur image
+    // reste donc à +2,6 s, avec de la marge des deux côtés. À +3,8 s le panneau était déjà replié.
+    to: { marker: 'perception_panel', offsetS: 2.6 },
     caption: 'What decides that a tomato is ripe',
     highlight: ZONE.perceptionPanel,
     freezeAt: [
       {
-        at: { marker: 'perception_panel', offsetS: 1 },
+        at: { marker: 'perception_panel', offsetS: 2.6 },
         durationS: 4.5,
         caption: 'Ripeness is decided from the camera frames, not from simulation state',
       },
     ],
   },
-  // (d) Le serveur réveille l'agent.
+  // (e) Le premier appel d'outil de l'épisode, une fois le panneau refermé.
   {
     take: CONCEPTS,
-    from: { marker: 'wake_agent' },
+    from: { marker: 'views_first', offsetS: -0.7 },
     to: { marker: 'views_first', offsetS: 1.5 },
-    title: { text: 'The server wakes the agent', durationS: 3.5 },
-    caption: 'The block diagram lights one arrow at a time: the agent does not exist until it is woken',
-    highlight: ZONE.blockDiagram,
+    caption: 'The agent is awake and asks for its views',
+    highlight: ZONE.trace,
     freezeAt: [
-      { at: { marker: 'wake_agent', offsetS: 0.4 }, durationS: 4, caption: 'Server to agent: wake up, tomato 1 is ripe' },
-      { at: { marker: 'views_first', offsetS: 1 }, durationS: 4.5, caption: 'First tool call of the episode: get_views on all three cameras', highlight: ZONE.trace },
+      { at: { marker: 'views_first', offsetS: 1.5 }, durationS: 4.5, caption: 'First tool call of the episode: get_views on all three cameras' },
     ],
   },
   // L'agent est une vraie session Claude Code : le terminal prend la moitié droite de l'écran, au
@@ -181,7 +199,40 @@ export const part1: PlanEntry[] = [
     caption: 'Agent view (key v)',
     freezeAt: [{ at: { marker: 'agent_view', offsetS: 1 }, durationS: 4, caption: 'Three images and JSON. Nothing else.' }],
   },
-  // (g) La coupe et la chute.
+  // (g) La vérification avant la coupe. L'agent ne coupe pas au jugé : une fois les lames au milieu
+  // de la tige, il **redemande les vues** et lit le point de coupe dessus avant d'appeler `cut`.
+  // C'est dans le journal de l'épisode filmé (2026-09-18T20-14-09-255Z-t1) : `move_scissors` au
+  // point exact, puis « Let me verify the cut point sits on the cyan stem in the front and side
+  // views before cutting », puis `get_views {"cameras":["front","side"]}`, puis `cut`. Deux caméras,
+  // pas trois : le sous-titre le dit comme c'est.
+  {
+    take: CONCEPTS,
+    from: { marker: 'agent_view', offsetS: 3.5 },
+    to: { marker: 'normal_view' },
+    title: {
+      text: 'Before cutting, the agent checks',
+      durationS: 4,
+      subtitle: 'It asks for the views again and reads the cut point on the stem before it calls cut',
+    },
+    // Toujours en mode « ce que voit l'agent » : la colonne spectateur ne fait que 450 px.
+    captionWidth: 450,
+    caption: 'The agent asks for its views again',
+    freezeAt: [
+      {
+        at: { marker: 'agent_view', offsetS: 4.9 },
+        durationS: 4.5,
+        caption: 'Before cutting, the agent asks for the front and side views again and checks that the blades sit on the stem',
+        zoom: {
+          source: ZONE.agentFrontView,
+          input: 'the blades closed on the stem midpoint (12.3, -5.3, 61.5)',
+          by: 'the agent, reading the two views it just asked for',
+          output: 'magenta cut point on the cyan stem, blade normal along it. Only then does it cut.',
+        },
+      },
+    ],
+  },
+  // (h) La coupe et la chute. Le premier arrêt sur image est posé sur la trace au moment où l'on y
+  // lit, d'un coup d'œil, toute la vérification : les vues redemandées, la phrase de l'agent, l'appel.
   {
     take: CONCEPTS,
     from: { marker: 'normal_view' },
@@ -190,8 +241,13 @@ export const part1: PlanEntry[] = [
     caption: 'The stem is cut, the tomato falls, a sensor in the basket confirms the harvest',
     highlight: ZONE.trace,
     freezeAt: [
-      { at: { marker: 'cut', offsetS: 0.4 }, durationS: 4, caption: 'cut returns the distance to the middle of the stem and the blade angle' },
-      { at: { marker: 'landed', offsetS: 0.6 }, durationS: 4.5, caption: 'The tomato lands in the basket: harvest confirmed' },
+      {
+        at: { marker: 'normal_view', offsetS: 1.8 },
+        durationS: 4.5,
+        caption: 'In the trace: views asked again, then 0.1 cm from the stem midpoint, normal aligned. Cutting.',
+      },
+      { at: { marker: 'cut', offsetS: 1 }, durationS: 4, caption: 'cut returns the distance to the middle of the stem and the blade angle' },
+      { at: { marker: 'landed', offsetS: 1.6 }, durationS: 4.5, caption: 'The tomato lands in the basket: harvest confirmed' },
     ],
   },
 ];

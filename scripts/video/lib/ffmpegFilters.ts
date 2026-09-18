@@ -37,9 +37,11 @@ export function escapeDrawtextText(text: string): string {
  * dynamique) et refuse un sous-titre aussi banal que « mûrit 62 % » — « Stray % near … ».
  * `text_align` : `C` centre chaque ligne d'un carton, `L` aligne le sous-titre à gauche.
  */
-function drawtext(align: 'C' | 'L', parts: readonly string[]): string {
+export function drawtextFilter(align: 'C' | 'L', parts: readonly string[]): string {
   return `drawtext=${['expansion=none', `text_align=${align}`, ...parts].join(':')}`;
 }
+
+const drawtext = drawtextFilter;
 
 /**
  * Cadre léger autour de la zone qu'un arrêt sur image met en évidence (schéma bloc, trace, vue).
@@ -88,6 +90,27 @@ export function captionFilters(textFile: string, style: TextStyle, lines = 1, du
     ]),
   ];
 }
+
+/**
+ * Fond plein du bandeau de sous-titre, sur toute la largeur de l'image.
+ *
+ * Le fond qui épouse le texte est le bon choix sur le dashboard, où le bas de la colonne spectateur
+ * est vide. Il ne l'est pas sur un écran plein format comme le traitement des vues : à droite du
+ * texte anglais, la rangée de légendes françaises des tuiles dépassait du bandeau et se lisait à
+ * moitié. Un segment qui porte `captionFullWidth` fait donc poser, sous le texte, une bande pleine
+ * qui va d'un bord à l'autre et jusqu'au bas de l'image : plus rien ne dépasse.
+ */
+export function captionBackdropFilter(rect: Rect, opacity: number): string {
+  return `drawbox=x=${rect.x}:y=${rect.y}:w=${rect.w}:h=${rect.h}:color=black@${opacity}:t=fill`;
+}
+
+/**
+ * Opacité de cette bande pleine : pleine, justement. À 0,78 puis à 0,92, la rangée de légendes
+ * françaises restait perceptible à travers, ce qui était tout le problème. La bande n'est posée que
+ * par les segments qui la demandent (`captionFullWidth`), et le seul écran qui la demande a déjà un
+ * fond noir : opaque, elle ne se voit pas, elle efface.
+ */
+export const CAPTION_BACKDROP_OPACITY = 1;
 
 /**
  * Comment l'incrustation occupe sa zone. `contain` met toute la page dedans, quitte à la réduire ;

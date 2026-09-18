@@ -37,7 +37,7 @@ export function buildDemoScript(views: ViewsResult | null, state: WorldState): S
     call(900, 'c1', 'get_views', {}),
     ...(views ? [flow(1400, 'simulation', 'server', 'views'), at(1400, { type: 'views', episodeId: ep, result: views })] : []),
     done(1450, 'c1', true, 'trois vues rendues', 520, [
-      'Vue top — axes X→ Y↑ — 8 px/cm',
+      'Vue top : axes X→ Y↑, 8 px/cm',
       '<image 800×800>',
       views ? { ...views.json, cameras: undefined, limits: undefined } : { simTimeS: 1.4, phase: 'detected', targetTomatoId: tomatoId },
     ]),

@@ -71,7 +71,8 @@ export function StatusBar({ state, clock, detector, ripening }: Props) {
       <Cell label="facteur" value={sim.paused ? 'pause' : `×${formatNum(sim.timeScale)}`} testId="time-scale" />
       <div className="ml-auto flex items-baseline gap-4">
         <Cell label="détecteur" value={detector} testId="detector" />
-        <Cell label="modèle" value={state.model ?? '—'} testId="model" />
+        {/* Le mot plutôt qu'un tiret cadratin : le bandeau est filmé, et « — » se lit mal à l'image. */}
+        <Cell label="modèle" value={state.model ?? 'inconnu'} testId="model" />
         <Cell label="coût" value={formatCost(state.costUsd)} testId="cost" />
       </div>
     </header>

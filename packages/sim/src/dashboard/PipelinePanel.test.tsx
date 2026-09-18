@@ -32,6 +32,16 @@ function renderPanel(over: Partial<Parameters<typeof PipelinePanel>[0]> = {}) {
 }
 
 describe('PipelinePanel', () => {
+  it('titles itself without an em dash: this screen is filmed', () => {
+    // La vidéo de démo grave ses textes en anglais et sans tiret cadratin ; les libellés de
+    // l'application, eux, sont à l'image tels quels. Un « — » dans le titre du mode plein écran se
+    // retrouvait donc dans le film. Deux-points : même sens, et ça se lit.
+    renderPanel();
+    const title = screen.getByRole('heading', { level: 2 }).textContent ?? '';
+    expect(title).toBe('Pipeline de traitement : caméra face');
+    expect(title).not.toMatch(/[–—]/u);
+  });
+
   it('shows one tile per stage, in order, each with its provenance label', () => {
     renderPanel();
     const tiles = screen.getAllByTestId('pipeline-tile');

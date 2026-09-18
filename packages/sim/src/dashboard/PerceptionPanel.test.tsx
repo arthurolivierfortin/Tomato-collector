@@ -55,7 +55,7 @@ describe('PerceptionPanel', () => {
     expect(screen.getByRole('button', { name: /Perception \(p\)/ }).textContent).not.toContain('sim locale');
     cleanup();
     render(<PerceptionPanel state={state()} open live={false} onToggle={() => undefined} onOpenPipeline={() => undefined} />);
-    expect(screen.getByRole('button', { name: /Perception \(p\)/ }).textContent).toContain('sim locale, pas l’épisode rejoué');
+    expect(screen.getByRole('button', { name: /Perception \(p\)/ }).textContent).toContain(' : sim locale, pas l’épisode rejoué');
   });
 
   it('says it is waiting before the first frame and keeps the header readable', () => {

@@ -26,8 +26,13 @@ export function ripeningOf(state: WorldState): Ripening | null {
   return running ?? ripe;
 }
 
-/** « tomate 3 : mûrit 62 % », « tomate 3 : mûre », « — » quand rien ne mûrit. */
+/**
+ * « tomate 3 : mûrit 62 % », « tomate 3 : mûre », « aucun » quand rien ne mûrit.
+ *
+ * Le mot plutôt qu'un tiret cadratin : le bandeau est filmé, et un « — » se lit mal à l'image
+ * (revue de la vidéo v2 ; aucun tiret long dans les libellés visibles).
+ */
 export function formatRipening(r: Ripening | null): string {
-  if (r === null) return '—';
+  if (r === null) return 'aucun';
   return r.ripeness >= 1 ? `tomate ${r.tomatoId} : mûre` : `tomate ${r.tomatoId} : mûrit ${formatNum(r.ripeness * 100)} %`;
 }

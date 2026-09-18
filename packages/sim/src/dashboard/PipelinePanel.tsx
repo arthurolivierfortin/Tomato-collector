@@ -63,7 +63,7 @@ export function PipelinePanel({ camera, capture, pending, onCamera, onRefresh, o
   return (
     <div data-testid="pipeline" role="dialog" aria-modal="true" aria-label="Pipeline de traitement" className="fixed inset-0 z-50 flex flex-col gap-3 overflow-y-auto bg-black p-4">
       <header className="flex shrink-0 flex-wrap items-center gap-2">
-        <h2 className="text-[15px] text-ink">Pipeline de traitement — caméra {CAMERA_LABEL[camera]}</h2>
+        <h2 className="text-[15px] text-ink">Pipeline de traitement : caméra {CAMERA_LABEL[camera]}</h2>
         <div role="group" aria-label="Caméra" className="ml-2 flex items-center gap-1">
           {CAMERA_IDS.map((id) => (
             <button key={id} type="button" className={BTN} aria-pressed={id === camera} aria-label={`Caméra ${id}`} onClick={() => onCamera(id)}>

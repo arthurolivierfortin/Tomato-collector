@@ -22,7 +22,8 @@ describe('ripening — tomate en cours de mûrissement (issue #23)', () => {
   });
 
   it('reads as a sentence in the status bar', () => {
-    expect(formatRipening(null)).toBe('—');
+    // Un mot, pas un tiret cadratin : le bandeau est filmé et la vidéo n'en porte aucun.
+    expect(formatRipening(null)).toBe('aucun');
     expect(formatRipening({ tomatoId: 3, ripeness: 0.618 })).toBe('tomate 3 : mûrit 62 %');
     expect(formatRipening({ tomatoId: 3, ripeness: 1 })).toBe('tomate 3 : mûre');
   });

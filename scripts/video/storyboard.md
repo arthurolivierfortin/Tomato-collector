@@ -4,9 +4,20 @@ Document de travail, en français. **La vidéo, elle, est entièrement en anglai
 ici entre guillemets sont ceux qui sont réellement gravés dans l'image. Les libellés du dashboard
 restent en français, ce sont ceux de l'application.
 
-Trois prises, un montage. Aucune voix : tout passe par des **cartons de titre** (fond bleu nuit,
+Quatre prises, un montage. Aucune voix : tout passe par des **cartons de titre** (fond bleu nuit,
 Segoe UI) et des **sous-titres** en bas de la colonne spectateur. Durée visée : 6 à 9 minutes,
 selon la durée des épisodes filmés en direct.
+
+**Aucune seconde n'est montrée deux fois.** Les segments d'une même prise se relaient dans l'ordre
+et bout à bout ; `plans/demo.test.ts` résout le plan contre les marqueurs réels des quatre prises et
+refuse le moindre chevauchement. La v2 rejouait 3,8 s de `concepts` (le panneau Perception, puis le
+segment du réveil reparti du même marqueur) : c'est exactement ce que ce test empêche.
+
+**Quand un détail compte, on l'agrandit.** Un arrêt sur image peut porter un `zoom` : la zone est
+recadrée, mise à 85 % de la hauteur de l'image en `lanczos` sur un fond sombre, entourée du même
+liseré bleu, et ses trois éléments s'écrivent à côté d'elle, jamais dessus : `Input:` / `Done by:` /
+`Output:`. C'est ainsi que se lisent les dix tuiles du traitement des vues (368 × 496 à l'écran), le
+panneau Perception et la vue que l'agent relit avant de couper.
 
 **Aucun tiret cadratin ni demi-cadratin** dans un texte gravé : deux-points, virgule ou point.
 `plans/demo.test.ts` refuse le contraire.
@@ -28,6 +39,9 @@ centrés.
 - Prise **`cycle`** (`scenarios/cycle.ts`), mode `live` : le même épisode, mais sans une coupure.
 - Prise **`pipeline`** (`scenarios/pipeline.ts`), en direct contre un serveur `TOMATO_AGENT=off` :
   le traitement des vues, une tuile par étape. Sans agent, donc sans coût. Segments `optional`.
+- Prise **`detection`** (`scenarios/detection.ts`), en direct contre un serveur `TOMATO_AGENT=off` :
+  le panneau Perception ouvert du début à la fin, avant, pendant et après le mûrissement. Sans
+  agent, donc sans coût.
 
 Le plan de montage correspondant est `scripts/video/plans/demo.ts` : mêmes sections, mêmes
 marqueurs, mêmes textes. Ce fichier-ci est la version lisible ; le plan est la version exécutable.
@@ -44,7 +58,12 @@ s'inverser ni empiéter sur le précédent, quelle que soit la vitesse de l'épi
 Prise `concepts`, mode live. Touches pressées et marqueurs posés dans cet ordre : `h`, `app`,
 `ripening_50`, `detected`, `wake_perception`, `wake_agent`, (`p` → `perception_panel`),
 `views_first`, `z` → `lightbox_front`, `lightbox_side`, `lightbox_top`, Échap, `c` → `gizmos`, `c`,
-`rotate`, `v` → `agent_view`, `v` → `normal_view`, `cut`, `landed`, `report`, `end`.
+`rotate`, `v` → `agent_view`, `v` → `normal_view`, `cut`, `landed`, `report`, `end`. Deux passages
+viennent d'ailleurs : la détection, de la prise `detection`, et le traitement des vues, de la prise
+`pipeline`.
+
+Prise `detection`, mode live, serveur `TOMATO_AGENT=off`. Touches et marqueurs : `h`, `p`, `start`,
+`ripening_20`, `ripening_60`, `first_ripe_box`, `gate_3`, `gate_5`, `wake`, `end`.
 
 ### Ouverture (cartons seuls, 7,5 s)
 
@@ -62,34 +81,60 @@ Prise `concepts`, mode live. Touches pressées et marqueurs posés dans cet ordr
 ### (b) Le plant et la tomate qui mûrit
 
 - **Carton** (3 s) : **The plant and the ripening tomato**.
-- **Segment** : `ripening_50` → `detected`. Rien à déclencher : la première tomate lance seule sa
-  rampe 3 s après le chargement du plant (issue #23) ; le pilote attend le seuil de 50 %.
+- **Segment** : `ripening_50` → `detected` − 4 s. Rien à déclencher : la première tomate lance seule
+  sa rampe 3 s après le chargement du plant (issue #23) ; le pilote attend le seuil de 50 %. Le
+  mûrissement s'arrête quatre secondes avant la détection : la suite, c'est la prise `detection` qui
+  la montre, du point de vue du modèle.
 - **Sous-titre** : « One tomato ripens at a time; green to red takes 15 s of simulated time ».
 - **Arrêt sur image** — `ripening_50`, **3,5 s**, cadre sur la cellule de maturité (`ZONE.ripening`) :
   « The status bar follows the tomato that is ripening ».
 
-### (c) La perception détecte
+### (c) La perception décide, image par image — prise `detection`
 
-- **Carton** (3 s) : **Perception detects a ripe tomato**.
-- **Segment** : `detected` → `wake_agent`.
-- **Sous-titre** : « Contours (Canny + CLAHE), then YOLOv8 (ONNX) or HSV colour thresholding ».
-- **Arrêt sur image** — `detected` + 0,5 s, **3,5 s**, cadre sur le bandeau de réveil (`ZONE.wakeBanner`) :
-  « Ripe tomato spotted. The server is about to wake the agent. »
+Prise à part, gratuite (`TOMATO_AGENT=off`), panneau Perception ouvert du début à la fin. Elle
+remplace l'ancien passage tiré de `concepts`, qui montrait la détection comme un bandeau qui
+s'allume : ici on voit la décision elle-même.
 
-### (c bis) Le panneau Perception, touche `p` — *facultatif, issue #36*
-
-- **Segment** : `perception_panel` → +3,8 s, cadre sur le panneau (`ZONE.perceptionPanel`).
-- **Sous-titre** : « What decides that a tomato is ripe ».
-- **Arrêt sur image** — `perception_panel` + 1 s, **4,5 s** : « Ripeness is decided from the camera frames, not from simulation state ».
+- **Carton** (4 s) : **Perception decides, frame by frame** — *Before, during and after ripeness:
+  what the model actually sees, and what it reports*.
+- **Segment 1** : `start` → `first_ripe_box` + 0,6 s, cadre sur le panneau (`ZONE.perceptionPanel`).
+  Sous-titre : « The Perception panel shows the frame the detector receives, and what it finds in
+  it ». Entre les deux agrandissements, la tomate rougit en lecture continue, sans coupe.
+  - **Agrandissement** — `start` + 1,5 s, **4,5 s** : « Before ripeness: the model sees 8 unripe
+    tomatoes and no ripe one ». *Input:* the raw camera frame, no annotation, 640 by 640 · *Done
+    by:* model YOLOv8n ONNX 640 · *Output:* 0 ripe, 8 unripe. The wake gate is empty and tracks no
+    tomato.
+  - **Agrandissement** — `first_ripe_box` + 0,6 s, **4,5 s** : « The first ripe box appears, with
+    its confidence ». *Input:* the same frame, with tomato 1 now red · *Done by:* model YOLOv8n ONNX
+    640 · *Output:* ripe 0.76 on tomato 1. The gate starts counting: 1 frame of 5.
+- **Segment 2** : `first_ripe_box` + 0,6 s → `gate_5` − 0,2 s. Sous-titre : « One frame is not
+  enough: the gate wants five in a row, on the same tomato ».
+  - **Agrandissement** — `gate_5` − 0,2 s, **4,5 s** : « Five consecutive frames: the gate is full
+    and the server is told ». *Input:* five detections in a row on tomato 1 · *Done by:* logic (the
+    wake gate) · *Output:* ripe 0.97, gate 5 of 5. This is what opens an episode.
+  - Le décalage de −0,2 s n'est pas décoratif : la porte tire à 5/5 puis retombe à 0/5 dans la
+    seconde qui suit, et le marqueur est posé une demi-seconde après l'affichage.
 
 ### (d) Le serveur réveille l'agent
 
-- **Carton** (3 s) : **The server wakes the agent**.
-- **Segment** : `wake_agent` → `views_first` + 1,5 s. Cadre sur le schéma bloc pendant tout le segment.
-- **Sous-titre** : « The block diagram lights one arrow at a time: the agent does not exist until it is woken ».
-- **Arrêts sur image** :
-  - `wake_agent` + 0,4 s, **3 s** : « Server to agent: wake up, tomato 1 is ripe »
-  - `views_first` + 1 s, **3,5 s**, cadre sur la trace : « First tool call of the episode: get_views on all three cameras »
+Retour sur `concepts`. Les trois segments qui suivent se relaient bout à bout, sans jamais remontrer
+les mêmes secondes.
+
+- **Carton** (3,5 s) : **The server wakes the agent** — *The block diagram lights one arrow at a
+  time, from perception to the agent*.
+- **Segment** : `wake_agent` → +0,9 s, cadre sur le schéma bloc. Pas de sous-titre sur ces neuf
+  dixièmes de seconde : une phrase posée puis retirée en moins d'une seconde ne se lit pas.
+  - **Arrêt sur image** — `wake_agent` + 0,9 s, **4 s** : « Server to agent: wake up, tomato 1 is
+    ripe. The agent does not exist until it is woken. »
+- **Segment** — *facultatif, issue #36* : `perception_panel` + 0,9 s → +2,6 s, cadre sur le panneau
+  (`ZONE.perceptionPanel`). Sous-titre : « What decides that a tomato is ripe ».
+  - **Arrêt sur image** — `perception_panel` + 2,6 s, **4,5 s** : « Ripeness is decided from the
+    camera frames, not from simulation state ». Le panneau se referme quatre secondes après son
+    ouverture : au-delà de +2,6 s l'arrêt tomberait sur un panneau replié.
+- **Segment** : `views_first` − 0,7 s → +1,5 s, cadre sur la trace. Sous-titre : « The agent is
+  awake and asks for its views ».
+  - **Arrêt sur image** — `views_first` + 1,5 s, **4,5 s** : « First tool call of the episode:
+    get_views on all three cameras ».
 
 ### (d bis) L'agent est une vraie session Claude Code
 
@@ -119,9 +164,15 @@ Prise `concepts`, mode live. Touches pressées et marqueurs posés dans cet ordr
 
 ### (e ter) Le traitement des vues, étape par étape — *facultatif, issue #36*
 
-Prise `pipeline`, touche `x`. Un segment par tuile, un arrêt sur image de 5 s sur chacune, cadre
-bleu posé sur la tuile pendant tout le segment. L'écran livré range **dix** étapes en deux rangées
-de cinq : c'est cette grille, mesurée sur la page, que suit `pipelineTile()`.
+Prise `pipeline`, touche `x`. L'écran livré range **dix** étapes en deux rangées de cinq : c'est
+cette grille, mesurée sur la page, que suit `pipelineTile()`.
+
+**Chaque étape se joue en deux temps.** 1,2 s de l'écran entier d'abord, le temps de voir *quelle*
+tuile le cadre bleu désigne, puis 4 s de cette tuile **seule, agrandie** à 85 % de la hauteur de
+l'image. À 1920 × 1080 une tuile fait 368 × 496 : son texte mesure quatre pixels de haut et personne
+ne le lit. À côté de la tuile agrandie, jamais dessus, les trois éléments : `Input:` / `Done by:` /
+`Output:`. Le segment s'arrête sur l'agrandissement : rien ne revient à l'écran entier après coup,
+et aucune seconde de la prise n'est montrée deux fois.
 
 Deux cartons, portés par les segments eux-mêmes pour disparaître avec eux si la prise manque :
 **From camera frame to what the agent sees** — *Ten stages. For each one: what goes in, what does
@@ -129,21 +180,25 @@ the work, what comes out.* à l'entrée, et **Second row: the annotation layers*
 labelled by its source: camera calibration, robot state, simulation, geometry, output.* au passage
 à la seconde rangée.
 
-Le bandeau de sous-titre descend ici à 14 px du bas et s'élargit à 1100 px (`captionBottom`,
-`captionWidth`) : sur un écran plein format, sa place habituelle tomberait au milieu des tuiles.
+Le bandeau de sous-titre descend ici à 29 px du bas et, surtout, il prend **toute la largeur**
+(`captionFullWidth`) : le fond qui épouse le texte est le bon choix sur le dashboard, où le bas de
+la colonne spectateur est vide, mais sur un écran plein format il laissait dépasser à sa droite un
+fragment de la rangée de légendes françaises des tuiles. La bande va maintenant d'un bord à l'autre
+et jusqu'au bas de l'image, opaque : plus rien ne dépasse. Le cadre bleu, lui, est dessiné **par
+dessus** la bande, pour que l'arête inférieure des tuiles de la rangée du bas reste visible.
 
-| Marqueur | Sous-titre du segment | Arrêt sur image |
+| Marqueur | Sous-titre et titre de l'agrandissement | Input · Done by · Output |
 |---|---|---|
-| `pipeline_1` | Stage 1 of 10: raw camera frame | Raw camera frame. In: the 3D scene. Out: an 800 by 800 RGBA buffer, straight from the orthographic camera. No processing yet. |
-| `pipeline_2` | Stage 2 of 10: CLAHE contrast | CLAHE contrast (OpenCV, plain image processing). In: the RGBA buffer. Out: an equalised grey plane, so dark corners regain contrast. |
-| `pipeline_3` | Stage 3 of 10: Canny edges | Canny edges 50/150 (OpenCV). In: the grey plane. Out: white contours over a darkened render. This is layer one of every agent view. |
-| `pipeline_4` | Stage 4 of 10: ripeness detection | Ripeness detection. A model does the work: YOLOv8n in ONNX on a 640 by 640 frame. Out: boxes, a class and a confidence. Only this stage decides ripe. |
-| `pipeline_5` | Stage 5 of 10: box to tomato matching | Box to tomato matching (plain logic). In: the boxes and the projected 3D centres. Out: one tomato id per ripe box. No simulation ripeness is read. |
-| `pipeline_6` | Stage 6 of 10: grid, axes and scale | Grid, axes and scale bar (camera calibration). In: the camera pose and field. Out: the metric frame that makes a view measurable in centimetres. |
-| `pipeline_7` | Stage 7 of 10: scissors and basket | Scissors and basket (robot state). In: the arm pose. Out: blade position, blade angle and basket outline, as an encoder would report them. |
-| `pipeline_8` | Stage 8 of 10: tomato markers and stem line | Tomato markers and target stem line (simulation). In: positions, ids and stems. Out: circles and a target line. This is help given, not measured. |
-| `pipeline_9` | Stage 9 of 10: predicted fall line | Predicted fall line (geometry). In: the target and the basket. Out: the vertical the tomato is expected to follow once the stem is cut. |
-| `pipeline_10` | Stage 10 of 10: final view | Final view, exactly as the agent receives it. In: all the layers above. Out: one PNG per camera, plus a JSON block. |
+| `pipeline_1` | Stage 1 of 10: raw camera frame | the 3D scene, seen by the orthographic front camera · camera · an 800 by 800 RGBA buffer, exactly what the sensor reads. No processing yet. |
+| `pipeline_2` | Stage 2 of 10: CLAHE contrast | the RGBA buffer · OpenCV (CLAHE, clip 2, tiles 8 by 8) · an equalised grey plane, so dark corners regain contrast |
+| `pipeline_3` | Stage 3 of 10: Canny edges | the grey plane · OpenCV (Canny 50/150) · white contours over a render darkened to 35 percent. This is layer one of every agent view. |
+| `pipeline_4` | Stage 4 of 10: ripeness detection | the raw frame, reduced to 640 by 640 · model YOLOv8n ONNX · 8 boxes, each with a class and a confidence. Only this stage decides ripe. |
+| `pipeline_5` | Stage 5 of 10: box to tomato matching | the 8 boxes and the projected 3D centres · logic · one tomato id per ripe box. No simulation ripeness is read here. |
+| `pipeline_6` | Stage 6 of 10: grid, axes and scale | the camera pose and its field of view · camera calibration · the metric frame that makes a view measurable in centimetres |
+| `pipeline_7` | Stage 7 of 10: scissors and basket | the arm pose · robot state · blade position, blade angle and basket outline, as the encoders report them |
+| `pipeline_8` | Stage 8 of 10: tomato markers and stem line | tomato positions, ids and stems · simulation · numbered circles and a target stem line. This is help given, not measured. |
+| `pipeline_9` | Stage 9 of 10: predicted fall line | the target tomato and the basket · geometry (vertical) · the fall line the tomato is expected to follow once the stem is cut |
+| `pipeline_10` | Stage 10 of 10: final view | all the layers above · the output stage, every layer stacked · one 800 by 800 PNG per camera, plus a JSON block. Exactly what get_views returns. |
 
 ### (e quater) D'où viennent les images
 
@@ -166,14 +221,36 @@ Le bandeau de sous-titre descend ici à 14 px du bas et s'élargit à 1100 px (`
 - **Sous-titre** : « Agent view (key v) ».
 - **Arrêt sur image** — `agent_view` + 1 s, **3 s** : « Three images and JSON. Nothing else. »
 
-### (g) La coupe et la chute dans le panier
+### (g) La vérification avant la coupe
 
-- **Carton** (3 s) : **Cut, fall, basket**.
-- **Segment** : `normal_view` → `report` + 2 s. Cadre sur la colonne de trace.
+L'agent ne coupe pas au jugé. Dans le journal de l'épisode filmé
+(`2026-09-18T20-14-09-255Z-t1.json`) : `move_scissors` au point exact, puis « Let me verify the cut
+point sits on the cyan stem in the front and side views before cutting », puis
+`get_views {"cameras":["front","side"]}`, puis `cut`. **Deux caméras, pas trois** : le sous-titre le
+dit comme c'est.
+
+- **Carton** (4 s) : **Before cutting, the agent checks** — *It asks for the views again and reads
+  the cut point on the stem before it calls cut*.
+- **Segment** : `agent_view` + 3,5 s → `normal_view`, `captionWidth: 450` (toujours en mode « ce que
+  voit l'agent »). Sous-titre : « The agent asks for its views again ».
+- **Agrandissement** — `agent_view` + 4,9 s, **4,5 s**, sur la vue `front` fraîchement rendue
+  (`ZONE.agentFrontView`) : « Before cutting, the agent asks for the front and side views again and
+  checks that the blades sit on the stem ». *Input:* the blades closed on the stem midpoint (12.3,
+  -5.3, 61.5) · *Done by:* the agent, reading the two views it just asked for · *Output:* magenta
+  cut point on the cyan stem, blade normal along it. Only then does it cut.
+
+### (h) La coupe et la chute dans le panier
+
+- **Carton** (3,5 s) : **Cut, fall, basket**.
+- **Segment** : `normal_view` → `end`. Cadre sur la colonne de trace.
 - **Sous-titre** : « The stem is cut, the tomato falls, a sensor in the basket confirms the harvest ».
 - **Arrêts sur image** :
-  - `cut` + 0,4 s, **3 s** : « cut returns the distance to the middle of the stem and the blade angle »
-  - `landed` + 0,6 s, **3,5 s** : « The tomato lands in the basket: harvest confirmed »
+  - `normal_view` + 1,8 s, **4,5 s** : « In the trace: views asked again, then 0.1 cm from the stem
+    midpoint, normal aligned. Cutting. » Une seule image porte toute la vérification : l'appel
+    `Coupe` en haut, la phrase de l'agent juste dessous, et sous elle les vues redemandées avec leurs
+    arguments et leur résultat.
+  - `cut` + 1 s, **4 s** : « cut returns the distance to the middle of the stem and the blade angle »
+  - `landed` + 1,6 s, **4,5 s** : « The tomato lands in the basket: harvest confirmed »
 
 ---
 
@@ -182,7 +259,7 @@ Le bandeau de sous-titre descend ici à 14 px du bas et s'élargit à 1100 px (`
 Prise `cycle`. **Aucun arrêt sur image, aucune coupure** : la prise passe d'un bout à l'autre, seuls
 les sous-titres changent au passage de chaque phase. C'est le point de la partie : montrer que rien
 n'est truqué ni accéléré. Dès le réveil, la capture du terminal est **incrustée en vignette** de
-610×180 en bas à droite (`PIP.corner`), posée sur la rangée de vignettes de vues et rognée par le
+610×168 en bas à droite (`PIP.corner`), posée sur la rangée de vignettes de vues et rognée par le
 bas pour garder les dernières lignes de la console lisibles : elle ne couvre ni la colonne de
 trace, ni la vue mise en avant, ni la vue spectateur, ni le bandeau de statuts, ni le schéma bloc
 et son étiquette d'activité, ni le sous-titre. `plans/demo.test.ts` le vérifie zone par zone.

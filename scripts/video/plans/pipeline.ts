@@ -5,36 +5,92 @@
  * étapes en deux rangées de cinq : le plan cite donc `pipeline_1` … `pipeline_10`, et le cadre bleu
  * de chaque arrêt sur image est posé par `pipelineTile()`, recalé sur cette grille.
  *
+ * **Chaque arrêt agrandit sa tuile.** En 1920 × 1080, une tuile fait 368 × 496 : son texte mesure
+ * quatre pixels de haut et personne ne le lit. Chaque étape montre donc d'abord une seconde de
+ * l'écran entier, le temps de voir *quelle* tuile est encadrée, puis quatre secondes de cette tuile
+ * seule, agrandie à 85 % de la hauteur de l'image, avec à sa droite les trois éléments qui comptent :
+ * ce qui entre, qui fait le travail, ce qui sort.
+ *
  * Les segments restent `optional` : si la prise `pipeline` ne pose pas ses marqueurs — écran absent,
  * capture qui échoue — le montage les retire avec un avertissement au lieu d'échouer.
  */
 import type { PlanEntry } from '../lib/plan';
+import type { ZoomSpec } from '../lib/zoom';
 import { PIPELINE_STAGES } from '../scenarios/pipeline';
 import { pipelineTile } from './zones';
 
 const PIPELINE = 'pipeline';
 const STAGE_COUNT = PIPELINE_STAGES.length;
 
+/** L'écran entier, le temps de voir quelle tuile le cadre bleu désigne. */
+const SCREEN_S = 1.2;
+/** La tuile agrandie : de quoi lire ses images, son étiquette et ses trois lignes. */
+const ZOOM_S = 4;
+
 /**
  * Le bandeau de sous-titre du dashboard vit à 145 px du bas, dans le bas de la colonne spectateur.
  * L'écran plein format des dix tuiles n'a pas cette géographie : tout y est information, sauf la
  * dernière ligne de texte des tuiles du bas, qui redit en français ce que le sous-titre dit en
- * anglais. Le bandeau descend donc dessus, et s'élargit pour tenir en deux lignes.
+ * anglais. Le bandeau descend donc dessus — et, depuis la relecture de la v2, il prend **toute la
+ * largeur** : la boîte qui épouse le texte laissait dépasser à sa droite un fragment de légende
+ * française, lisible à moitié.
  */
-const PIPELINE_CAPTION = { captionBottom: 14, captionWidth: 1100 } as const;
+const PIPELINE_CAPTION = { captionBottom: 29, captionWidth: 1100, captionFullWidth: true } as const;
 
-/** Dix tuiles, dix arrêts sur image : ce qui entre, qui fait le travail, ce qui sort. */
-const PIPELINE_CAPTIONS: readonly string[] = [
-  'Raw camera frame. In: the 3D scene. Out: an 800 by 800 RGBA buffer, straight from the orthographic camera. No processing yet.',
-  'CLAHE contrast (OpenCV, plain image processing). In: the RGBA buffer. Out: an equalised grey plane, so dark corners regain contrast.',
-  'Canny edges 50/150 (OpenCV). In: the grey plane. Out: white contours over a darkened render. This is layer one of every agent view.',
-  'Ripeness detection. A model does the work: YOLOv8n in ONNX on a 640 by 640 frame. Out: boxes, a class and a confidence. Only this stage decides ripe.',
-  'Box to tomato matching (plain logic). In: the boxes and the projected 3D centres. Out: one tomato id per ripe box. No simulation ripeness is read.',
-  'Grid, axes and scale bar (camera calibration). In: the camera pose and field. Out: the metric frame that makes a view measurable in centimetres.',
-  'Scissors and basket (robot state). In: the arm pose. Out: blade position, blade angle and basket outline, as an encoder would report them.',
-  'Tomato markers and target stem line (simulation). In: positions, ids and stems. Out: circles and a target line. This is help given, not measured.',
-  'Predicted fall line (geometry). In: the target and the basket. Out: the vertical the tomato is expected to follow once the stem is cut.',
-  'Final view, exactly as the agent receives it. In: all the layers above. Out: one PNG per camera, plus a JSON block.',
+/** Les trois éléments de chaque étape, dans la langue de la vidéo. Le reste est sur l'image. */
+type StageDetail = Omit<ZoomSpec, 'source'>;
+
+const PIPELINE_DETAIL: readonly StageDetail[] = [
+  {
+    input: 'the 3D scene, seen by the orthographic front camera',
+    by: 'camera',
+    output: 'an 800 by 800 RGBA buffer, exactly what the sensor reads. No processing yet.',
+  },
+  {
+    input: 'the RGBA buffer',
+    by: 'OpenCV (CLAHE, clip 2, tiles 8 by 8)',
+    output: 'an equalised grey plane, so dark corners regain contrast',
+  },
+  {
+    input: 'the grey plane',
+    by: 'OpenCV (Canny 50/150)',
+    output: 'white contours over a render darkened to 35 percent. This is layer one of every agent view.',
+  },
+  {
+    input: 'the raw frame, reduced to 640 by 640',
+    by: 'model YOLOv8n ONNX',
+    output: '8 boxes, each with a class and a confidence. Only this stage decides ripe.',
+  },
+  {
+    input: 'the 8 boxes and the projected 3D centres',
+    by: 'logic',
+    output: 'one tomato id per ripe box. No simulation ripeness is read here.',
+  },
+  {
+    input: 'the camera pose and its field of view',
+    by: 'camera calibration',
+    output: 'the metric frame that makes a view measurable in centimetres',
+  },
+  {
+    input: 'the arm pose',
+    by: 'robot state',
+    output: 'blade position, blade angle and basket outline, as the encoders report them',
+  },
+  {
+    input: 'tomato positions, ids and stems',
+    by: 'simulation',
+    output: 'numbered circles and a target stem line. This is help given, not measured.',
+  },
+  {
+    input: 'the target tomato and the basket',
+    by: 'geometry (vertical)',
+    output: 'the fall line the tomato is expected to follow once the stem is cut',
+  },
+  {
+    input: 'all the layers above',
+    by: 'the output stage, every layer stacked',
+    output: 'one 800 by 800 PNG per camera, plus a JSON block. Exactly what get_views returns.',
+  },
 ];
 
 /**
@@ -55,19 +111,31 @@ const TITLES: Record<number, { text: string; durationS: number; subtitle: string
   },
 };
 
-/** Un arrêt sur image par tuile du traitement des vues ; segment facultatif si la prise manque. */
+function detail(i: number): StageDetail {
+  return PIPELINE_DETAIL[i] ?? { input: 'the previous stage', by: 'the pipeline', output: 'the next layer' };
+}
+
+/**
+ * Un segment par tuile : une seconde d'écran entier, puis l'agrandissement. Le segment s'arrête à
+ * l'instant de l'agrandissement, qui est donc le dernier sous-plan : aucune seconde de la prise
+ * n'est montrée deux fois, et rien ne revient à l'écran entier après coup.
+ */
 export function pipelineSegments(): PlanEntry[] {
-  return PIPELINE_STAGES.map((stage, i) => ({
-    take: PIPELINE,
-    optional: true,
-    from: { marker: `pipeline_${i + 1}` },
-    to: { marker: i + 1 === STAGE_COUNT ? 'end' : `pipeline_${i + 2}` },
-    ...(TITLES[i] === undefined ? {} : { title: TITLES[i] }),
-    ...PIPELINE_CAPTION,
-    caption: `Stage ${i + 1} of ${STAGE_COUNT}: ${stage}`,
-    // Le cadre reste posé pendant tout le segment, pas seulement sur l'arrêt sur image : sur un
-    // écran de dix tuiles identiques, c'est lui qui dit de laquelle parle le sous-titre.
-    highlight: pipelineTile(i),
-    freezeAt: [{ at: { marker: `pipeline_${i + 1}`, offsetS: 0.6 }, durationS: 5, caption: PIPELINE_CAPTIONS[i] ?? stage, highlight: pipelineTile(i) }],
-  }));
+  return PIPELINE_STAGES.map((stage, i) => {
+    const caption = `Stage ${i + 1} of ${STAGE_COUNT}: ${stage}`;
+    const at = { marker: `pipeline_${i + 1}`, offsetS: SCREEN_S };
+    return {
+      take: PIPELINE,
+      optional: true,
+      from: { marker: `pipeline_${i + 1}` },
+      to: at,
+      ...(TITLES[i] === undefined ? {} : { title: TITLES[i] }),
+      ...PIPELINE_CAPTION,
+      caption,
+      // Le cadre reste posé pendant tout le segment : sur un écran de dix tuiles identiques, c'est
+      // lui qui dit de laquelle parle le sous-titre, et l'agrandissement qui suit enchaîne dessus.
+      highlight: pipelineTile(i),
+      freezeAt: [{ at, durationS: ZOOM_S, caption, zoom: { source: pipelineTile(i), ...detail(i) } }],
+    };
+  });
 }
