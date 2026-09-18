@@ -129,6 +129,7 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
     failure = firstLine(e);
   } finally {
     await terminal?.stop();
+    if (terminal !== null && terminal.failed()) log('ATTENTION : la capture du terminal s’est arrêtée (fenêtre introuvable ?) ; la prise n’aura pas d’incrustation.');
     markers = markerLog.snapshot({
       take,
       video: `${take}.webm`,
@@ -136,7 +137,9 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
       startedAt,
       expected: scenarioMarkers(scenario),
       firstPaintMs,
-      ...(terminal === null ? {} : { terminal: { video: `${take}.terminal.mkv`, startMs: terminal.startMs } }),
+      // Capture perdue (fenêtre introuvable, ffmpeg arrêté) : la prise n'annonce pas une piste
+      // qui n'existe pas, et le montage se rabat sur les segments sans incrustation.
+      ...(terminal === null || terminal.failed() ? {} : { terminal: { video: `${take}.terminal.mkv`, startMs: terminal.startMs } }),
       ...(failure === null ? {} : { failedStep: failure }),
     });
     await context.close();

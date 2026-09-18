@@ -201,7 +201,9 @@ const part1: PlanEntry[] = [
     caption: 'The three orthogonal cameras in the scene (key c), where the views come from',
     freezeAt: [{ at: { marker: 'gizmos', offsetS: 1 }, durationS: 3, caption: 'Three orthogonal rails and a limited pivot. The agent moves them itself.' }],
   },
-  // (f) Les outils MCP.
+  // (f) Les outils MCP. Le marqueur `rotate` est posé quand le pilote revient à la trace, pas quand
+  // l'agent appelle `rotate_scissors` : la ligne est déjà là depuis un moment et la trace a défilé.
+  // Les légendes parlent donc de l'appel qui est à l'écran, quel qu'il soit, pas d'un outil précis.
   {
     take: CONCEPTS,
     from: { marker: 'rotate', offsetS: -0.8 },
@@ -214,7 +216,7 @@ const part1: PlanEntry[] = [
     caption: 'Every call shows its arguments and its result, as JSON',
     highlight: ZONE.trace,
     freezeAt: [
-      { at: { marker: 'rotate', offsetS: 0.8 }, durationS: 3.5, caption: 'rotate_scissors: the blade angles suggested by the server, sent back as absolute values' },
+      { at: { marker: 'rotate', offsetS: 0.8 }, durationS: 3.5, caption: 'One call, one line: the JSON sent, the JSON returned, and how long it took' },
       {
         at: { marker: 'rotate', offsetS: 1.7 },
         durationS: 3.5,
@@ -242,7 +244,7 @@ const part1: PlanEntry[] = [
     // commence juste après : le bandeau se rétrécit d'autant pour ne rien recouvrir.
     captionWidth: 450,
     caption: 'Agent view (key v)',
-    freezeAt: [{ at: { marker: 'agent_view', offsetS: 1 }, durationS: 3, caption: 'The agent gets these three images and some JSON. Nothing else.' }],
+    freezeAt: [{ at: { marker: 'agent_view', offsetS: 1 }, durationS: 3, caption: 'Three images and JSON. Nothing else.' }],
   },
   // (g) La coupe et la chute.
   {
