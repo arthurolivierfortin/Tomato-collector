@@ -9,6 +9,16 @@ import { DEFAULT_WAKE_PORT } from './wakeServer';
 /** `data/episodes/` à la racine du dépôt (ce fichier est dans packages/server/src/agent). */
 export const EPISODES_DIR = fileURLToPath(new URL('../../../../data/episodes/', import.meta.url));
 const EPISODE_TIMEOUT_MS = 20 * 60 * 1000;
+/** Agent off : rien n'attend `episode_end`, on laisse juste la mise en scène arriver par le WebSocket. */
+const STAGED_GRACE_MS = 300;
+
+function parseBody(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
 
 /** Une ligne de transcript par message dashboard ; null pour les messages sans intérêt en console. */
 export function formatTraceLine(m: ServerToDashboard): string | null {
@@ -34,6 +44,16 @@ export function formatTraceLine(m: ServerToDashboard): string | null {
     default:
       return null;
   }
+}
+
+/**
+ * Ce que la réponse de `POST /wake/<id>` demande au CLI : suivre l'épisode jusqu'à `episode_end`,
+ * s'arrêter là parce que l'agent est off (réveil mis en scène, aucun épisode ne se terminera seul), ou échouer.
+ */
+export function wakeFollowUp(status: number, body: unknown): 'follow' | 'staged' | 'error' {
+  if (status !== 202) return 'error';
+  const agent = typeof body === 'object' && body !== null ? (body as { agent?: unknown }).agent : undefined;
+  return agent === 'off' ? 'staged' : 'follow';
 }
 
 export function transcriptPath(tomatoId: number, now: Date = new Date()): string {
@@ -80,12 +100,21 @@ export async function runWakeCli(argv: string[], env: NodeJS.ProcessEnv = proces
   });
 
   const r = await fetch(wakeUrl, { method: 'POST' });
-  write(`POST ${wakeUrl} -> ${r.status} ${await r.text()}`);
-  if (r.status !== 202) {
+  const text = await r.text();
+  write(`POST ${wakeUrl} -> ${r.status} ${text}`);
+  const followUp = wakeFollowUp(r.status, parseBody(text));
+  if (followUp === 'error') {
     ws.close();
     return 1;
   }
   write(`transcript: ${file}`);
+  if (followUp === 'staged') {
+    // Agent off : la mise en scène est déjà diffusée, le temps qu'elle arrive par le WebSocket.
+    await new Promise<void>((done) => setTimeout(done, STAGED_GRACE_MS));
+    write('== agent désactivé : réveil mis en scène, épisode à piloter à la main (aucune requête au SDK)');
+    ws.close();
+    return 0;
+  }
   const code = await finished;
   ws.close();
   return code;
