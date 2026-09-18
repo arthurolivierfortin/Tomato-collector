@@ -171,9 +171,10 @@ contrôle de 60 plants jamais vus, contre 0,816 / 0,743 pour le seuillage HSV.
 L'inférence tourne dans un Web Worker, en wasm SIMD multithread : la page est servie *cross-origin
 isolated* (`Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` dans `vite.config.ts`, et
 `Cross-Origin-Resource-Policy` côté serveur MCP), sans quoi onnxruntime retombe sur un seul thread.
-Résultat : 0,3–0,5 s par image et **2,5 s entre « la tomate est mûre » et « détectée »**, contre 10,8 s
-avant ce travail. Chiffres complets, jeux, licences, limites et reproduction dans
-[`docs/perception-model.md`](docs/perception-model.md).
+Résultat : 0,24 s par image au repos (0,5–0,8 s pendant que la scène tourne) et **2,5 à 6 s entre « la
+tomate est mûre » et « détectée »** selon la charge, contre 10,8 s avant ce travail — mesuré sous rendu
+logiciel, où la capture de la vue coûte autant que l'inférence. Chiffres complets, jeux, licences,
+limites et reproduction dans [`docs/perception-model.md`](docs/perception-model.md).
 
 ## Tournage
 

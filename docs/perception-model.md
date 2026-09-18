@@ -117,12 +117,19 @@ Capture et rapport : `data/shots/model-live.png` et `model-live.json`.
 10,8 s. Trois corrections, mesurées par `npx tsx scripts/perception/measure-latency.ts --port 5319`
 (même machine, même rendu logiciel SwiftShader, quatre réveils par mesure) :
 
-| | Inférence par image (médiane) | Mûre → détectée (médiane) |
+| | Inférence par image | Mûre → détectée (médiane) |
 |---|---|---|
 | Départ : inférence sur le fil principal | ~350 ms, mais la scène gelait (60 → 25 images/s) | — |
 | Worker, 1 thread wasm | 1,3–1,7 s | **10,8 s** |
-| Worker, 1 thread + période non gaspillée | ~1,0 s | ~6 s |
-| **Worker, wasm SIMD + 8 threads, COOP/COEP** | **0,27–0,52 s** | **2,5 s** (0,6 à 2,8 s) |
+| **Worker, wasm SIMD + 8 threads, COOP/COEP, période non gaspillée** | **0,24 s au repos, 0,5–0,8 s pendant le rendu** | **2,5 à 6,1 s selon les mesures, ~5 s typique** |
+
+Quatre mesures de quatre réveils chacune ont donné 2,5 / 4,9 / 5,2 / 6,1 s. Chaque image traitée coûte
+l'inférence (0,5–0,8 s mesurées pendant que la scène tourne) **plus** la capture de la vue caméra et sa
+réduction à 640 px (0,1–0,4 s de plus par image, d'après l'écart entre le délai de porte mesuré et cinq
+fois l'inférence). La porte étant à cinq images, cela fait 3 à 5 s. L'objectif de 4 s est donc atteint
+dans les bonnes passes et frôlé dans les autres, **sous rendu logiciel** : c'est le rastériseur
+SwiftShader de l'environnement de mesure qui paie la capture, pas le modèle. Avec un vrai GPU — le cas
+du tournage — la capture redevient quasi gratuite et le budget retombe sur l'inférence seule.
 
 Les trois corrections :
 
@@ -141,9 +148,9 @@ Les trois corrections :
    que lorsqu'une détection part vraiment : la porte compte des images traitées, jamais des tours
    sautés.
 
-Le réveil demande cinq détections consécutives : à 0,3–0,5 s par image, cela fait 2,5 s, contre ~3 s
-pour HSV. Ces chiffres sont ceux du rendu logiciel ; avec un vrai GPU, le rastériseur ne dispute plus
-les cœurs au détecteur et l'inférence descend encore.
+Le réveil demande cinq détections consécutives ; HSV, lui, tient le même parcours en ~3 s. Le modèle
+coûte donc encore une à deux secondes de plus que le seuillage sur ce moment précis — c'est le prix
+assumé d'une détection qui distingue vraiment le mûr du vert, avec sept fois moins de fausses boîtes.
 
 ## Limites connues
 
