@@ -112,8 +112,12 @@ export function createBridge(opts: BridgeOptions): Bridge {
 
   const handleCommand = (m: ServerToSim): void => {
     if (m.type === 'apply_action') {
-      send({ type: 'action_result', requestId: m.requestId, result: opts.runtime.apply(m.action) });
-      sendState();
+      // Mouvements animés (issue #21) : la promesse ne se résout qu'à la fin du déplacement.
+      // L'état continue d'être diffusé à 5 Hz pendant ce temps (abonnement au store).
+      void opts.runtime.apply(m.action).then((result) => {
+        send({ type: 'action_result', requestId: m.requestId, result });
+        sendState();
+      });
       return;
     }
     opts.renderViews(m.cameras).then(
