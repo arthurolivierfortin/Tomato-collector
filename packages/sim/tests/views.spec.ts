@@ -76,6 +76,7 @@ test('renderViews returns three annotated 800×800 views with their JSON and cap
   await page.getByTestId('refresh-views').click();
   await expect(page.locator('img[alt="vue front"]')).toBeVisible();
   // Preuve visuelle du panneau de droite : les trois vues côte à côte sous le bouton (critère VIS-12).
-  await page.screenshot({ path: resolve(shotsDir, 'dashboard.png') });
+  // `dashboard.png` appartient désormais à M7 (tests/dashboard.spec.ts) : nom distinct pour ne pas l'écraser.
+  await page.screenshot({ path: resolve(shotsDir, 'views-panel.png') });
   expect(errors).toEqual([]);
 });
