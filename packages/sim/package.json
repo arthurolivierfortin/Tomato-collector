@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",
+    "@techstark/opencv-js": "4.11.0-release.1",
     "@tomato/shared": "*",
+    "onnxruntime-web": "1.30.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "three": "^0.186.0"
