@@ -1,4 +1,5 @@
 import { fail, ok } from '@tomato/shared';
+import type { Tomato } from '@tomato/shared';
 import type { SimContext, SimModule } from '../core/module';
 import { createFakePhysics } from './fakePhysics';
 import { createFallTracker } from './falling';
@@ -6,7 +7,9 @@ import type { FallTracker } from './falling';
 import { generatePlant } from './generatePlant';
 import type { PlantSpec, TomatoSpec } from './generatePlant';
 import type { PlantPhysics } from './physics';
-import { nextToRipen, ripenTomato, tomatoesFromSpec } from './plantState';
+import { ripenTomato, tomatoFromSpec } from './plantState';
+import { RIPEN_DURATION_S } from './ripening';
+import { nextRipeningStart, ripenNextTarget } from './ripeningSchedule';
 import type { PlantView } from './view';
 
 export interface PlantModuleDeps {
@@ -28,14 +31,33 @@ async function defaultView(ctx: SimContext): Promise<PlantView | null> {
 
 const nextSeed = (seed: number): number => (seed + 1) >>> 0;
 
+/** Échéance d'un fruit que le planificateur n'a pas encore appelé : sa rampe n'a jamais commencé. */
+const NEVER_S = Infinity;
+
 /** État du module pour UN contexte : physique, vue et échéances de maturité du plant courant. */
 interface PlantState {
   specById: Map<number, TomatoSpec>;
-  /** Instant sim de maturité par tomate (posé à la création du plant, modifié par ripen_next). */
+  /** Instant sim de maturité par tomate, posé par le planificateur (issue #23) ou par `ripen_next`. */
   ripenAt: Map<number, number>;
+  /** Instant sim du chargement du plant : le planificateur compte les secondes à partir de là. */
+  startedAtS: number;
+  /** Fruit en cours de mûrissement, seul autorisé à avancer sur sa rampe. */
+  currentId: number | null;
   physics: PlantPhysics;
   fall: FallTracker;
   view: PlantView | null;
+}
+
+/**
+ * Consulte le planificateur et pose, s'il y a lieu, l'échéance de maturité du fruit en cours.
+ * `ripenAt` garde la FIN de la rampe ; le planificateur en donne le DÉBUT.
+ */
+function schedule(st: PlantState, tomatoes: readonly Tomato[], simTimeS: number): void {
+  const next = nextRipeningStart({ simTimeS: simTimeS - st.startedAtS, tomatoes, currentId: st.currentId });
+  st.currentId = next.currentId;
+  if (next.currentId !== null && next.startAtS !== null) {
+    st.ripenAt.set(next.currentId, st.startedAtS + next.startAtS + RIPEN_DURATION_S);
+  }
 }
 
 export function createPlantModule(deps: PlantModuleDeps = {}): SimModule {
@@ -50,16 +72,17 @@ export function createPlantModule(deps: PlantModuleDeps = {}): SimModule {
     const simTimeS = ctx.store.get().simTimeS;
     st.specById.clear();
     st.ripenAt.clear();
-    for (const t of spec.tomatoes) {
-      st.specById.set(t.id, t);
-      st.ripenAt.set(t.id, simTimeS + t.ripenAtS);
-    }
+    st.startedAtS = simTimeS;
+    st.currentId = null;
+    for (const t of spec.tomatoes) st.specById.set(t.id, t);
     ctx.registry.plantSpec = spec;
     st.physics.clear();
     st.fall.reset();
-    const tomatoes = tomatoesFromSpec(spec, 0);
+    // Les `ripenAtS` de `generatePlant` ne sont plus que des valeurs par défaut : le planificateur décide.
+    const tomatoes = spec.tomatoes.map((t) => tomatoFromSpec(t, NEVER_S, 0));
     for (const t of tomatoes) st.physics.attach(t.id, t.positionCm, t.radiusCm);
     ctx.store.update((s) => ({ ...s, seed, tomatoes, targetTomatoId: null }));
+    schedule(st, tomatoes, simTimeS);
     st.view?.setSpec(spec);
     st.view?.sync(tomatoes);
     return spec;
@@ -68,10 +91,11 @@ export function createPlantModule(deps: PlantModuleDeps = {}): SimModule {
   /** Mûrit les attachées, suit les détachées, pousse la vue, puis décide les chutes et émet tomato_landed. */
   function refresh(ctx: SimContext, st: PlantState, dtSimS: number): void {
     const s = ctx.store.get();
+    schedule(st, s.tomatoes, s.simTimeS);
     const tomatoes = s.tomatoes.map((t) => {
       const spec = st.specById.get(t.id);
       if (!spec) return t;
-      if (t.attached) return ripenTomato(t, spec, st.ripenAt.get(t.id) ?? spec.ripenAtS, s.simTimeS);
+      if (t.attached) return ripenTomato(t, spec, st.ripenAt.get(t.id) ?? NEVER_S, s.simTimeS);
       return { ...t, positionCm: st.physics.positionOf(t.id) ?? t.positionCm };
     });
     ctx.store.update((prev) => ({ ...prev, tomatoes }));
@@ -99,6 +123,8 @@ export function createPlantModule(deps: PlantModuleDeps = {}): SimModule {
       const st: PlantState = {
         specById: new Map(),
         ripenAt: new Map(),
+        startedAtS: ctx.store.get().simTimeS,
+        currentId: null,
         physics,
         fall: createFallTracker(physics),
         view: await (deps.createView ?? defaultView)(ctx),
@@ -121,8 +147,10 @@ export function createPlantModule(deps: PlantModuleDeps = {}): SimModule {
       if (!st) return null;
       switch (action.type) {
         case 'ripen_next': {
-          const id = nextToRipen(s.tomatoes, st.ripenAt);
+          const id = ripenNextTarget(s.tomatoes, st.currentId);
           if (id === null) return fail(s, 'not_available', 'no unripe tomato left on the plant');
+          // Le fruit visé devient le fruit en cours : le planificateur reprendra la suite après sa coupe.
+          st.currentId = id;
           st.ripenAt.set(id, s.simTimeS);
           refresh(ctx, st, 0);
           return ok(ctx.store.get(), `tomato ${id} is ripe`);
