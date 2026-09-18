@@ -7,90 +7,18 @@
  * textes accentués passent par `textfile=` (fichier UTF-8) plutôt que par `text=`.
  */
 
-/** Rectangle en pixels dans l'image de sortie, origine en haut à gauche. */
-export interface Rect {
-  readonly x: number;
-  readonly y: number;
-  readonly w: number;
-  readonly h: number;
-}
+import {
+  bandHeight,
+  captionLineHeight,
+  normalizeFilters,
+  PIP_BACKGROUND,
+  PIP_BORDER,
+  type Format,
+  type Rect,
+  type TextStyle,
+} from './style';
 
-export interface TextStyle {
-  /** Chemin système de la police (Segoe UI sous Windows, DejaVu Sans ailleurs). */
-  readonly fontFile: string;
-  readonly titleSize: number;
-  readonly subtitleSize: number;
-  readonly captionSize: number;
-  /**
-   * Où vit le sous-titre : dans le bas de la colonne spectateur, qui ne porte plus aucune
-   * information une fois les contrôles masqués (touche `h`). Surtout pas en haut, c'est le bandeau
-   * de statuts ; ni tout en bas, c'est le schéma bloc.
-   */
-  readonly captionX: number;
-  readonly captionWidth: number;
-  /** Distance entre le bas de l'image et le bas du bandeau, en pixels. */
-  readonly captionBottom: number;
-  /** Marge du bandeau autour du texte, en pixels. */
-  readonly bandPadding: number;
-  readonly bandOpacity: number;
-  /** Fondu d'entrée et de sortie du sous-titre, en secondes. */
-  readonly captionFadeS: number;
-  readonly fontColor: string;
-  /** Cadre de mise en évidence : couleur et épaisseur. */
-  readonly highlightColor: string;
-  readonly highlightThickness: number;
-}
-
-/**
- * Polices essayées dans l'ordre : Segoe UI (Windows), Arial (Windows aussi, toujours là), puis
- * DejaVu Sans (Linux). `pickFontFile` choisit la première présente ; `montage.ts` refuse de partir
- * si aucune ne l'est, plutôt que de laisser ffmpeg échouer au premier carton.
- */
-export const FONT_CANDIDATES: readonly string[] = [
-  'C:/Windows/Fonts/segoeui.ttf',
-  'C:/Windows/Fonts/arial.ttf',
-  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-  '/usr/share/fonts/TTF/DejaVuSans.ttf',
-  '/System/Library/Fonts/Supplemental/Arial.ttf',
-];
-
-/** Première police existante parmi les candidates ; `null` si aucune, pour un message clair. */
-export function pickFontFile(candidates: readonly string[], exists: (path: string) => boolean): string | null {
-  return candidates.find(exists) ?? null;
-}
-
-export const DEFAULT_STYLE: TextStyle = {
-  // Remplacée au lancement du montage par la première police réellement installée.
-  fontFile: 'C:/Windows/Fonts/segoeui.ttf',
-  titleSize: 64,
-  subtitleSize: 36,
-  // 31 px : le sous-titre se lit de loin sans peser sur l'image, et deux lignes tiennent dans la
-  // zone réservée. Comparé à 34 px sur une image extraite (voir README, « Style des sous-titres »).
-  captionSize: 31,
-  // Colonne spectateur (0–800 px), bas de la zone 3D : le bandeau de statuts descend jusqu'à y 84
-  // et le schéma bloc commence à y 960 ; le bandeau s'arrête donc à y 935, soit 1080 − 145.
-  // 24 px de retrait à gauche : la marge du bandeau (18 px) reste entièrement dans l'image.
-  captionX: 24,
-  captionWidth: 760,
-  captionBottom: 145,
-  bandPadding: 18,
-  bandOpacity: 0.7,
-  captionFadeS: 0.3,
-  fontColor: 'white',
-  highlightColor: '0x38BDF8@0.95',
-  highlightThickness: 4,
-};
-
-/** Deux lignes au plus : au-delà, le bandeau mange la scène 3D. */
-export const CAPTION_MAX_LINES = 2;
-
-/** Fond des cartons de titre : le même bleu nuit que le dashboard. */
-export const TITLE_BACKGROUND = '0x0E1116';
-
-/** Bords de l'incrustation du terminal : un liseré plein, `pad` n'accepte pas de transparence. */
-export const PIP_BORDER = '0x38BDF8';
-/** Fond des bandes de l'incrustation quand le terminal n'a pas les proportions de la zone. */
-export const PIP_BACKGROUND = '0x0E1116';
+export * from './style';
 
 /** Chemin utilisable dans un filtre : slashs, `:` échappé, entouré d'apostrophes. */
 export function escapeFilterPath(path: string): string {
@@ -102,24 +30,6 @@ export function escapeFilterPath(path: string): string {
 /** Texte passé en ligne à drawtext (`text=`) ; préférer `textfile=` dès qu'il y a des accents. */
 export function escapeDrawtextText(text: string): string {
   return text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/%/g, '\\%').replace(/:/g, '\\:');
-}
-
-export interface Format {
-  readonly width: number;
-  readonly height: number;
-  readonly fps: number;
-}
-
-/** Ramène n'importe quelle source au format de sortie sans déformer l'image. */
-export function normalizeFilters(format: Format): string[] {
-  const { width, height, fps } = format;
-  return [
-    `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
-    `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black`,
-    `fps=${fps}`,
-    'setsar=1',
-    'format=yuv420p',
-  ];
 }
 
 /**
@@ -139,15 +49,7 @@ export function highlightFilter(rect: Rect, style: TextStyle): string {
   return `drawbox=x=${rect.x}:y=${rect.y}:w=${rect.w}:h=${rect.h}:color=${style.highlightColor}:t=${style.highlightThickness}`;
 }
 
-/** Hauteur d'une ligne de sous-titre, interligne compris. Interligne aéré : 1,45 fois le corps. */
-export function captionLineHeight(style: TextStyle): number {
-  return Math.round(style.captionSize * 1.45);
-}
 
-/** Hauteur du bandeau pour `lines` lignes : un sous-titre sur deux lignes doit tenir dedans. */
-export function bandHeight(style: TextStyle, lines: number): number {
-  return Math.max(1, lines) * captionLineHeight(style) + 2 * style.bandPadding;
-}
 
 /**
  * Sous-titre : un seul `drawtext`, avec son propre fond (`box=1`) et sa marge (`boxborderw`). Le
@@ -188,22 +90,46 @@ export function captionFilters(textFile: string, style: TextStyle, lines = 1, du
 }
 
 /**
+ * Comment l'incrustation occupe sa zone. `contain` met toute la page dedans, quitte à la réduire ;
+ * `bottom` la met à la largeur de la zone puis n'en garde que le bas — les dernières lignes de la
+ * console, à une échelle où elles se lisent encore, dans un bandeau plus court que la page.
+ */
+export type PipFit = 'contain' | 'bottom';
+
+/** Zone d'incrustation : le rectangle à remplir et la façon de le remplir. */
+export interface PipSpec extends Rect {
+  readonly fit?: PipFit;
+}
+
+/** Chaîne de filtres qui amène la page du terminal à la taille intérieure de sa zone. */
+function pipInner(spec: PipSpec, w: number, h: number): string {
+  if (spec.fit === 'bottom') {
+    // À la largeur voulue, puis on garde le bas : le défilement de la console fait le reste.
+    return `scale=${w}:-2,crop=${w}:${h}:0:ih-${h},setsar=1`;
+  }
+  return `scale=${w}:${h}:force_original_aspect_ratio=decrease,` + `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${PIP_BACKGROUND},setsar=1`;
+}
+
+/**
  * Incrustation d'une seconde source (la capture du terminal) dans la première, avec un liseré de la
  * couleur des cadres de mise en évidence. Le graphe complet est rendu ici : `[0:v]` est la prise,
  * `[1:v]` le terminal, `overlays` les filtres de sous-titre et de cadre à appliquer ensuite.
  */
-export function pipComplex(format: Format, rect: Rect, style: TextStyle, overlays: readonly string[]): string {
+export function pipComplex(format: Format, spec: PipSpec, style: TextStyle, overlays: readonly string[]): string {
   const border = style.highlightThickness;
-  const innerW = rect.w - 2 * border;
-  const innerH = rect.h - 2 * border;
+  const innerW = spec.w - 2 * border;
+  const innerH = spec.h - 2 * border;
   return [
     `[0:v]${chain(normalizeFilters(format))}[bg]`,
-    `[1:v]scale=${innerW}:${innerH}:force_original_aspect_ratio=decrease,` +
-      `pad=${innerW}:${innerH}:(ow-iw)/2:(oh-ih)/2:color=${PIP_BACKGROUND},setsar=1,` +
-      `pad=${rect.w}:${rect.h}:${border}:${border}:color=${PIP_BORDER}[pip]`,
-    `[bg][pip]overlay=${rect.x}:${rect.y}[framed]`,
+    `[1:v]${pipInner(spec, innerW, innerH)},` + `pad=${spec.w}:${spec.h}:${border}:${border}:color=${PIP_BORDER}[pip]`,
+    `[bg][pip]overlay=${spec.x}:${spec.y}[framed]`,
     `[framed]${chain([...overlays])}[out]`,
   ].join(';');
+}
+
+/** Deux rectangles se chevauchent-ils ? Sert à prouver qu'une incrustation ne cache rien d'utile. */
+export function intersects(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
 /** Carton de titre : titre centré, sous-titre optionnel juste dessous. */

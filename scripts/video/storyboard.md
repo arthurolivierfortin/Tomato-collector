@@ -152,7 +152,7 @@ For each one: what goes in, what does the work, what comes out.*
 
 - **Segment** : `agent_view` − 1 s → `agent_view` + 3,5 s, `captionWidth: 450`.
 - **Sous-titre** : « Agent view (key v) ».
-- **Arrêt sur image** — `agent_view` + 1 s, **3 s** : « The agent gets these three images and some JSON. Nothing else. »
+- **Arrêt sur image** — `agent_view` + 1 s, **3 s** : « Three images and JSON. Nothing else. »
 
 ### (g) La coupe et la chute dans le panier
 
@@ -170,9 +170,10 @@ For each one: what goes in, what does the work, what comes out.*
 Prise `cycle`. **Aucun arrêt sur image, aucune coupure** : la prise passe d'un bout à l'autre, seuls
 les sous-titres changent au passage de chaque phase. C'est le point de la partie : montrer que rien
 n'est truqué ni accéléré. Dès le réveil, la capture du terminal est **incrustée en vignette** de
-480×300 en bas à droite (`PIP.corner`), posée sur la rangée de vignettes de vues : elle ne couvre
-ni la colonne de trace, ni la vue mise en avant, ni la vue spectateur, ni le bandeau de statuts, ni
-le sous-titre.
+610×180 en bas à droite (`PIP.corner`), posée sur la rangée de vignettes de vues et rognée par le
+bas pour garder les dernières lignes de la console lisibles : elle ne couvre ni la colonne de
+trace, ni la vue mise en avant, ni la vue spectateur, ni le bandeau de statuts, ni le schéma bloc
+et son étiquette d'activité, ni le sous-titre. `plans/demo.test.ts` le vérifie zone par zone.
 
 | Carton | Durée |
 |---|---|

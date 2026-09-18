@@ -3,7 +3,7 @@
  * peuvent être des secondes ou des marqueurs posés pendant l'enregistrement — c'est ce qui permet
  * de refaire une prise sans réécrire le plan. Tout est pur et testé sans ffmpeg.
  */
-import type { Rect } from './ffmpegFilters';
+import type { PipSpec, Rect } from './ffmpegFilters';
 import { markerS, type TakeMarkers } from './markers';
 
 /** Un instant du plan : des secondes, un marqueur (avec décalage), ou la fin de la prise. */
@@ -18,7 +18,7 @@ export interface FreezeSpec {
   /** Largeur du bandeau de sous-titre, quand la mise en page rétrécit la colonne spectateur. */
   readonly captionWidth?: number;
   /** Zone où incruster la capture du terminal ; hérite de celle du segment quand elle est absente. */
-  readonly pip?: Rect;
+  readonly pip?: PipSpec;
 }
 
 export interface TitleSpec {
@@ -43,7 +43,7 @@ export interface SegmentSpec {
    * Incruste la capture du terminal de la prise dans cette zone (issue #35). Sans capture de
    * terminal, le segment est monté tel quel : le montage prévient, il n'échoue pas.
    */
-  readonly pip?: Rect;
+  readonly pip?: PipSpec;
   /**
    * Segment facultatif : s'il cite un marqueur que la prise n'a pas posé, il est retiré du plan
    * au lieu de faire échouer le montage. Réservé aux panneaux qu'une autre branche livre.
@@ -79,7 +79,7 @@ export interface ResolvedFreeze {
   readonly caption: string;
   readonly highlight?: Rect;
   readonly captionWidth?: number;
-  readonly pip?: Rect;
+  readonly pip?: PipSpec;
 }
 
 export interface ResolvedSegment {
@@ -91,7 +91,7 @@ export interface ResolvedSegment {
   readonly caption?: string;
   readonly highlight?: Rect;
   readonly captionWidth?: number;
-  readonly pip?: Rect;
+  readonly pip?: PipSpec;
   readonly freezes: readonly ResolvedFreeze[];
 }
 
@@ -171,34 +171,4 @@ export function resolvePlan(
   return out;
 }
 
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === 'object' && x !== null;
-}
-
-function isTimeRef(x: unknown): boolean {
-  if (typeof x === 'number' || x === 'end') return true;
-  return isRecord(x) && typeof x['marker'] === 'string' && (x['offsetS'] === undefined || typeof x['offsetS'] === 'number');
-}
-
-function isTitle(x: unknown): boolean {
-  return isRecord(x) && typeof x['text'] === 'string' && typeof x['durationS'] === 'number';
-}
-
-function isEntry(x: unknown): boolean {
-  if (!isRecord(x)) return false;
-  if ('card' in x) return isTitle(x['card']);
-  if (typeof x['take'] !== 'string' || !isTimeRef(x['from']) || !isTimeRef(x['to'])) return false;
-  if (x['title'] !== undefined && !isTitle(x['title'])) return false;
-  if (x['optional'] !== undefined && typeof x['optional'] !== 'boolean') return false;
-  const freezes = x['freezeAt'];
-  if (freezes === undefined) return true;
-  return Array.isArray(freezes) && freezes.every((f: unknown) => isRecord(f) && isTimeRef(f['at']) && typeof f['durationS'] === 'number' && typeof f['caption'] === 'string');
-}
-
-/** Garde de type d'un plan lu depuis un JSON (`--plan-file`) : un plan bâclé échoue avant ffmpeg. */
-export function isMontagePlan(x: unknown): x is MontagePlan {
-  if (!isRecord(x)) return false;
-  if (typeof x['output'] !== 'string') return false;
-  for (const key of ['width', 'height', 'fps']) if (typeof x[key] !== 'number') return false;
-  return Array.isArray(x['segments']) && x['segments'].every(isEntry);
-}
+export { isMontagePlan } from './planGuard';

@@ -103,9 +103,12 @@ export async function measureRafFps(page: Page, durationMs: number): Promise<num
 }
 
 /**
- * Instant de la première peinture de la page, en millisecondes epoch. Playwright n'écrit la vidéo
- * qu'à partir de la première image composée : c'est donc l'origine du fichier vidéo, et l'origine
- * qu'il faut donner aux marqueurs (sinon ils sont en retard de tout le temps de chargement).
+ * Instant de la première peinture de la page, en millisecondes epoch.
+ *
+ * Ce n'est **pas** l'origine des marqueurs : Playwright démarre son screencast à la création de la
+ * page, pas à sa première image composée. La prise s'ouvre donc sur quelques dixièmes de seconde de
+ * page blanche, une dizaine de secondes sur un Vite froid. `recorder.ts` garde cette valeur dans le
+ * fichier de marqueurs (`firstPaintMs`) parce qu'elle dit exactement ça, et rien d'autre.
  */
 export async function firstPaintEpochMs(page: Page): Promise<number> {
   return page.evaluate(() => {

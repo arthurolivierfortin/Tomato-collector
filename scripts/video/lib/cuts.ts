@@ -3,7 +3,7 @@
  * puis concaténer. Un arrêt sur image coupe le segment en deux et s'intercale entre les morceaux.
  * Pur et testé sans ffmpeg.
  */
-import type { Rect } from './ffmpegFilters';
+import type { PipSpec, Rect } from './ffmpegFilters';
 import type { ResolvedEntry, ResolvedSegment } from './plan';
 
 export type Clip =
@@ -16,7 +16,7 @@ export type Clip =
       readonly caption?: string;
       readonly highlight?: Rect;
       readonly captionWidth?: number;
-      readonly pip?: Rect;
+      readonly pip?: PipSpec;
     }
   | {
       readonly kind: 'freeze';
@@ -26,7 +26,7 @@ export type Clip =
       readonly caption: string;
       readonly highlight?: Rect;
       readonly captionWidth?: number;
-      readonly pip?: Rect;
+      readonly pip?: PipSpec;
     };
 
 /** Sous-plan vidéo plus court qu'une image à 30 fps : ffmpeg en ferait un fichier vide. */

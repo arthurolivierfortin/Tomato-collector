@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { EndCardData } from '../lib/episodes';
+import { intersects } from '../lib/ffmpegFilters';
 import { isMontagePlan } from '../lib/plan';
-import { burnedTexts, demoPlan } from './demo';
+import { burnedTexts, demoPlan, planPips } from './demo';
+import { PIP, PROTECTED } from './zones';
 
 const end: EndCardData = { outcome: 'tomato harvested', toolCalls: 12, cost: '$0.38', durationS: 61.1 };
 const plan = demoPlan(end);
@@ -58,5 +60,39 @@ describe('demoPlan', () => {
     expect(ripening !== undefined && 'card' in ripening ? undefined : ripening?.pip).toBeUndefined();
     const withPip = cycle.filter((e) => !('card' in e) && e.pip !== undefined);
     expect(withPip).toHaveLength(cycle.length - 1);
+  });
+
+  it('ne pose jamais la vignette sur une zone que le spectateur doit lire', () => {
+    // Bandeau de statuts, trace, vue mise en avant, schéma bloc, son étiquette d'activité en bas à
+    // droite, et le bandeau de sous-titre : la vignette de la partie 2 accompagne la prise sans
+    // jamais l'interrompre, elle ne doit donc en recouvrir aucun.
+    const clashes = Object.entries(PROTECTED)
+      .filter(([, zone]) => intersects(PIP.corner, zone))
+      .map(([name]) => name);
+    expect(clashes).toEqual([]);
+  });
+
+  it('laisse le sous-titre libre même quand le terminal prend la moitié de l’écran', () => {
+    // `PIP.half` couvre volontairement la trace et la vue mise en avant : un carton l'annonce et le
+    // terminal devient le sujet. Mais la légende, elle, doit rester lisible.
+    expect(intersects(PIP.half, PROTECTED.captionBand)).toBe(false);
+    expect(intersects(PIP.half, PROTECTED.statusBar)).toBe(false);
+    expect(intersects(PIP.half, PROTECTED.blockDiagram)).toBe(false);
+    expect(intersects(PIP.half, PROTECTED.blockActivity)).toBe(false);
+  });
+
+  it('n’emploie que les deux zones d’incrustation déclarées', () => {
+    const used = planPips(plan).flatMap((e) => ('card' in e || e.pip === undefined ? [] : [e.pip]));
+    expect(used.length).toBeGreaterThan(0);
+    expect(used.every((pip) => pip === PIP.corner || pip === PIP.half)).toBe(true);
+  });
+
+  it('garde les deux incrustations dans l’image', () => {
+    for (const pip of Object.values(PIP)) {
+      expect(pip.x).toBeGreaterThanOrEqual(0);
+      expect(pip.y).toBeGreaterThanOrEqual(0);
+      expect(pip.x + pip.w).toBeLessThanOrEqual(1920);
+      expect(pip.y + pip.h).toBeLessThanOrEqual(1080);
+    }
   });
 });
