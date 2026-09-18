@@ -15,17 +15,34 @@ export interface DatasetArgs {
   camera: CameraChoice;
 }
 
+/**
+ * Écart entre les plages de graines de deux jeux. `new_plant` sans graine enchaîne une suite
+ * déterministe : deux jeux générés ainsi voyaient donc EXACTEMENT les mêmes plants, et un jeu de
+ * contrôle ne prouvait plus rien. Chaque prise reçoit maintenant une graine explicite prise dans une
+ * plage propre au jeu, disjointe de toutes les autres tant que le jeu fait moins de SEED_STRIDE images.
+ */
+export const SEED_STRIDE = 100_000;
+
 export interface PlanStep {
   index: number;
+  /** Graine du plant de cette prise ; jamais partagée avec un autre jeu (voir SEED_STRIDE). */
+  plantSeed: number;
   /** Nombre de fruits mûris avant la prise : 0 à 4, pour varier les scènes. */
   ripenCount: number;
   /** Temps laissé à la sim pour que la couleur monte et que le rendu se stabilise. */
   settleMs: number;
 }
 
+/** Graine du plant de la prise `index` du jeu `datasetSeed`, dans la plage réservée à ce jeu. */
+export function plantSeed(datasetSeed: number, index: number): number {
+  return datasetSeed * SEED_STRIDE + index + 1;
+}
+
 export interface SampleRecord {
   name: string;
   camera: CameraName;
+  /** Graine du plant : deux jeux ne peuvent pas partager la même (voir `plantSeed`). */
+  plantSeed: number;
   ripe: number;
   unripe: number;
 }
@@ -64,6 +81,7 @@ export function plan(count: number, seed: number): PlanStep[] {
   const next = rng(seed);
   return Array.from({ length: count }, (_, index) => ({
     index,
+    plantSeed: plantSeed(seed, index),
     ripenCount: Math.floor(next() * 5),
     settleMs: 200 + Math.floor(next() * 500),
   }));

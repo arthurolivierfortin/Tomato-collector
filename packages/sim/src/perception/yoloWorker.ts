@@ -12,6 +12,19 @@ async function fetchAsset(url: string): Promise<Response | null> {
   return res.ok && !type.includes('text/html') ? res : null;
 }
 
+/**
+ * Threads wasm du détecteur. Le multithread exige `crossOriginIsolated` (SharedArrayBuffer), fourni par
+ * les en-têtes COOP/COEP du serveur Vite. Le nombre est **plafonné** : mesuré sur 24 cœurs logiques,
+ * 23 threads étaient deux fois plus lents que 4 — la scène 3D et le rastériseur occupent déjà la
+ * machine, et sur-souscrire fait perdre plus que le parallélisme ne rapporte (issue #36).
+ */
+export const MAX_WASM_THREADS = 8;
+
+function threadCount(): number {
+  if (!self.crossOriginIsolated) return 1;
+  return Math.max(1, Math.min(MAX_WASM_THREADS, (navigator.hardwareConcurrency || 2) - 1));
+}
+
 let session: ort.InferenceSession | null = null;
 let labels: DetectionLabel[] = [];
 let inputName = '';
@@ -29,7 +42,8 @@ async function init(modelUrl: string, metaUrl: string): Promise<void> {
   const modelRes = await fetchAsset(modelUrl);
   if (!modelRes) return post({ type: 'unavailable', reason: 'modèle absent' });
   ort.env.wasm.wasmPaths = { wasm: ortWasmUrl };
-  ort.env.wasm.numThreads = 1;
+  ort.env.wasm.numThreads = threadCount();
+  ort.env.wasm.simd = true;
   const created = await ort.InferenceSession.create(new Uint8Array(await modelRes.arrayBuffer()), { executionProviders: ['wasm'] });
   const input = created.inputNames[0];
   const output = created.outputNames[0];

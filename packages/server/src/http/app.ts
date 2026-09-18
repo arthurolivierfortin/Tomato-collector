@@ -36,6 +36,9 @@ function allowCrossOrigin(req: Request, res: Response, next: () => void): void {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Access-Control-Max-Age', '86400');
+  // La page est servie cross-origin isolated (COOP/COEP) pour que le détecteur ait ses threads wasm
+  // (issue #36) : sans CORP, `require-corp` lui interdirait de lire ces réponses.
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;

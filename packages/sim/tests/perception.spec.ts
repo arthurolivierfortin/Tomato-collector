@@ -12,6 +12,8 @@ test('perception: Canny edges once OpenCV is loaded, detector badge, wake-up on 
   await page.goto('/');
   await page.waitForFunction(() => window.__tomato?.renderViews !== undefined);
   await page.waitForFunction(() => window.__tomatoPerception?.state().opencvReady === true, null, { timeout: 30_000 });
+  // Issue #36 : le modèle est livré avec le dépôt ; le spec doit prouver le chemin modèle, pas le repli.
+  await page.waitForFunction(() => window.__tomatoPerception?.state().yoloReady === true, null, { timeout: 60_000 });
 
   const png = await page.evaluate(async () => (await window.__tomato!.renderViews!(['front'])).images[0]!.pngBase64);
   mkdirSync(shotsDir, { recursive: true });
@@ -42,15 +44,21 @@ test('perception: Canny edges once OpenCV is loaded, detector badge, wake-up on 
   writeFileSync(resolve(shotsDir, 'perception.json'), JSON.stringify({ ripenOk, ...state }, null, 2));
   await page.screenshot({ path: resolve(shotsDir, 'perception.png') });
   if (ripenOk) {
-    expect(state.events[0]).toMatchObject({ type: 'ripe_detected', tomatoId: expect.any(Number) });
-    expect(['hsv', 'yolo']).toContain(state.lastDetector);
+    // Le réveil doit venir du modèle : c'est lui qui décide dès qu'il est chargé (revue de PR #38).
+    expect(state.events[0]).toMatchObject({
+      type: 'ripe_detected',
+      tomatoId: expect.any(Number),
+      detector: 'yolo',
+      confidence: expect.any(Number),
+    });
+    expect(state.lastDetector).toBe('yolo');
   }
 
   // Issue #36 : panneau « Perception » (touche p) — la frame d'entrée du détecteur, ses boîtes, son nom.
   await page.keyboard.press('p');
   const panel = page.getByTestId('perception-panel');
   await expect(panel).toBeVisible();
-  await expect(page.getByTestId('perception-detector')).toHaveText(/YOLOv8n ONNX 640|seuillage HSV 640/);
+  await expect(page.getByTestId('perception-detector')).toHaveText('YOLOv8n ONNX 640');
   await expect(page.getByTestId('perception-gate')).toContainText('frames consécutives');
   await expect(page.getByTestId('perception-inference')).toContainText('ms');
   // La vue mise en avant garde ses 613 px : le panneau vit dans la colonne de trace (issue #22).

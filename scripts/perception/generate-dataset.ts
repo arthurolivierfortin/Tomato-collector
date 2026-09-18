@@ -25,16 +25,17 @@ async function ready(page: Page): Promise<void> {
 }
 
 /**
- * Prépare une scène : nouveau plant tiré au hasard, sim accélérée ×10 pendant `settleMs` pour que le
- * mûrissement naturel amène des fruits « turning » (orange) en cours de rampe, puis `ripenCount` fruits
- * mûris d'un coup. Le mélange rouge / orange / vert change donc d'une prise à l'autre.
+ * Prépare une scène : plant régénéré avec la graine **explicite** de la prise (sans elle, deux jeux
+ * successifs rejouaient la même suite de plants et un jeu de contrôle ne prouvait rien), sim accélérée
+ * ×10 pendant `settleMs` pour que le mûrissement naturel amène des fruits « turning » (orange) en cours
+ * de rampe, puis `ripenCount` fruits mûris d'un coup.
  */
-async function stage(page: Page, ripenCount: number, settleMs: number): Promise<void> {
-  await page.evaluate(() => {
+async function stage(page: Page, seed: number, ripenCount: number, settleMs: number): Promise<void> {
+  await page.evaluate((plantSeed: number) => {
     const t = window.__tomato!;
-    t.runtime.applyNow({ type: 'new_plant' });
+    t.runtime.applyNow({ type: 'new_plant', seed: plantSeed });
     t.runtime.applyNow({ type: 'set_time_scale', scale: 10 });
-  });
+  }, seed);
   await page.waitForTimeout(settleMs);
   await page.evaluate((k: number) => {
     const t = window.__tomato!;
@@ -57,7 +58,7 @@ async function main(): Promise<void> {
 
   const records: SampleRecord[] = [];
   for (const step of plan(args.count, args.seed)) {
-    await stage(page, step.ripenCount, step.settleMs);
+    await stage(page, step.plantSeed, step.ripenCount, step.settleMs);
     const camera = pickCamera(step.index, args.camera);
     const sample = await page.evaluate(async (cam) => {
       // `renderViews` met `visibleIn` à jour (passe d'identifiants) : les fruits occultés ne sont pas étiquetés.
@@ -68,7 +69,7 @@ async function main(): Promise<void> {
     const name = String(step.index).padStart(4, '0');
     writeFileSync(resolve(outDir, 'images', `${name}.png`), Buffer.from(sample.pngBase64, 'base64'));
     writeFileSync(resolve(outDir, 'labels', `${name}.txt`), toYoloLines(sample.labels, sample.widthPx, sample.heightPx));
-    records.push({ name, camera, ripe: sample.labels.filter((l) => l.label === 'ripe').length, unripe: sample.labels.filter((l) => l.label === 'unripe').length });
+    records.push({ name, camera, plantSeed: step.plantSeed, ripe: sample.labels.filter((l) => l.label === 'ripe').length, unripe: sample.labels.filter((l) => l.label === 'unripe').length });
     if ((step.index + 1) % 10 === 0) console.log(`${step.index + 1}/${args.count} images`);
   }
   await browser.close();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLASS_NAMES, parseArgs, pickCamera, plan, toYoloLines } from './datasetPlan';
+import { CLASS_NAMES, SEED_STRIDE, parseArgs, pickCamera, plan, plantSeed, toYoloLines } from './datasetPlan';
 import type { SampleLabel } from './pageGlobals';
 
 describe('parseArgs', () => {
@@ -22,6 +22,18 @@ describe('plan', () => {
     expect(a.every((s) => s.ripenCount >= 0 && s.ripenCount <= 4)).toBe(true);
     expect(a.every((s) => s.settleMs >= 200 && s.settleMs < 700)).toBe(true);
     expect(plan(30, 37)).not.toEqual(a);
+  });
+
+  // Le point qui rend un jeu de contrôle honnête : deux jeux ne doivent jamais voir le même plant.
+  it('gives every shot its own plant seed, in a range reserved for its dataset', () => {
+    const train = plan(400, 2607).map((s) => s.plantSeed);
+    const evaluation = plan(100, 36).map((s) => s.plantSeed);
+    const holdout = plan(60, 999).map((s) => s.plantSeed);
+    expect(new Set([...train, ...evaluation, ...holdout]).size).toBe(560);
+    expect(new Set(train).size).toBe(400);
+    expect(plantSeed(36, 0)).toBe(36 * SEED_STRIDE + 1);
+    // Aucune graine n'est 0 : `new_plant` sans graine enchaînerait la suite par défaut de la page.
+    expect(plan(10, 0).every((s) => s.plantSeed > 0)).toBe(true);
   });
 
   it('cycles through the three cameras', () => {

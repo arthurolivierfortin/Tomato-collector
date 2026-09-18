@@ -10,6 +10,7 @@ const info = (over: Partial<PipelineInfo> = {}): PipelineInfo => ({
   canny: true,
   inputPx: 640,
   viewPx: 800,
+  target: 'episode',
   ...over,
 });
 
@@ -34,7 +35,7 @@ describe('pipelineStages', () => {
     expect(byKey.get('grid')?.sourceLabel).toBe(SOURCE_LABEL.calibration);
     expect(byKey.get('tools')?.sourceLabel).toBe(SOURCE_LABEL.robot);
     expect(byKey.get('markers')?.sourceLabel).toBe(SOURCE_LABEL.sim);
-    expect(byKey.get('fall')?.sourceLabel).toBe(SOURCE_LABEL.physics);
+    expect(byKey.get('fall')?.sourceLabel).toBe(SOURCE_LABEL.geometry);
     // Les repères de tomates sont la part assumée de vérité terrain : la légende doit le dire.
     expect(byKey.get('markers')?.caption).toContain('simulation');
   });
@@ -47,6 +48,28 @@ describe('pipelineStages', () => {
 
     const yolo = pipelineStages(info({ detector: 'yolo' })).find((s) => s.key === 'detect');
     expect(yolo?.sourceLabel).toBe('modèle YOLOv8n ONNX 640');
+  });
+
+  // Revue visuelle de PR #38 : la pastille « modèle » ne doit jamais porter un texte de seuillage.
+  it('never puts the model badge on the HSV fallback', () => {
+    expect(pipelineStages(info({ detector: 'hsv' })).find((s) => s.key === 'detect')?.source).toBe('threshold');
+    expect(pipelineStages(info({ detector: 'yolo' })).find((s) => s.key === 'detect')?.source).toBe('model');
+  });
+
+  it('says which target the stem and fall layers are drawn from', () => {
+    const episode = pipelineStages(info({ target: 'episode' }));
+    expect(episode.find((s) => s.key === 'fall')?.caption).not.toContain('cible');
+
+    const provisional = pipelineStages(info({ target: 'provisoire' }));
+    expect(provisional.find((s) => s.key === 'fall')?.caption).toContain('la tomate que le détecteur vient de voir mûre');
+    expect(provisional.find((s) => s.key === 'markers')?.caption).toContain('Aucun épisode en cours');
+
+    const none = pipelineStages(info({ target: null }));
+    expect(none.find((s) => s.key === 'fall')?.caption).toContain('set_target');
+  });
+
+  it('says that unripe boxes are not matched', () => {
+    expect(pipelineStages(info()).find((s) => s.key === 'match')?.caption).toContain('les boîtes `unripe` ne sont pas associées');
   });
 
   it('says the detector did not run when there is no inference time', () => {

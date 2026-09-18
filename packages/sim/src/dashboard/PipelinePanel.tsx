@@ -9,20 +9,22 @@ const SOURCE_BADGE: Record<StageSource, string> = {
   camera: 'bg-neutral-700 text-neutral-100',
   opencv: 'bg-stem/20 text-stem',
   model: 'bg-fuchsia-900 text-fuchsia-100',
+  threshold: 'bg-turning/25 text-turning',
   logic: 'bg-blue-900 text-blue-100',
   calibration: 'bg-neutral-700 text-neutral-200',
   robot: 'bg-basket/20 text-basket',
   sim: 'bg-ripe/25 text-ripe',
-  physics: 'bg-neutral-600 text-neutral-100',
+  geometry: 'bg-neutral-600 text-neutral-100',
   output: 'bg-unripe/20 text-unripe',
 };
 
 function Tile({ tile }: { tile: PipelineTile }) {
   return (
     <figure data-testid="pipeline-tile" data-stage={tile.key} className="flex min-w-0 flex-col gap-1 rounded-sm border border-line bg-panel-2 p-2">
-      <figcaption className="flex items-baseline gap-2">
-        <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">{tile.title}</span>
-        <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10.5px] ${SOURCE_BADGE[tile.source]}`}>{tile.sourceLabel}</span>
+      {/* Titre sur sa ligne, pastille sous lui : à 1920×1080 le couple tenait mal sur une seule ligne. */}
+      <figcaption className="flex flex-col gap-1">
+        <span className="text-[12.5px] leading-tight text-ink">{tile.title}</span>
+        <span className={`w-fit rounded-sm px-1.5 py-0.5 text-[10.5px] ${SOURCE_BADGE[tile.source]}`}>{tile.sourceLabel}</span>
       </figcaption>
       {tile.pngBase64 === '' ? (
         <div className="grid aspect-square w-full place-items-center rounded-sm border border-line bg-black text-[11px] text-ink-dim">tampon indisponible</div>
@@ -59,7 +61,7 @@ export function PipelinePanel({ camera, capture, pending, onCamera, onRefresh, o
   }, [onClose]);
 
   return (
-    <div data-testid="pipeline" role="dialog" aria-modal="true" aria-label="Pipeline de traitement" className="fixed inset-0 z-50 flex flex-col gap-3 overflow-y-auto bg-black/95 p-4">
+    <div data-testid="pipeline" role="dialog" aria-modal="true" aria-label="Pipeline de traitement" className="fixed inset-0 z-50 flex flex-col gap-3 overflow-y-auto bg-black p-4">
       <header className="flex shrink-0 flex-wrap items-center gap-2">
         <h2 className="text-[15px] text-ink">Pipeline de traitement — caméra {CAMERA_LABEL[camera]}</h2>
         <div role="group" aria-label="Caméra" className="ml-2 flex items-center gap-1">
@@ -81,7 +83,8 @@ export function PipelinePanel({ camera, capture, pending, onCamera, onRefresh, o
           {pending ? 'Rendu des étapes en cours…' : 'Aucune scène locale : le pipeline n’est disponible que sur la page qui rend la simulation.'}
         </p>
       ) : (
-        <div className="grid min-h-0 grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-3">
+        // Cinq colonnes : les dix étapes tiennent en deux rangées pleines, pas 7 + 3.
+        <div className="grid min-h-0 grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           {capture.tiles.map((tile) => (
             <Tile key={tile.key} tile={tile} />
           ))}

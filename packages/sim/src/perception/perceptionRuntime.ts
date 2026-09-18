@@ -11,16 +11,25 @@ export const PERCEPTION_PERIOD_S = 0.5;
 /** Score YOLO minimal pour faire confiance au modèle ; en dessous, repli sur HSV (spec 4.4). */
 export const YOLO_ACCEPT_SCORE_MIN = 0.4;
 
+/** Échecs d'inférence consécutifs tolérés avant de passer en mode dégradé HSV. */
+export const YOLO_MAX_FAILURES = 3;
+/** En mode dégradé, une tentative de retour au modèle tous les N ticks (5 s de temps sim par défaut). */
+export const YOLO_RETRY_EVERY_TICKS = 10;
+
 export interface PerceptionOptions {
   consecutiveFrames: number;
   periodS: number;
   yoloScoreMin: number;
+  yoloMaxFailures: number;
+  yoloRetryEveryTicks: number;
 }
 
 export const DEFAULT_PERCEPTION_OPTIONS: PerceptionOptions = {
   consecutiveFrames: DEFAULT_CONSECUTIVE_FRAMES,
   periodS: PERCEPTION_PERIOD_S,
   yoloScoreMin: YOLO_ACCEPT_SCORE_MIN,
+  yoloMaxFailures: YOLO_MAX_FAILURES,
+  yoloRetryEveryTicks: YOLO_RETRY_EVERY_TICKS,
 };
 
 /** Dépendances injectées : le navigateur fournit le rendu, OpenCV et ONNX ; les tests, des faux. */
@@ -82,6 +91,10 @@ export function createPerceptionModule(deps: PerceptionDeps): PerceptionModule {
     gate: gate.progress(),
   };
   let yolo: RipeDetector | null = null;
+  /** Échecs d'inférence consécutifs ; remis à zéro par la première réussite. */
+  let yoloFailures = 0;
+  /** Ticks passés en mode dégradé depuis la dernière tentative de retour au modèle. */
+  let sinceRetry = 0;
   let accumulatedS = 0;
   let inFlight: Promise<void> | null = null;
   let loading: Promise<void> = Promise.resolve();
@@ -91,18 +104,33 @@ export function createPerceptionModule(deps: PerceptionDeps): PerceptionModule {
     for (const fn of listeners) fn(state);
   };
 
-  /** YOLO d'abord s'il est chargé et confiant ; sinon HSV. */
+  /**
+   * Le modèle décide SEUL quand il est chargé, y compris quand il ne voit aucune tomate mûre : un
+   * silence du modèle est une réponse, pas une panne, et rattraper ce silence avec HSV ferait rentrer
+   * par la fenêtre un détecteur que le dashboard n'annonce pas (issue #36, revue de PR #38).
+   *
+   * HSV ne reprend la main que si le modèle est absent ou en erreur. Une erreur isolée (frame perdue,
+   * worker occupé) ne condamne plus la session : il faut `yoloMaxFailures` échecs consécutifs pour
+   * passer en mode dégradé, et la première inférence réussie ramène le modèle.
+   */
   async function detect(img: RgbaImage): Promise<{ detections: Detection[]; detector: DetectorKind }> {
-    if (yolo) {
+    const degraded = yoloFailures >= opts.yoloMaxFailures;
+    if (yolo !== null && (!degraded || sinceRetry >= opts.yoloRetryEveryTicks)) {
+      sinceRetry = 0;
       try {
         const detections = await yolo(img);
-        if (detections.some((d) => d.label === 'ripe' && d.score >= opts.yoloScoreMin)) return { detections, detector: 'yolo' };
+        if (degraded) {
+          console.info('[perception] YOLO de nouveau opérationnel');
+          publish({ yoloReady: true });
+        }
+        yoloFailures = 0;
+        return { detections, detector: 'yolo' };
       } catch (error) {
-        console.warn('[perception] YOLO en erreur, HSV seul désormais', error);
-        yolo = null;
-        publish({ yoloReady: false });
+        yoloFailures++;
+        console.warn(`[perception] inférence YOLO en échec (${yoloFailures}/${opts.yoloMaxFailures})`, error);
+        if (yoloFailures === opts.yoloMaxFailures) publish({ yoloReady: false });
       }
-    }
+    } else if (yolo !== null) sinceRetry++;
     return { detections: await deps.hsv(img), detector: 'hsv' };
   }
 
@@ -151,8 +179,11 @@ export function createPerceptionModule(deps: PerceptionDeps): PerceptionModule {
     update(dtSimS, ctx) {
       accumulatedS += dtSimS;
       if (accumulatedS < opts.periodS) return;
-      accumulatedS = 0;
+      // La période n'est consommée que lorsqu'une détection part vraiment : si la précédente dure plus
+      // longtemps que la période, la suivante enchaîne aussitôt au lieu de perdre un tour. La porte
+      // compte donc des frames traitées, jamais des tours sautés (revue visuelle de PR #38).
       if (inFlight) return;
+      accumulatedS = 0;
       const img = deps.captureFront(ctx);
       if (!img) return;
       inFlight = tick(ctx, img)

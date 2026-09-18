@@ -118,7 +118,7 @@ describe('perception module (runtime pur)', () => {
     expect(mod.state().gate).toEqual({ tomatoId: 1, count: 2, target: 3 });
   });
 
-  it('prefers YOLO when its score reaches 0.4 and falls back to HSV below', async () => {
+  it('wakes on the model when it is loaded, and ignores boxes under the trust threshold', async () => {
     const strong = deps({ loadYolo: async () => detectorAt(0.9) });
     const m1 = createPerceptionModule(strong.deps);
     m1.init(strong.ctx);
@@ -127,12 +127,50 @@ describe('perception module (runtime pur)', () => {
     await run(m1, strong.ctx, 6);
     expect(strong.events[0]).toMatchObject({ detector: 'yolo', confidence: 0.9 });
 
+    // Boîte sous 0,4 : le modèle a parlé, il n'est pas cru — et HSV ne rattrape pas pour autant.
     const weak = deps({ loadYolo: async () => detectorAt(0.3), hsv: detectorAt(0.7) });
     const m2 = createPerceptionModule(weak.deps);
     m2.init(weak.ctx);
     await m2.loaded();
-    await run(m2, weak.ctx, 6);
-    expect(weak.events[0]).toMatchObject({ detector: 'hsv', confidence: 0.7 });
+    await run(m2, weak.ctx, 20);
+    expect(weak.events).toEqual([]);
+    expect(m2.state().lastDetector).toBe('yolo');
+  });
+
+  // Revue de PR #38 : un modèle chargé qui ne voit rien est une réponse, pas une panne.
+  it('never lets HSV answer behind a loaded model that stayed silent', async () => {
+    const calls: number[] = [];
+    const { deps: d, ctx, events } = deps({ loadYolo: async () => async () => [], hsv: detectorAt(0.95, calls) });
+    const mod = createPerceptionModule(d);
+    mod.init(ctx);
+    await mod.loaded();
+    await run(mod, ctx, 20);
+    expect(events).toEqual([]);
+    expect(calls).toEqual([]); // HSV n'a jamais été appelé
+    expect(mod.state()).toMatchObject({ yoloReady: true, lastDetector: 'yolo' });
+  });
+
+  it('tolerates isolated inference failures and only degrades after three in a row', async () => {
+    let failures = 0;
+    const flaky: RipeDetector = (img) => (failures-- > 0 ? Promise.reject(new Error('worker occupé')) : Promise.resolve([boxAt(TOMATO_POS, img.width, 0.9)]));
+    const { deps: d, ctx } = deps({ loadYolo: async () => flaky, hsv: detectorAt(0.5), options: { consecutiveFrames: 3, yoloMaxFailures: 3, yoloRetryEveryTicks: 4 } });
+    const mod = createPerceptionModule(d);
+    mod.init(ctx);
+    await mod.loaded();
+
+    failures = 2; // deux échecs isolés : HSV répond pour ces frames, le modèle reste annoncé
+    await run(mod, ctx, 4);
+    expect(mod.state()).toMatchObject({ yoloReady: true, lastDetector: 'hsv' });
+    await run(mod, ctx, 2);
+    expect(mod.state().lastDetector).toBe('yolo');
+
+    failures = 3; // trois d'affilée : mode dégradé annoncé
+    await run(mod, ctx, 6);
+    expect(mod.state()).toMatchObject({ yoloReady: false, lastDetector: 'hsv' });
+
+    // Le modèle est retenté après `yoloRetryEveryTicks` et reprend la main dès qu'il répond.
+    await run(mod, ctx, 10);
+    expect(mod.state()).toMatchObject({ yoloReady: true, lastDetector: 'yolo' });
   });
 
   it('re-arms after plant_regenerated and wires the edge filter once OpenCV is ready', async () => {
