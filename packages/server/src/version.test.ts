@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { VERSION } from './index';
+import { VERSION } from './version';
 
 describe('server package', () => {
   it('exposes a semver version', () => {
