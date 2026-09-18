@@ -8,10 +8,10 @@ const xyz = (p: Vec3): string => `X ${fmt(p[0])}, Y ${fmt(p[1])}, Z ${fmt(p[2])}
 /** Résumé textuel compact de l'état de la sim (sans image), pour le message de réveil. */
 export function summarizeWorld(state: WorldState | null): string {
   if (state === null) return 'no simulation state received yet; call get_status first.';
-  const ripe = state.tomatoes.filter((t) => t.state === 'ripe' && t.attached).map((t) => `#${t.id}`);
+  // Issue #36 : pas de liste des tomates mûres — la maturité vient du détecteur d'images, pas du store.
   const parts = [
     `sim time ${fmt(state.simTimeS)} s`,
-    `${state.tomatoes.length} tomatoes on the plant${ripe.length > 0 ? ` (ripe: ${ripe.join(', ')})` : ''}`,
+    `${state.tomatoes.length} tomatoes on the plant`,
     `scissors cut point at ${xyz(state.scissors.cutPointCm)} cm, ${state.scissors.openingDeg > 0 ? 'open' : 'closed'}`,
     `basket centre at X ${fmt(state.basket.centerCm[0])}, Y ${fmt(state.basket.centerCm[1])} cm`,
   ];
@@ -27,7 +27,7 @@ export function buildWakePrompt(event: WakeEvent, statusText: string, opts: { re
     );
   }
   lines.push(
-    `A ripe tomato was detected: tomato #${event.tomatoId} at ${xyz(event.positionCm)} cm, ripeness ${event.ripeness.toFixed(2)}. It is the target of this episode.`,
+    `A ripe tomato was detected: tomato #${event.tomatoId} at ${xyz(event.positionCm)} cm, seen ripe by ${event.detector} with confidence ${event.confidence.toFixed(2)}. It is the target of this episode.`,
     `Current status: ${statusText}`,
     'Harvest it: place the basket under the predicted impact point, bring the scissors to the middle of its stem in 5 cm then 1 cm steps, align the blades, open, cut, confirm the landing with get_status, then call report.',
     `You have at most ${MAX_TOOL_CALLS_PER_EPISODE} tool calls in this episode, report included. Start with get_views.`,

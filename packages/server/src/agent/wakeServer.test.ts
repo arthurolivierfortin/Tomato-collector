@@ -18,7 +18,7 @@ describe('wake server', () => {
     server = await createWakeServer({
       port: 0,
       runner,
-      resolve: (id) => (id === 3 ? { tomatoId: 3, positionCm: [1, 2, 3], ripeness: 1, detector: 'manual', confidence: 1 } : null),
+      resolve: (id) => (id === 3 ? { tomatoId: 3, positionCm: [1, 2, 3], detector: 'manual', confidence: 1 } : null),
       knownIds: () => [3],
     });
   });
@@ -30,7 +30,7 @@ describe('wake server', () => {
     const r = await fetch(url('/wake/3'), { method: 'POST' });
     expect(r.status).toBe(202);
     expect(await r.json()).toEqual({ queued: true, agent: 'on', tomatoId: 3, behindRunningEpisode: false });
-    expect(woken).toEqual([{ tomatoId: 3, positionCm: [1, 2, 3], ripeness: 1, detector: 'manual', confidence: 1 }]);
+    expect(woken).toEqual([{ tomatoId: 3, positionCm: [1, 2, 3], detector: 'manual', confidence: 1 }]);
     busy = true;
     const r2 = await fetch(url('/wake/3'), { method: 'POST' });
     expect(await r2.json()).toMatchObject({ behindRunningEpisode: true });
@@ -50,7 +50,7 @@ describe('wake server', () => {
 });
 
 describe('wake server with the agent off (issue #29)', () => {
-  const event: WakeEvent = { tomatoId: 1, positionCm: [0, 1, 2], ripeness: 1, detector: 'manual', confidence: 1 };
+  const event: WakeEvent = { tomatoId: 1, positionCm: [0, 1, 2], detector: 'manual', confidence: 1 };
 
   it('stages the wake on the dummy runner and says so instead of queuing an SDK episode', async () => {
     const woken: WakeEvent[] = [];

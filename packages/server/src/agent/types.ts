@@ -3,11 +3,14 @@ import type { Phase, ServerToDashboard, Vec3, WakeDetector, WorldState } from '@
 
 export type EpisodeOutcome = 'harvested' | 'missed' | 'aborted';
 
-/** Événement de réveil : la tomate mûre détectée, et par qui (issue #23). */
+/**
+ * Événement de réveil : la tomate déclarée mûre par la perception, et par quel détecteur (issue #23).
+ * Issue #36 : il ne porte aucune maturité de la simulation — seule la confiance du détecteur fait foi.
+ * `positionCm` reste la position connue de la sim : elle amorce la recherche de l'agent, elle ne décide rien.
+ */
 export interface WakeEvent {
   tomatoId: number;
   positionCm: Vec3;
-  ripeness: number;
   detector: WakeDetector;
   confidence: number;
 }

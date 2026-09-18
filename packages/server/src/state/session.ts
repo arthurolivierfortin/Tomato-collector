@@ -24,11 +24,13 @@ export interface Detection {
 /** Détection par défaut : un réveil déclenché à la main (`npm run wake`, API) n'a pas de détecteur. */
 export const MANUAL_DETECTION: Detection = { detector: 'manual', confidence: 1 };
 
-/** Réveil de l'agent (M6) : la tomate mûre à récolter, et ce qui l'a repérée. */
+/**
+ * Réveil de l'agent (M6) : la tomate déclarée mûre à récolter, et ce qui l'a repérée.
+ * Issue #36 : aucune maturité de la simulation n'y transite — seule la confiance du détecteur.
+ */
 export interface WakeEvent extends Detection {
   tomatoId: number;
   positionCm: Vec3;
-  ripeness: number;
 }
 
 /** Étiquette du bloc perception → serveur : « tomate #3 mûre, yolo 0,56 ». */
@@ -96,7 +98,7 @@ export function createSession(hub: Hub, deps: SessionDeps): Session {
 
   function wakeEventFor(tomatoId: number, d: Detection): WakeEvent {
     const t = deps.sim.latestState()?.tomatoes.find((x) => x.id === tomatoId);
-    return { tomatoId, positionCm: t?.positionCm ?? [0, 0, 0], ripeness: t?.ripeness ?? 1, ...d };
+    return { tomatoId, positionCm: t?.positionCm ?? [0, 0, 0], ...d };
   }
 
   function startEpisode(tomatoId: number, detection: Detection = MANUAL_DETECTION): string | null {

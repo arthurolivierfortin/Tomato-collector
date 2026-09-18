@@ -1,3 +1,5 @@
+import type { GateProgress } from './types';
+
 /** Nombre de frames consécutives « mûre » avant réveil (spec 3, N configurable, défaut 5). */
 export const DEFAULT_CONSECUTIVE_FRAMES = 5;
 
@@ -5,6 +7,8 @@ export interface WakeGate {
   /** Une observation par tick : l'identifiant vu mûr, ou null. Renvoie l'identifiant à la n-ième observation consécutive, sinon null. */
   push(tomatoId: number | null): number | null;
   reset(): void;
+  /** Compteur courant, pour le panneau Perception (issue #36). */
+  progress(): GateProgress;
 }
 
 /** Compteur de vues consécutives d'un même identifiant ; tout changement (autre id ou null) remet à zéro. */
@@ -25,5 +29,6 @@ export function createWakeGate(n: number = DEFAULT_CONSECUTIVE_FRAMES): WakeGate
       current = null;
       count = 0;
     },
+    progress: () => ({ tomatoId: current, count, target: n }),
   };
 }

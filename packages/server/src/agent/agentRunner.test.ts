@@ -72,7 +72,7 @@ const result = (sessionId: string, isError = false): AgentMessage => ({
   session_id: sessionId,
 });
 const wake = (tomatoId: number, detector: WakeEvent['detector'] = 'yolo', confidence = 0.56): WakeEvent => ({
-  tomatoId, positionCm: [1, 2, 3], ripeness: 1, detector, confidence,
+  tomatoId, positionCm: [1, 2, 3], detector, confidence,
 });
 
 function setup(scripts: Array<AgentMessage[] | Error>, gate?: () => Promise<void>) {
@@ -149,7 +149,7 @@ describe('createAgentRunner', () => {
       return base(prompt, options);
     };
     // M5 : `session.startEpisode` prévient ses abonnés `onWake`, qui rappellent `runner.wake`.
-    const s = fakeSession({ onStart: (tomatoId) => runner.wake({ tomatoId, positionCm: [1, 2, 3], ripeness: 1, detector: 'hsv', confidence: 0.7 }) });
+    const s = fakeSession({ onStart: (tomatoId) => runner.wake({ tomatoId, positionCm: [1, 2, 3], detector: 'hsv', confidence: 0.7 }) });
     const runner = createAgentRunner({
       hub: { broadcast: (m) => out.push(m) },
       session: s.session,

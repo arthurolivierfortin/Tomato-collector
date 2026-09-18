@@ -69,7 +69,7 @@ describe('runWakeCli with the agent off (issue #29)', () => {
       port: 0,
       agent: 'off',
       runner: { wake: (e) => woken.push(e), busy: () => false },
-      resolve: (id) => (id === 1 ? { tomatoId: 1, positionCm: [0, 0, 0], ripeness: 1, detector: 'manual', confidence: 1 } : null),
+      resolve: (id) => (id === 1 ? { tomatoId: 1, positionCm: [0, 0, 0], detector: 'manual', confidence: 1 } : null),
       knownIds: () => [1],
     });
     const dir = mkdtempSync(join(tmpdir(), 'tomato-wake-'));
