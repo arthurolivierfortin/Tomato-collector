@@ -11,9 +11,11 @@ describe('perceptionInfo', () => {
     expect(reader?.()).toEqual({ opencvReady: true, yoloReady: false, lastDetector: 'hsv' });
   });
 
-  it('labels detector and edge filter, with the HSV/Sobel fallback', () => {
-    expect(detectorLabel(null)).toBe('HSV/Sobel');
-    expect(detectorLabel({ opencvReady: true, yoloReady: true, lastDetector: 'yolo' })).toBe('yolo/Canny');
-    expect(detectorLabel({ opencvReady: false, yoloReady: false, lastDetector: null })).toBe('hsv/Sobel');
+  // Issue #36 : le bandeau nomme le détecteur réellement actif, pas une abréviation ambiguë.
+  it('names the running detector and the edge filter, with the HSV/Sobel fallback', () => {
+    expect(detectorLabel(null)).toBe('seuillage HSV 640 / Sobel');
+    expect(detectorLabel({ opencvReady: true, yoloReady: true, lastDetector: 'yolo' })).toBe('YOLOv8n ONNX 640 / Canny');
+    expect(detectorLabel({ opencvReady: false, yoloReady: false, lastDetector: null })).toBe('seuillage HSV 640 / Sobel');
+    expect(detectorLabel({ opencvReady: true, yoloReady: true, lastDetector: null })).toBe('YOLOv8n ONNX 640 / Canny');
   });
 });

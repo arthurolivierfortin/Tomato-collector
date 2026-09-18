@@ -31,6 +31,12 @@ export function reduceLocal(state: DashboardState, m: LocalMessage, nowMs: numbe
       return { ...state, ui: { ...state.ui, diagramOpen: !state.ui.diagramOpen } };
     case 'local_toggle_session':
       return { ...state, ui: { ...state.ui, sessionOpen: !state.ui.sessionOpen } };
+    case 'local_toggle_perception':
+      return { ...state, ui: { ...state.ui, perceptionOpen: !state.ui.perceptionOpen } };
+    case 'local_pipeline_open':
+      return { ...state, ui: { ...state.ui, pipelineCamera: m.camera } };
+    case 'local_pipeline_close':
+      return state.ui.pipelineCamera === null ? state : { ...state, ui: { ...state.ui, pipelineCamera: null } };
     case 'local_block_advance': {
       // `advanceQueue` rend le même état quand il n'y a rien à faire : le store ne notifie personne.
       const blocks = advanceQueue(state.blocks, nowMs);

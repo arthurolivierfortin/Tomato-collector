@@ -27,6 +27,15 @@ export function initialDashboardState(model: string | null = DEFAULT_MODEL): Das
     costUsd: 0,
     model,
     sim: { simTimeS: 0, timeScale: 1, paused: false },
-    ui: { controlsHidden: false, agentView: false, diagramOpen: true, sessionOpen: true, lightbox: null, traceOverrides: {} },
+    ui: {
+      controlsHidden: false,
+      agentView: false,
+      diagramOpen: true,
+      sessionOpen: true,
+      perceptionOpen: false,
+      pipelineCamera: null,
+      lightbox: null,
+      traceOverrides: {},
+    },
   };
 }

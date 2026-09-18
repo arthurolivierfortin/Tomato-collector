@@ -64,6 +64,10 @@ export interface UiState {
   diagramOpen: boolean;
   /** Panneau « Session agent (brut) » déplié (touche `t`). */
   sessionOpen: boolean;
+  /** Panneau « Perception » déplié (touche `p`, issue #36). */
+  perceptionOpen: boolean;
+  /** Mode « Pipeline de traitement » plein écran sur une caméra (touche `x`) ; null = fermé. */
+  pipelineCamera: CameraId | null;
   /** Loupe plein écran ouverte sur une vue, avec son zoom et son déplacement ; null = fermée. */
   lightbox: LightboxView | null;
   /** Repli/dépli explicite d'une entrée de trace, par identifiant ; absent = état par défaut. */
@@ -111,6 +115,9 @@ export type LocalMessage =
   | { type: 'local_toggle_agent_view' }
   | { type: 'local_toggle_diagram' }
   | { type: 'local_toggle_session' }
+  | { type: 'local_toggle_perception' }
+  | { type: 'local_pipeline_open'; camera: CameraId }
+  | { type: 'local_pipeline_close' }
   /** Battement du schéma bloc : fait avancer la file quand l'activité en cours a tenu sa durée. */
   | { type: 'local_block_advance' }
   /** Clic sur une vignette : elle passe en grand. */

@@ -4,6 +4,7 @@ import { setCameraGizmosVisible } from '../cameras/agentCameras';
 import { subscribeViews } from '../cameras/cameraModule';
 import type { SimRuntime } from '../core/runtime';
 import { PerceptionBadge } from '../perception/PerceptionBadge';
+import { usePerceptionState } from '../perception/usePerception';
 import type { SceneHandle } from '../three/createScene';
 import { SpectatorView } from '../three/SpectatorView';
 import { BlockDiagram } from './BlockDiagram';
@@ -13,9 +14,11 @@ import type { DashboardStore } from './dashboardStore';
 import { detectorLabel, loadPerceptionState, type PerceptionReader } from './perceptionInfo';
 import { ReplayPanel } from './ReplayPanel';
 import { StatusBar } from './StatusBar';
+import { PipelinePanel } from './PipelinePanel';
 import { isTraceExpanded } from './traceExpand';
 import { TraceColumn } from './TraceColumn';
 import { useDashboardKeys } from './useDashboardKeys';
+import { usePipelineCapture } from './usePipeline';
 import { useRipening } from './useRipening';
 import { useWorldClock } from './useWorldClock';
 import { ViewLightbox } from './ViewLightbox';
@@ -54,8 +57,9 @@ interface Props {
  * spectateur, trace de l'agent, et à droite la colonne des vues (celle demandée en dernier par l'agent
  * en grand, les deux autres en vignettes dessous). En mode « ce que voit l'agent » (`v`) la trace
  * s'efface et les trois vues passent en grand. La colonne du milieu porte aussi, sous la trace, le
- * flux brut de la session agent (issue #23, touche `t`). Touches : h contrôles, v mode agent,
- * b schéma, c gizmos de caméra, z loupe plein écran, t session brute.
+ * flux brut de la session agent (issue #23, touche `t`) et le panneau « Perception » (issue #36,
+ * touche `p`). Touches : h contrôles, v mode agent, b schéma, c gizmos de caméra, z loupe plein écran,
+ * t session brute, p perception, x pipeline de traitement plein écran.
  */
 export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
   const state = useSyncExternalStore(store.subscribe, store.get);
@@ -77,11 +81,16 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
   );
   const toggleTrace = useCallback((id: number) => store.dispatch({ type: 'local_toggle_trace', id }), [store]);
   const toggleSession = useCallback(() => store.dispatch({ type: 'local_toggle_session' }), [store]);
+  const togglePerception = useCallback(() => store.dispatch({ type: 'local_toggle_perception' }), [store]);
+  const openPipeline = useCallback((camera: CameraId) => store.dispatch({ type: 'local_pipeline_open', camera }), [store]);
+  const closePipeline = useCallback(() => store.dispatch({ type: 'local_pipeline_close' }), [store]);
   const advanceBlocks = useCallback(() => store.dispatch({ type: 'local_block_advance' }), [store]);
   const expanded = useCallback((id: number) => isTraceExpanded(store.get(), id), [store]);
 
   const { ui } = state;
   const lightboxOpen = ui.lightbox !== null;
+  const perception = usePerceptionState();
+  const pipeline = usePipelineCapture(ui.pipelineCamera, runtime);
   /** Page seule (sans serveur ni replay) : le rendu local de M3 alimente le panneau ; connecté, c'est l'agent. */
   const standalone = state.connection === 'disconnected';
 
@@ -97,7 +106,7 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
     void window.__tomato?.renderViews?.(['top', 'front', 'side']);
   }, []);
 
-  useDashboardKeys(store, toggleCameraGizmos, lightboxOpen);
+  useDashboardKeys(store, toggleCameraGizmos, lightboxOpen, ui.pipelineCamera !== null);
 
   const sim = clock ?? state.sim;
 
@@ -127,10 +136,13 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
                 agentView={ui.agentView}
                 cameraGizmosVisible={gizmosVisible}
                 sessionOpen={ui.sessionOpen}
+                perceptionOpen={ui.perceptionOpen}
                 onToggleControls={() => store.dispatch({ type: 'local_toggle_controls' })}
                 onToggleAgentView={() => store.dispatch({ type: 'local_toggle_agent_view' })}
                 onToggleCameraGizmos={toggleCameraGizmos}
                 onToggleSession={toggleSession}
+                onTogglePerception={togglePerception}
+                onOpenPipeline={() => openPipeline(state.featured)}
                 onOpenLightbox={() => openLightbox(state.featured)}
               >
                 <ReplayPanel slot={slot} />
@@ -138,7 +150,17 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
             </div>
           )}
         </section>
-        {!ui.agentView && <TraceColumn state={state} isExpanded={expanded} onToggleTrace={toggleTrace} onToggleSession={toggleSession} />}
+        {!ui.agentView && (
+          <TraceColumn
+            state={state}
+            perception={perception}
+            isExpanded={expanded}
+            onToggleTrace={toggleTrace}
+            onToggleSession={toggleSession}
+            onTogglePerception={togglePerception}
+            onOpenPipeline={() => openPipeline(state.featured)}
+          />
+        )}
         <ViewsPanel
           views={state.views}
           viewsAt={state.viewsAt}
@@ -159,6 +181,16 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
       />
       {ui.lightbox && (
         <ViewLightbox view={ui.lightbox} views={state.views} onClose={closeLightbox} onCamera={lightboxCamera} onView={lightboxView} />
+      )}
+      {ui.pipelineCamera !== null && (
+        <PipelinePanel
+          camera={ui.pipelineCamera}
+          capture={pipeline.capture}
+          pending={pipeline.pending}
+          onCamera={openPipeline}
+          onRefresh={pipeline.refresh}
+          onClose={closePipeline}
+        />
       )}
     </main>
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CANNY_HIGH, CANNY_LOW, CLAHE_CLIP_LIMIT, CLAHE_TILES, cannyClaheRgba, edgesToWhiteRgba, type CvApi, type CvMat } from './cannyClahe';
+import { CANNY_HIGH, CANNY_LOW, CLAHE_CLIP_LIMIT, CLAHE_TILES, cannyClaheRgba, claheGrayRgba, edgesToWhiteRgba, grayToRgba, type CvApi, type CvMat } from './cannyClahe';
 import { makeRgba } from './rgba';
 
 interface FakeState {
@@ -83,5 +83,21 @@ describe('cannyClaheRgba', () => {
     const state: FakeState = { calls: [], deleted: [] };
     expect(() => cannyClaheRgba(fakeCv(state, true), makeRgba(2, 2))).toThrow('boom');
     expect(state.deleted).toHaveLength(5);
+  });
+});
+
+// Issue #36 : le mode pipeline montre le tampon intermédiaire réel, pas une reconstitution.
+describe('grayToRgba et claheGrayRgba', () => {
+  it('turns a gray plane into an opaque RGBA image', () => {
+    expect(Array.from(grayToRgba(new Uint8Array([0, 128]), 2))).toEqual([0, 0, 0, 255, 128, 128, 128, 255]);
+  });
+
+  it('stops after CLAHE, without running Canny, and frees every Mat', () => {
+    const state: FakeState = { calls: [], deleted: [] };
+    const out = claheGrayRgba(fakeCv(state), makeRgba(4, 4, [10, 20, 30]));
+    expect(state.calls).toEqual(['matFromImageData', `CLAHE(${CLAHE_CLIP_LIMIT},${CLAHE_TILES}x${CLAHE_TILES})`, 'cvtColor(11)', 'apply']);
+    expect(out.length).toBe(4 * 4 * 4);
+    expect(Array.from(out.subarray(0, 4))).toEqual([0, 0, 0, 255]);
+    expect(state.deleted.sort()).toEqual(['clahe', 'mat0', 'mat1', 'mat2']);
   });
 });
