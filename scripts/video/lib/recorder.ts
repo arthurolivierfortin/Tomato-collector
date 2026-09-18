@@ -81,20 +81,25 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
   const rawDir = join(outAbs, `.raw-${take}`);
   await mkdir(rawDir, { recursive: true });
   const { browser, context, page, errors } = await openCapturePage(rawDir);
+  // Instant t = 0 du fichier vidéo : Playwright démarre le screencast à la création de la page,
+  // pas à sa première peinture. Caler l'origine sur la première peinture décalait tous les arrêts
+  // sur image du temps de chargement — 0,9 s sur un Vite chaud, une dizaine de secondes à froid.
+  const videoStartMs = Date.now();
   const markerLog = createMarkerLog(() => Date.now());
-  // Origine provisoire : remplacée par la première peinture dès que la page a chargé (voir plus bas).
-  markerLog.start();
+  markerLog.startAt(videoStartMs);
   const startedAt = new Date().toISOString();
   let renderer = 'inconnu';
   let rafFps = 0;
+  let firstPaintMs = 0;
   let failure: string | null = null;
   let markers: TakeMarkers;
   try {
     log(`page : ${options.pageUrl}`);
     await page.goto(options.pageUrl, { timeout: READY_TIMEOUT_MS });
     await waitForReady(page);
-    // Origine définitive : l'instant t = 0 du fichier vidéo.
-    markerLog.startAt(await firstPaintEpochMs(page));
+    // Gardée en trace, pas comme origine : elle dit ce que le spectateur voit avant la page.
+    firstPaintMs = Math.max(0, Math.round((await firstPaintEpochMs(page)) - videoStartMs));
+    log(`première peinture : ${(firstPaintMs / 1000).toFixed(1)} s après le début de la vidéo`);
     renderer = await webglRenderer(page);
     rafFps = await measureRafFps(page, 1500);
     log(`rendu : ${renderer} — ${rafFps} images/s (requestAnimationFrame)`);
@@ -110,6 +115,7 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
       mode: scenario.mode,
       startedAt,
       expected: scenarioMarkers(scenario),
+      firstPaintMs,
       ...(failure === null ? {} : { failedStep: failure }),
     });
     await context.close();

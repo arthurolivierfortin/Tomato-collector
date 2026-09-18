@@ -47,7 +47,7 @@ describe('createMarkerLog', () => {
     expect(snapshot.durationMs).toBe(12_000);
   });
 
-  it('accepte une origine imposée : la première peinture de la page', () => {
+  it('accepte une origine imposée : l’instant où la page de capture s’ouvre', () => {
     const log = createMarkerLog(fakeClock([5000, 6000]));
     log.startAt(4000);
     log.mark('app');
@@ -55,6 +55,36 @@ describe('createMarkerLog', () => {
       markers: [{ name: 'app', atMs: 1000 }],
       durationMs: 2000,
     });
+  });
+
+  it('compte depuis l’ouverture de la page, pas depuis la première peinture', () => {
+    // Playwright écrit le screencast dès `newPage()`. Prendre la première peinture comme t = 0
+    // retardait tous les marqueurs du temps de chargement : 0,9 s sur un Vite chaud, 10 s à froid.
+    const pageOpenedMs = 1_000;
+    const firstPaintMs = 900;
+    const log = createMarkerLog(fakeClock([6_000, 6_000]));
+    log.startAt(pageOpenedMs);
+    log.mark('app');
+    const snapshot = log.snapshot({ take: 't', video: 't.webm', mode: 'live', startedAt: 'x', firstPaintMs });
+    expect(snapshot.markers).toEqual([{ name: 'app', atMs: 5_000 }]);
+    // La première peinture reste en trace dans le fichier : c'est elle qui dit si Vite était froid.
+    expect(snapshot.firstPaintMs).toBe(900);
+  });
+
+  it('nomme les marqueurs manquants et l’étape fautive quand la prise s’arrête en route', () => {
+    const log = createMarkerLog(fakeClock([0, 100, 200]));
+    log.start();
+    log.mark('app');
+    const snapshot = log.snapshot({
+      take: 'concepts',
+      video: 'concepts.webm',
+      mode: 'live',
+      startedAt: 'x',
+      expected: ['app', 'cut', 'report'],
+      failedStep: 'étape 12 (texte « Coupe ») : Timeout 90000ms exceeded.',
+    });
+    expect(snapshot.missing).toEqual(['cut', 'report']);
+    expect(snapshot.failedStep).toMatch(/Timeout/);
   });
 
   it('refuse un marqueur avant le début de la prise', () => {

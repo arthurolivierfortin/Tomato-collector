@@ -24,6 +24,12 @@ export interface TakeMarkers {
   readonly missing: readonly string[];
   /** Étape sur laquelle la prise s'est arrêtée, absente si elle est allée au bout. */
   readonly failedStep?: string;
+  /**
+   * Instant de la première peinture de la page, depuis le début de la vidéo. Purement indicatif :
+   * il dit ce que le spectateur voit avant que la page s'affiche (0,9 s sur un Vite chaud, une
+   * dizaine de secondes à froid). Ce n'est **pas** l'origine des marqueurs.
+   */
+  readonly firstPaintMs?: number;
 }
 
 export interface TakeMeta {
@@ -34,15 +40,16 @@ export interface TakeMeta {
   /** Marqueurs prévus par le scénario, dans l'ordre : sert à nommer ceux qui manquent. */
   readonly expected?: readonly string[];
   readonly failedStep?: string;
+  readonly firstPaintMs?: number;
 }
 
 export interface MarkerLog {
   /** Fixe l'origine des temps à maintenant. */
   start(): void;
   /**
-   * Fixe l'origine des temps à un instant connu (epoch ms). Le pilote y met la première peinture
-   * de la page : c'est là que Playwright commence à écrire la vidéo, et donc l'instant t = 0 du
-   * fichier. Sans ça les marqueurs seraient décalés de tout le temps de chargement.
+   * Fixe l'origine des temps à un instant connu (epoch ms). Le pilote y met l'instant où la page de
+   * capture s'ouvre : Playwright démarre le screencast à la création de la page, pas à la première
+   * peinture, et c'est donc l'instant t = 0 du fichier vidéo.
    */
   startAt(epochMs: number): void;
   mark(name: string): void;
@@ -94,7 +101,7 @@ export function createMarkerLog(nowMs: () => number): MarkerLog {
       if (marks.some((m) => m.name === name)) throw new Error(`marqueur « ${name} » posé deux fois dans la même prise`);
       marks.push({ name, atMs: nowMs() - origin });
     },
-    snapshot({ expected = [], failedStep, ...meta }) {
+    snapshot({ expected = [], failedStep, firstPaintMs, ...meta }) {
       if (origin === null) throw new Error('snapshot() avant start() : la prise n’a pas d’origine');
       const posed = new Set(marks.map((m) => m.name));
       return {
@@ -103,6 +110,7 @@ export function createMarkerLog(nowMs: () => number): MarkerLog {
         markers: [...marks],
         missing: expected.filter((name) => !posed.has(name)),
         ...(failedStep === undefined ? {} : { failedStep }),
+        ...(firstPaintMs === undefined ? {} : { firstPaintMs }),
       };
     },
   };
