@@ -28,10 +28,10 @@ describe('stateFromRipeness', () => {
 });
 
 describe('radiusScale', () => {
-  it('grows the radius linearly from ×1.0 to ×1.3', () => {
-    expect(RADIUS_GROWTH).toBe(0.3);
+  it('grows the radius linearly from ×1.0 to ×1.2', () => {
+    expect(RADIUS_GROWTH).toBe(0.2);
     expect(radiusScale(0)).toBe(1);
-    expect(radiusScale(0.5)).toBeCloseTo(1.15);
-    expect(radiusScale(1)).toBeCloseTo(1.3);
+    expect(radiusScale(0.5)).toBeCloseTo(1.1);
+    expect(radiusScale(1)).toBeCloseTo(1.2);
   });
 });

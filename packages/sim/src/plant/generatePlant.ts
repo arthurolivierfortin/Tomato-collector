@@ -114,7 +114,8 @@ export function generatePlant(seed: number, options: PlantOptions = {}): PlantSp
   for (let i = 0; i < tomatoCount; i++) {
     const b = branches[i % branches.length]!;
     const anchor = branchPoint(b, between(rng, 0.3, 0.95));
-    const pedicel = between(rng, 4, 6);
+    // 7 à 9 cm : le fruit mûr grossit ×1,2, il doit rester du pédoncule libre à couper (voir ripening.ts).
+    const pedicel = between(rng, 7, 9);
     const dir = unitFromAngles(degToRad(between(rng, 0, 60)), degToRad(between(rng, 0, 360)), -1);
     tomatoes.push({
       id: i + 1,
