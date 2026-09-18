@@ -1,5 +1,6 @@
 import { PHASES, type Phase } from '@tomato/shared';
 import type { Connection, DashboardState, SimClock } from './dashboardTypes';
+import { formatRipening, type Ripening } from './ripening';
 import { PHASE_LABEL, formatCost, formatNum } from './traceFormat';
 
 /** Pastille active : la couleur dit la phase (palette de la spec), rien d'autre n'est coloré. */
@@ -33,10 +34,16 @@ interface Props {
   /** Horloge de la sim locale ; null en lecture seule (on affiche alors celle du dernier snapshot). */
   clock: SimClock | null;
   detector: string;
+  /**
+   * Tomate en cours de mûrissement lue dans la sim locale ; null en lecture seule (on affiche alors
+   * celle du dernier snapshot). Le spectateur doit la voir monter AVANT la détection (issue #23).
+   */
+  ripening?: Ripening | null;
 }
 
-export function StatusBar({ state, clock, detector }: Props) {
+export function StatusBar({ state, clock, detector, ripening }: Props) {
   const sim = clock ?? state.sim;
+  const ripe = ripening ?? state.ripening;
   return (
     <header data-testid="status-bar" className="flex h-11 shrink-0 items-center gap-4 border-b border-line bg-panel-2 px-4 text-[13px]">
       <div className="flex items-center gap-2" data-testid="connection">
@@ -55,6 +62,7 @@ export function StatusBar({ state, clock, detector }: Props) {
           );
         })}
       </ol>
+      <Cell label="mûrissement" value={formatRipening(ripe)} testId="ripening" />
       <Cell label="récoltées" value={String(state.counters.harvested)} testId="count-harvested" />
       <Cell label="ratées" value={String(state.counters.missed)} testId="count-missed" />
       <Cell label="t sim" value={`${formatNum(sim.simTimeS, 1)} s`} testId="sim-time" />

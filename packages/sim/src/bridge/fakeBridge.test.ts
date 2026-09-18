@@ -28,6 +28,30 @@ describe('createFakeBridge', () => {
     bridge.close();
   });
 
+  // Issue #23 partie C : un journal récent porte le réveil et le flux brut de la session agent ;
+  // le replay doit les rejouer comme les autres messages, et le dashboard les reçoit tels quels.
+  it('replays agent_wake and agent_raw, and a log without them still plays', () => {
+    const withRaw = [
+      { atMs: 0, message: { type: 'agent_wake', episodeId: 'e', tomatoId: 3, detector: 'hsv', confidence: 0.9, sessionResumed: false } as ServerToDashboard },
+      { atMs: 100, message: { type: 'agent_raw', episodeId: 'e', kind: 'init', line: 'session sess-1' } as ServerToDashboard },
+      { atMs: 200, message: { type: 'agent_raw', episodeId: 'e', kind: 'result', line: 'coût 0,04 $' } as ServerToDashboard },
+    ];
+    const seen: ServerToDashboard[] = [];
+    const bridge = createFakeBridge(withRaw);
+    bridge.onServerMessage((m) => seen.push(m));
+    vi.advanceTimersByTime(200);
+    expect(seen.map((m) => m.type)).toEqual(['agent_wake', 'agent_raw', 'agent_raw']);
+    expect(seen[1]).toMatchObject({ kind: 'init', line: 'session sess-1' });
+    bridge.close();
+
+    const old = createFakeBridge(script);
+    const seenOld: string[] = [];
+    old.onServerMessage((m) => seenOld.push(m.type));
+    vi.advanceTimersByTime(1000);
+    expect(seenOld).toEqual(['phase', 'phase', 'agent_text']);
+    old.close();
+  });
+
   it('honours the speed factor and close() cancels the rest', () => {
     const bridge = createFakeBridge(script, 2);
     const seen: string[] = [];

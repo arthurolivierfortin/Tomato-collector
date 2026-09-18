@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultWorld, type ServerToDashboard, type ViewsResult } from '@tomato/shared';
-import { TRACE_MAX, createDashboardStore, initialDashboardState, reduce } from './dashboardStore';
+import { BLOCK_MIN_MS } from './blockQueue';
+import { RAW_MAX, TRACE_MAX, createDashboardStore, initialDashboardState, reduce } from './dashboardStore';
 import type { DashboardState } from './dashboardTypes';
 import { ZOOM_MAX, ZOOM_MIN } from './lightbox';
 import { isTraceExpanded } from './traceExpand';
@@ -136,10 +137,75 @@ describe('reduce — messages serveur', () => {
     expect(s.trace[0]).toMatchObject({ kind: 'event', title: 'Tomate 3 tombée au sol', ok: false });
   });
 
-  it('block_activity lights the target block with a flash timestamp and adds no trace entry', () => {
-    const s = run([{ type: 'block_activity', from: 'server', to: 'agent', label: 'réveil' }]);
-    expect(s.blocks).toEqual({ active: 'agent', flow: { from: 'server', to: 'agent', label: 'réveil' }, atMs: T0 });
+  it('block_activity queues the flows in order and adds no trace entry', () => {
+    const s = run([
+      { type: 'block_activity', from: 'perception', to: 'server', label: 'ripe_detected' },
+      { type: 'block_activity', from: 'server', to: 'dashboard', label: 'phase' },
+      { type: 'block_activity', from: 'server', to: 'agent', label: 'réveil' },
+    ]);
+    expect(s.blocks.current).toEqual({ flow: { from: 'perception', to: 'server', label: 'ripe_detected' }, atMs: T0 });
+    expect(s.blocks.pending.map((f) => f.label)).toEqual(['phase', 'réveil']);
     expect(s.trace).toEqual([]);
+  });
+
+  it('local_block_advance chains the queue after BLOCK_MIN_MS and is a no-op before', () => {
+    const s = run([
+      { type: 'block_activity', from: 'perception', to: 'server', label: 'ripe_detected' },
+      { type: 'block_activity', from: 'server', to: 'agent', label: 'réveil' },
+    ]);
+    expect(reduce(s, { type: 'local_block_advance' }, T0 + BLOCK_MIN_MS - 1)).toBe(s);
+    const next = reduce(s, { type: 'local_block_advance' }, T0 + BLOCK_MIN_MS);
+    expect(next.blocks.current?.flow.label).toBe('réveil');
+    expect(next.blocks.pending).toEqual([]);
+  });
+
+  it('agent_wake highlights the detection in the trace and arms the banner (issue #23)', () => {
+    const s = run([{ type: 'agent_wake', episodeId: 'e1', tomatoId: 3, detector: 'hsv', confidence: 0.9, sessionResumed: true }]);
+    expect(s.trace[0]).toMatchObject({
+      kind: 'wake',
+      title: 'Tomate 3 détectée (hsv, 0,90) → réveil de l’agent, session reprise',
+      atMs: T0,
+    });
+    expect(s.wake).toEqual({ tomatoId: 3, detector: 'hsv', confidence: 0.9, sessionResumed: true, atMs: T0 });
+    expect(s.rawSinceMs).toBe(T0);
+  });
+
+  it('agent_wake says « nouvelle session » when the agent starts fresh', () => {
+    const s = run([{ type: 'agent_wake', episodeId: 'e1', tomatoId: 1, detector: 'manual', confidence: 1, sessionResumed: false }]);
+    expect(s.trace[0]?.title).toBe('Tomate 1 détectée (manuel, 1,00) → réveil de l’agent, nouvelle session');
+  });
+
+  it('agent_raw appends raw lines in order, caps them and resets the buffer on a new episode', () => {
+    let s = run([
+      { type: 'agent_wake', episodeId: 'e1', tomatoId: 3, detector: 'hsv', confidence: 0.9, sessionResumed: false },
+      { type: 'agent_raw', episodeId: 'e1', kind: 'init', line: 'session sess-1 · MCP robot : connected' },
+      { type: 'agent_raw', episodeId: 'e1', kind: 'text', line: 'Je regarde les vues.' },
+    ]);
+    expect(s.raw.map((l) => [l.kind, l.text])).toEqual([
+      ['init', 'session sess-1 · MCP robot : connected'],
+      ['text', 'Je regarde les vues.'],
+    ]);
+    expect(s.raw[0]?.atMs).toBe(T0 + 100); // plus ancien en haut : c'est un terminal
+    expect(s.trace).toHaveLength(1); // le flux brut n'encombre pas la trace
+
+    const flood: ServerToDashboard[] = Array.from({ length: RAW_MAX + 20 }, (_, i) => ({ type: 'agent_raw', episodeId: 'e1', kind: 'text', line: `l${i}` }));
+    s = run(flood, s);
+    expect(s.raw).toHaveLength(RAW_MAX);
+    expect(s.raw[RAW_MAX - 1]?.text).toBe(`l${RAW_MAX + 19}`);
+
+    // Épisode suivant : le panneau repart vide, même sans message de réveil (vieux journaux).
+    s = run([{ type: 'agent_raw', episodeId: 'e2', kind: 'init', line: 'session sess-2' }], s);
+    expect(s.raw.map((l) => l.text)).toEqual(['session sess-2']);
+  });
+
+  it('snapshot reports the tomato that is ripening, for the status bar (issue #23)', () => {
+    const tomatoes = [
+      { ...world.tomatoes[0]!, id: 1, ripeness: 1, attached: false },
+      { ...world.tomatoes[0]!, id: 2, ripeness: 0.62, attached: true },
+      { ...world.tomatoes[0]!, id: 3, ripeness: 0, attached: true },
+    ];
+    const s = run([{ type: 'snapshot', state: { ...world, tomatoes }, phase: 'idle', episodeId: null }]);
+    expect(s.ripening).toEqual({ tomatoId: 2, ripeness: 0.62 });
   });
 
   it('keeps the trace newest-first and capped at TRACE_MAX', () => {
@@ -158,8 +224,9 @@ describe('reduce — messages locaux', () => {
     s = reduce(s, { type: 'local_toggle_controls' });
     s = reduce(s, { type: 'local_toggle_agent_view' });
     s = reduce(s, { type: 'local_toggle_diagram' });
+    s = reduce(s, { type: 'local_toggle_session' });
     s = reduce(s, { type: 'local_feature', camera: 'side' });
-    expect(s.ui).toEqual({ controlsHidden: true, agentView: true, diagramOpen: false, lightbox: null, traceOverrides: {} });
+    expect(s.ui).toEqual({ controlsHidden: true, agentView: true, diagramOpen: false, sessionOpen: false, lightbox: null, traceOverrides: {} });
     expect(s.featured).toBe('side');
   });
 

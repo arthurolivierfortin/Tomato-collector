@@ -40,6 +40,8 @@ const OPEN = 1;
 
 const DASHBOARD_TYPES: ReadonlySet<string> = new Set([
   'snapshot', 'phase', 'episode_start', 'episode_end', 'agent_text', 'tool_call_start', 'tool_call_result', 'views', 'sim_event', 'block_activity',
+  // Issue #23 : flux brut de la session agent et réveil explicite.
+  'agent_raw', 'agent_wake',
 ]);
 
 /** Adapte le WebSocket du navigateur à SocketLike (les types DOM ne sont pas directement assignables). */

@@ -1,11 +1,16 @@
 import { CAMERA_IDS, type CameraId, type ServerToDashboard } from '@tomato/shared';
+import { enqueueFlow } from './blockQueue';
 import type { Counters, DashboardState, TraceEntry } from './dashboardTypes';
+import { pushRawLine } from './rawLines';
+import { ripeningOf } from './ripening';
 import {
-  episodeEndTitle, episodeStartTitle, eventTitle, firstLine, phaseTitle, snapshotTitle, toolTitle, viewsTitle,
+  episodeEndTitle, episodeStartTitle, eventTitle, firstLine, phaseTitle, snapshotTitle, toolTitle, viewsTitle, wakeTitle,
 } from './traceFormat';
 
 /** Nombre maximal d'entrées conservées dans la trace (spec : 200). */
 export const TRACE_MAX = 200;
+/** Nombre maximal de lignes gardées dans le panneau « Session agent (brut) » (issue #23). */
+export const RAW_MAX = 300;
 /** Longueur maximale du titre d'un texte de l'agent ; le reste va dans `detail`. */
 export const TEXT_TITLE_MAX = 160;
 
@@ -41,7 +46,8 @@ export function reduceServer(state: DashboardState, m: ServerToDashboard, nowMs:
             ? state.episode
             : { id: m.episodeId, tomatoId: m.state.targetTomatoId ?? -1, startedAtMs: nowMs };
       const sim = { simTimeS: m.state.simTimeS, timeScale: m.state.timeScale, paused: m.state.paused };
-      return push({ ...state, phase: m.phase, phaseAtMs: nowMs, episode, sim }, { kind: 'event', title: snapshotTitle(m.phase) }, nowMs);
+      const ripening = ripeningOf(m.state);
+      return push({ ...state, phase: m.phase, phaseAtMs: nowMs, episode, sim, ripening }, { kind: 'event', title: snapshotTitle(m.phase) }, nowMs);
     }
     case 'phase':
       return push({ ...state, phase: m.phase, phaseAtMs: nowMs }, { kind: 'phase', title: phaseTitle(m.phase), detail: m.reason }, nowMs);
@@ -103,8 +109,25 @@ export function reduceServer(state: DashboardState, m: ServerToDashboard, nowMs:
         nowMs,
       );
     case 'block_activity':
-      return { ...state, blocks: { active: m.to, flow: { from: m.from, to: m.to, label: m.label }, atMs: nowMs } };
+      return { ...state, blocks: enqueueFlow(state.blocks, { from: m.from, to: m.to, label: m.label }, nowMs) };
+    case 'agent_wake': {
+      // Le moment que le spectateur doit voir : la détection puis le réveil, sur-lignés dans la trace
+      // et repris par un bandeau bref. Le flux brut repart à zéro, horodaté depuis cet instant.
+      const wake = { tomatoId: m.tomatoId, detector: m.detector, confidence: m.confidence, sessionResumed: m.sessionResumed, atMs: nowMs };
+      const next = { ...state, wake, raw: [], rawEpisodeId: m.episodeId, rawSinceMs: nowMs };
+      return push(next, { kind: 'wake', title: wakeTitle(m) }, nowMs);
+    }
+    case 'agent_raw': {
+      // Tampon par épisode : un nouvel épisode vide le panneau, même sans message de réveil.
+      const fresh = state.rawEpisodeId !== m.episodeId;
+      const line = { id: state.nextRawId, atMs: nowMs, kind: m.kind, text: m.line };
+      return {
+        ...state,
+        raw: pushRawLine(fresh ? [] : state.raw, line, RAW_MAX),
+        nextRawId: state.nextRawId + 1,
+        rawEpisodeId: m.episodeId,
+        rawSinceMs: fresh ? nowMs : state.rawSinceMs,
+      };
+    }
   }
-  // Messages que ce réducteur ne traite pas encore (agent_raw, agent_wake de l'issue #23, partie C).
-  return state;
 }

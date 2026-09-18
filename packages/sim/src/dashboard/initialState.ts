@@ -1,3 +1,4 @@
+import { emptyQueue } from './blockQueue';
 import type { DashboardState } from './dashboardTypes';
 
 /** Modèle affiché tant que le serveur n'en a pas annoncé un autre (`TOMATO_MODEL` par défaut, contrat Étape 3). */
@@ -16,10 +17,16 @@ export function initialDashboardState(model: string | null = DEFAULT_MODEL): Das
     viewsAt: { top: null, front: null, side: null },
     featured: 'front',
     lastViewsAt: null,
-    blocks: { active: null, flow: null, atMs: null },
+    raw: [],
+    nextRawId: 1,
+    rawEpisodeId: null,
+    rawSinceMs: null,
+    wake: null,
+    ripening: null,
+    blocks: emptyQueue(),
     costUsd: 0,
     model,
     sim: { simTimeS: 0, timeScale: 1, paused: false },
-    ui: { controlsHidden: false, agentView: false, diagramOpen: true, lightbox: null, traceOverrides: {} },
+    ui: { controlsHidden: false, agentView: false, diagramOpen: true, sessionOpen: true, lightbox: null, traceOverrides: {} },
   };
 }

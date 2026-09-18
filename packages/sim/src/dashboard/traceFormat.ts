@@ -1,4 +1,4 @@
-import type { CameraId, Phase, ServerToDashboard, SimEvent } from '@tomato/shared';
+import type { CameraId, Phase, ServerToDashboard, SimEvent, WakeDetector } from '@tomato/shared';
 import type { Outcome } from './dashboardTypes';
 
 export const PHASE_LABEL: Record<Phase, string> = {
@@ -170,4 +170,16 @@ export function episodeEndTitle(m: Extract<ServerToDashboard, { type: 'episode_e
 
 export function viewsTitle(cameras: readonly CameraId[]): string {
   return `Vues rendues : ${cameras.join(', ')}`;
+}
+
+/** Nom du détecteur en clair ; `manual` = réveil à la main (`npm run wake`). */
+export const DETECTOR_LABEL: Record<WakeDetector, string> = { yolo: 'yolo', hsv: 'hsv', manual: 'manuel' };
+
+/**
+ * Ligne de réveil (issue #23), le moment clé de la démo : ce que la perception a vu, puis ce que le
+ * serveur en a fait. Sur-lignée dans la trace et reprise par le bandeau.
+ */
+export function wakeTitle(m: Extract<ServerToDashboard, { type: 'agent_wake' }>): string {
+  const how = m.sessionResumed ? 'session reprise' : 'nouvelle session';
+  return `Tomate ${m.tomatoId} détectée (${DETECTOR_LABEL[m.detector]}, ${formatNum(m.confidence, 2)}) → réveil de l’agent, ${how}`;
 }
