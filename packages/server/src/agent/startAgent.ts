@@ -74,8 +74,9 @@ export async function startAgent(deps: StartAgentDeps): Promise<AgentHandle> {
     runner,
     wakePort: wake.port,
     close: async () => {
-      runner.stop();
+      const drained = runner.stop();
       await wake.close();
+      await drained;
     },
   };
 }

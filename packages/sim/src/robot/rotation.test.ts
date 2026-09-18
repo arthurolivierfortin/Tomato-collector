@@ -97,6 +97,19 @@ describe('forme fermée de la normale des lames (prompts/system.md)', () => {
     expect(b.bladeAxis[0]).toBeLessThan(0);
   });
 
+  it('keeps the blades towards the plant on a stem of the -X -Y quadrant (yaw + 180 branch)', () => {
+    // Tige d = (1, 1, -1) : lacet brut -135°, donc la pose retenue est (45, -54,7356).
+    const d: Vec3 = [1, 1, -1];
+    const chosen = orientationVectors(45, -54.7356, 0);
+    const rejected = orientationVectors(-135, 54.7356, 0);
+    expect(Math.abs(vdot(chosen.bladeNormal, d)) / vlen(d)).toBeCloseTo(1, 5);
+    expect(Math.abs(vdot(rejected.bladeNormal, d)) / vlen(d)).toBeCloseTo(1, 5);
+    expectVec(rejected.bladeNormal, chosen.bladeNormal);
+    // Même plan de lames, mais seule la pose retenue pointe de la base du bras (+X) vers le plant.
+    expect(chosen.bladeAxis[0]).toBeLessThan(0);
+    expect(rejected.bladeAxis[0]).toBeGreaterThan(0);
+  });
+
   it('lays the normal on the real stems of 2026-09-18, within the 45° cut rule', () => {
     const stems: { d: Vec3; yaw: number; pitch: number }[] = [
       { d: [-0.563, 0.298, 0.771], yaw: -27.9, pitch: -39.6 },

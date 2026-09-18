@@ -8,7 +8,8 @@ import { detectionLabel, type Session, type WakeEvent } from './state/session';
 export interface AgentRunner {
   wake(event: WakeEvent): void;
   busy(): boolean;
-  stop(): void;
+  /** Résolue quand l'épisode en cours est coupé (M6 attend brièvement le coût après un `report`). */
+  stop(): Promise<void>;
 }
 
 export interface AgentRunnerDeps {
@@ -81,7 +82,7 @@ export function createNoopRunner(log: Logger = silentLogger, deps?: NoopRunnerDe
       }
     },
     busy: () => false,
-    stop: () => undefined,
+    stop: () => Promise.resolve(),
   };
 }
 
@@ -151,8 +152,9 @@ export async function startRunner(deps: AgentRunnerDeps, opts: RunnerOptions): P
     runner,
     wakePort: wake?.port ?? null,
     stop: async () => {
-      runner.stop();
+      const drained = runner.stop();
       await wake?.close();
+      await drained;
     },
   };
 }

@@ -112,10 +112,20 @@ describe('tool handlers', () => {
     const cam = await handlers.move_camera({ camera: 'side', zoom: 2 });
     expect(cam.content.at(-1)).toEqual(suggestion);
 
-    // Aucune cible : aucune ligne suggestedScissors.
+    // Page sim rechargée en cours d'épisode : la sim ne connaît plus la cible, la session si.
     sim.views = (cams) => ({ images: cams.map((camera) => ({ camera, pngBase64: PNG, widthPx: 800, heightPx: 800 })), json: { ...sim.state, targetTomatoId: null, tomatoes: [tilted] } });
-    const noTarget = await handlers.get_views({ cameras: ['top'] });
-    expect(noTarget.content.map((b) => b.type)).toEqual(['text', 'image', 'text']);
+    const reloaded = await handlers.get_views({ cameras: ['top'] });
+    expect(reloaded.content.at(-1)).toEqual(suggestion);
+    const json = JSON.parse((reloaded.content[2] as { text: string }).text) as { targetTomatoId: number | null };
+    expect(json.targetTomatoId).toBe(1);
+  });
+
+  it('says nothing about the blade angles outside an episode', async () => {
+    const { handlers, sim } = setup();
+    const tilted: Tomato = { ...tomato, stem: { fromCm: [10, 0, 66], toCm: [7, 0, 63] } };
+    sim.views = (cams) => ({ images: cams.map((camera) => ({ camera, pngBase64: PNG, widthPx: 800, heightPx: 800 })), json: { ...sim.state, targetTomatoId: null, tomatoes: [tilted] } });
+    const r = await handlers.get_views({ cameras: ['top'] });
+    expect(r.content.map((b) => b.type)).toEqual(['text', 'image', 'text']);
   });
 
   it('report closes the episode with the real outcome, refuses during falling, is harmless in manual mode', async () => {

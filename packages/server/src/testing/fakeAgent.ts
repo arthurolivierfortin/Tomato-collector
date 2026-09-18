@@ -14,6 +14,6 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       deps.hub.broadcast({ type: 'episode_start', episodeId: deps.session.get().episodeId ?? 'manual', tomatoId: event.tomatoId, sessionResumed: false });
     },
     busy: () => wakes.length > 0,
-    stop: () => undefined,
+    stop: () => Promise.resolve(),
   };
 }

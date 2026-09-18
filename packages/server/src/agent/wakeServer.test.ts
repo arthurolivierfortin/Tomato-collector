@@ -9,7 +9,7 @@ describe('wake server', () => {
   const runner: AgentRunner = {
     wake: (e) => woken.push(e),
     busy: () => busy,
-    stop: () => undefined,
+    stop: () => Promise.resolve(),
     whenIdle: () => Promise.resolve(),
   };
   let server: WakeServer;
