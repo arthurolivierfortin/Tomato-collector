@@ -1,6 +1,6 @@
 # STATUS
 
-**Étape courante :** S:3 — Perception, serveur, agent, dashboard (M4 à M7 en parallèle)
+**Étape courante :** S:4 — Intégration et tournage
 **Repo :** arthurolivierfortin/Tomato-collector
 
 ## Étapes
@@ -9,8 +9,8 @@
 |---|---|---|
 | S:1 Fondations | monorepo, shared, scène minimale, plant v1, README, cycle, issues | terminée 2026-09-17 |
 | S:2 Sim | M1 plant (PR #10), M2 bras (PR #8), M3 vues (PR #9) | terminée 2026-09-17 |
-| S:3 Perception, serveur, agent, dashboard | M4 (PR #13), M5 (PR #17), M7 (PR #15) mergés ; M6 (PR #16) en finalisation | en cours |
-| S:4 Intégration et tournage | — | à faire |
+| S:3 Perception, serveur, agent, dashboard | M4 (PR #13), M5 (PR #17), M6 (PR #16), M7 (PR #15) | terminée 2026-09-18 |
+| S:4 Intégration et tournage | premiers épisodes réels, ajustements, prises vidéo | en cours |
 
 ## Conditions de passage
 
@@ -27,3 +27,4 @@
 - 2026-09-17 : M1 (PR #10) mergé après correction (StrictMode retiré, pédoncules 7–9 cm, croissance ×1,2). Plans M4–M7 de l'Étape 3 écrits et liés aux issues.
 - 2026-09-17 : M3 (PR #9) mergé après correction et vérification visuelle finale 12/12 avec tomates. Étape 2 terminée (224 tests). Étape 3 lancée : builders M4, M5, M6, M7 en parallèle.
 - 2026-09-17 : M4, M5, M7 mergés (368 tests). Intégration réelle serveur + page + appel MCP vérifiée. M6 en finalisation avec premier épisode Claude réel.
+- 2026-09-18 : M6 (PR #16) mergé. Premier épisode réel de Claude : harvested, 10 tool calls, 0 erreur, 0,355 $, 61 s. Étape 3 terminée (412 tests). Étape 4 lancée.
