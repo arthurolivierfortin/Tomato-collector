@@ -100,5 +100,33 @@ test('dashboard replays a scripted episode and is captured at 1920×1080 in both
   await page.keyboard.press('v');
   await expect(page.getByTestId('dashboard')).toHaveAttribute('data-layout', 'normal');
 
+  // Issue #23 partie C : le panneau « Session agent (brut) » se replie et se déplie à la touche t.
+  const session = page.getByTestId('agent-session');
+  await expect(session).toBeVisible();
+  await page.keyboard.press('t');
+  await expect(session).toHaveCount(0);
+  await page.keyboard.press('t');
+  await expect(session).toBeVisible();
+
+  // Rejoué depuis le début : on capture le moment clé, quand le bandeau de réveil est encore affiché
+  // et que le flux brut de la session a commencé à défiler.
+  await page.evaluate(async () => {
+    const t = window.__tomato!;
+    const views = t.renderViews ? await t.renderViews(['top', 'front', 'side']) : null;
+    t.attachBridge!(t.fakeBridge!(t.demoScript!(views, t.runtime.ctx.store.get())));
+  });
+  await expect(page.getByTestId('wake-banner')).toBeVisible({ timeout: 15_000 });
+  await expect(trace.locator('li[data-kind="wake"]').first()).toContainText('réveil de l’agent');
+  await expect(session).toContainText('MCP robot : connected');
+  await expect(session).toContainText('get_views');
+  // Le bloc Agent reste allumé tant que l'épisode court, indépendamment de la flèche en cours.
+  await expect(page.locator('[data-block="agent"][data-active="true"]')).toHaveCount(1);
+  // La vue mise en avant n'a rien perdu : le panneau brut vit dans la colonne de la trace.
+  if (hasViews) {
+    const big = await page.getByTestId('view-featured').locator('img').boundingBox();
+    expect(big!.height).toBeGreaterThanOrEqual(600);
+  }
+  await page.screenshot({ path: resolve(shotsDir, 'dashboard-agent-session.png') });
+
   expect(errors).toEqual([]);
 });

@@ -105,8 +105,6 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
     <main data-testid="dashboard" data-layout={ui.agentView ? 'agent' : 'normal'} className="grid h-full w-full grid-rows-[auto_minmax(0,1fr)_auto] bg-panel text-ink">
       <div className="shrink-0">
         <StatusBar state={state} clock={clock} detector={detector} ripening={ripening} />
-        {/* Issue #23 : bandeau bref au réveil, juste sous les statuts, là où l'œil est déjà. */}
-        <WakeBanner wake={state.wake} />
         {/* Pastille de perception de M4 : contours actifs, modèle, dernier détecteur (data-testid="perception-badge"). */}
         <div className="border-b border-line bg-panel-2 px-4 pt-2">
           <PerceptionBadge />
@@ -116,6 +114,10 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
         <section aria-label="Vue spectateur" className="relative min-h-0">
           <SpectatorView onReady={onSceneReady} />
           <div className="absolute left-3 top-3 text-[12px] text-ink-dim">Vue spectateur</div>
+          {/* Issue #23 : bandeau bref au réveil, en surimpression pour ne rien prendre aux autres colonnes. */}
+          <div className="pointer-events-none absolute left-3 right-3 top-9">
+            <WakeBanner wake={state.wake} />
+          </div>
           {!ui.controlsHidden && (
             <div className="absolute bottom-3 left-3 right-3">
               <Controls
