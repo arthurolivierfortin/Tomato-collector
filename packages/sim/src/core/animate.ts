@@ -61,6 +61,9 @@ export function createMotionRunner(): MotionRunner {
         return new Promise<ActionResult>((resolve) => {
           running.add((dtSimS, c) => {
             const next = motion.step(dtSimS, c.store.get());
+            // En pause (dt sim = 0) rien ne bouge : on n'écrit pas le store, sinon chaque frame
+            // rediffuserait un état identique au serveur et au dashboard.
+            if (dtSimS <= 0 && !next.done) return false;
             c.store.set(next.state);
             if (!next.done) return false;
             spec.onArrival?.(c);

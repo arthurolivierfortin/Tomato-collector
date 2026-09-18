@@ -122,6 +122,23 @@ describe('sim bridge', () => {
     expect(socket().sent.at(-1)).toMatchObject({ type: 'state' });
   });
 
+  it('turns an unexpected rejection into a not_available result, instead of letting the server wait', async () => {
+    bridge.close();
+    const broken: SimRuntime = { ...runtime, apply: () => Promise.reject(new Error('boum')) };
+    bridge = createBridge({ url: 'ws://test', runtime: broken, renderViews: views, socketFactory: (url) => new FakeSocket(url) });
+    socket().open();
+    socket().receive({ type: 'apply_action', requestId: 'r-boum', action: { type: 'cut' } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(socket().sent.at(-2)).toMatchObject({
+      type: 'action_result',
+      requestId: 'r-boum',
+      result: { ok: false, error: 'not_available' },
+    });
+    const sent = socket().sent.at(-2) as { result: { message: string } };
+    expect(sent.result.message).toContain('boum');
+    expect(socket().sent.at(-1)).toMatchObject({ type: 'state' });
+  });
+
   it('answers render_views with views_result, or an empty result when rendering fails', async () => {
     socket().open();
     socket().receive({ type: 'render_views', requestId: 'v1', cameras: ['front'] });
