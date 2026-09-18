@@ -18,7 +18,8 @@ export interface SimBridgeOptions {
   newId?: () => string;
 }
 
-export const SIM_TIMEOUT_MS = 15_000;
+/** Assez large pour les mouvements animés les plus longs (issue #21) : ~14,7 s de trajet + la file d'attente de l'outil. */
+export const SIM_TIMEOUT_MS = 30_000;
 export const SIM_UNAVAILABLE = 'simulation did not answer';
 
 type Pending =

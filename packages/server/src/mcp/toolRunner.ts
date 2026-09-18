@@ -10,7 +10,16 @@ export interface ToolRunnerOptions {
   now?: () => number;
   newId?: () => string;
   log?: Logger;
+  /**
+   * Durée minimale d'un appel, de `tool_call_start` à `tool_call_result` (issue #21) :
+   * 0 par défaut (tests), `config.toolPacingMs` en vrai. `report` n'est jamais retardé.
+   */
+  pacingMs?: number;
+  /** Attente injectable (horloge factice dans les tests). */
+  wait?: (ms: number) => Promise<void>;
 }
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 export const LIMIT_TEXT = `limite atteinte : ${MAX_TOOL_CALLS_PER_EPISODE} appels d'outils dans cet épisode ; appelle report maintenant`;
 
@@ -24,6 +33,8 @@ export function createToolRunner(deps: ToolDeps, opts: ToolRunnerOptions = {}): 
   const now = opts.now ?? Date.now;
   const newId = opts.newId ?? randomUUID;
   const log = opts.log ?? silentLogger;
+  const pacingMs = opts.pacingMs ?? 0;
+  const wait = opts.wait ?? sleep;
   const handlers = createToolHandlers(deps);
 
   return async (tool, rawArgs) => {
@@ -46,7 +57,14 @@ export function createToolRunner(deps: ToolDeps, opts: ToolRunnerOptions = {}): 
       }
     }
     deps.session.noteToolResult(tool, outcome.ok);
-    deps.hub.broadcast({ type: 'tool_call_result', episodeId, callId, ok: outcome.ok, summary: outcome.summary, durationMs: now() - startedMs });
+    // Rythme de lecture : on complète jusqu'à `pacingMs` pour que chaque appel reste suivable à
+    // l'écran. `report` clôt l'épisode : jamais retardé.
+    let durationMs = now() - startedMs;
+    if (tool !== 'report' && pacingMs > durationMs) {
+      await wait(pacingMs - durationMs);
+      durationMs = now() - startedMs;
+    }
+    deps.hub.broadcast({ type: 'tool_call_result', episodeId, callId, ok: outcome.ok, summary: outcome.summary, durationMs });
     deps.hub.broadcast({ type: 'block_activity', from: 'server', to: 'agent', label: outcome.summary });
     outcome.after?.();
     return outcome;
