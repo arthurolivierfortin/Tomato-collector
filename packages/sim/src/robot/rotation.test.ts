@@ -72,3 +72,40 @@ describe('orientationVectors', () => {
     expect(vdot(o.bladeNormal, o.transverse)).toBeCloseTo(0, 9);
   });
 });
+
+describe('forme fermée de la normale des lames (prompts/system.md)', () => {
+  const closedForm = (yawDeg: number, pitchDeg: number): Vec3 => {
+    const y = (yawDeg * Math.PI) / 180;
+    const p = (pitchDeg * Math.PI) / 180;
+    return [Math.sin(p) * Math.cos(y), Math.sin(p) * Math.sin(y), Math.cos(p)];
+  };
+
+  it('bladeNormal = (sin p·cos y, sin p·sin y, cos p) at roll 0, for any yaw and pitch', () => {
+    for (const yaw of [-180, -121.8, -53.6, -27.9, 0, 39.9, 90, 152.1]) {
+      for (const pitch of [-90, -49.5, -39.5, 0, 13.6, 42.6, 58.5, 90]) {
+        expectVec(orientationVectors(yaw, pitch, 0).bladeNormal, closedForm(yaw, pitch));
+      }
+    }
+  });
+
+  it('the poses (yaw, pitch) and (yaw ∓ 180, −pitch) give the same blade plane, blades opposed', () => {
+    const a = orientationVectors(152.1, 39.6, 0);
+    const b = orientationVectors(-27.9, -39.6, 0);
+    expectVec(b.bladeNormal, a.bladeNormal);
+    // Seule la seconde garde les lames tournées vers le plant (base du bras en +X).
+    expect(a.bladeAxis[0]).toBeGreaterThan(0);
+    expect(b.bladeAxis[0]).toBeLessThan(0);
+  });
+
+  it('lays the normal on the real stems of 2026-09-18, within the 45° cut rule', () => {
+    const stems: { d: Vec3; yaw: number; pitch: number }[] = [
+      { d: [-0.563, 0.298, 0.771], yaw: -27.9, pitch: -39.6 },
+      { d: [0.655, 0.546, 0.523], yaw: 39.8, pitch: 58.5 },
+      { d: [-0.451, 0.612, 0.65], yaw: -53.6, pitch: -49.5 },
+    ];
+    for (const s of stems) {
+      const n = orientationVectors(s.yaw, s.pitch, 0).bladeNormal;
+      expect(Math.abs(vdot(n, s.d)) / vlen(s.d)).toBeCloseTo(1, 3);
+    }
+  });
+});
