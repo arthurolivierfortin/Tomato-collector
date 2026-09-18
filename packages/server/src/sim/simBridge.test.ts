@@ -1,9 +1,17 @@
 import { createDefaultWorld, ok, type SimEvent } from '@tomato/shared';
 import { describe, expect, it } from 'vitest';
 import { createFakeHub } from '../testing/fakes';
-import { SIM_UNAVAILABLE, createSimBridge } from './simBridge';
+import { SIM_TIMEOUT_MS, SIM_UNAVAILABLE, createSimBridge } from './simBridge';
 
 describe('simBridge', () => {
+  it('leaves room for the longest animated movement (issue #21)', () => {
+    // Pire cas : le point de coupe traverse tout l'espace de travail, 2 × la portée (110 cm) à 15 cm/s,
+    // soit ≈ 14,7 s de temps SIM à vitesse ×1, plus la file d'attente de l'outil et les aller-retours.
+    const longestMoveMs = ((2 * 110) / 15) * 1000;
+    expect(SIM_TIMEOUT_MS).toBe(30_000);
+    expect(SIM_TIMEOUT_MS).toBeGreaterThan(longestMoveMs * 1.5);
+  });
+
   it('correlates action results by requestId and remembers the latest state', async () => {
     const hub = createFakeHub();
     let n = 0;

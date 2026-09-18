@@ -28,7 +28,13 @@ async function main(): Promise<void> {
   hub.onBroadcast((m) => journal.record(m));
   sim.onEvent((e) => session.handleSimEvent(e));
 
-  const app = createApp({ createServer: () => createMcpServer({ sim, session, hub }, { log }), journal, session, hub, log });
+  const app = createApp({
+    createServer: () => createMcpServer({ sim, session, hub }, { log, pacingMs: config.toolPacingMs }),
+    journal,
+    session,
+    hub,
+    log,
+  });
   const wsPort = await hub.whenListening();
   const http = await new Promise<ReturnType<typeof app.listen>>((done) => {
     const s = app.listen(config.mcpPort, '127.0.0.1', () => done(s));
@@ -41,7 +47,9 @@ async function main(): Promise<void> {
     : createNoopRunner(log);
   session.onWake((e) => runner.wake(e));
 
-  log(`prêt : MCP ${mcpUrl} · WebSocket ws://localhost:${wsPort} · épisodes ${config.episodesDir} · agent ${config.agent} (${config.model})`);
+  log(
+    `prêt : MCP ${mcpUrl} · WebSocket ws://localhost:${wsPort} · épisodes ${config.episodesDir} · agent ${config.agent} (${config.model}) · rythme outils ${config.toolPacingMs} ms`,
+  );
 
   const shutdown = (): void => {
     log('arrêt');

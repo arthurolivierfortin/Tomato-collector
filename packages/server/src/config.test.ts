@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MCP_PORT, DEFAULT_MODEL, DEFAULT_WS_PORT, readConfig } from './config';
+import { DEFAULT_MCP_PORT, DEFAULT_MODEL, DEFAULT_TOOL_PACING_MS, DEFAULT_WS_PORT, readConfig } from './config';
 
 describe('readConfig', () => {
   it('uses the documented defaults when nothing is set', () => {
@@ -8,7 +8,17 @@ describe('readConfig', () => {
     expect(c.wsPort).toBe(DEFAULT_WS_PORT);
     expect(c.model).toBe(DEFAULT_MODEL);
     expect(c.agent).toBe('on');
+    expect(c.toolPacingMs).toBe(DEFAULT_TOOL_PACING_MS);
+    expect(DEFAULT_TOOL_PACING_MS).toBe(1500);
     expect(c.episodesDir.replace(/\\/g, '/')).toMatch(/data\/episodes$/);
+  });
+
+  it('reads TOMATO_TOOL_PACING_MS and falls back on an invalid value', () => {
+    expect(readConfig({ TOMATO_TOOL_PACING_MS: '3000' }).toolPacingMs).toBe(3000);
+    expect(readConfig({ TOMATO_TOOL_PACING_MS: '0' }).toolPacingMs).toBe(0);
+    expect(readConfig({ TOMATO_TOOL_PACING_MS: '-5' }).toolPacingMs).toBe(DEFAULT_TOOL_PACING_MS);
+    expect(readConfig({ TOMATO_TOOL_PACING_MS: 'lent' }).toolPacingMs).toBe(DEFAULT_TOOL_PACING_MS);
+    expect(readConfig({ TOMATO_TOOL_PACING_MS: '' }).toolPacingMs).toBe(DEFAULT_TOOL_PACING_MS);
   });
 
   it('reads TOMATO_* variables and ignores invalid ports', () => {
