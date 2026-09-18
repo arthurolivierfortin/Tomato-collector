@@ -86,7 +86,7 @@ async function buildPlan(args: ReturnType<typeof parseArgs>): Promise<MontagePla
   const journal: unknown = JSON.parse(await readFile(episodePath, 'utf8'));
   if (!isEpisodeFile(journal)) throw new Error(`journal d’épisode invalide : ${episodePath}`);
   const end = endCardFrom(journal);
-  log(`cartons de fin, lus dans ${episodePath} : ${end.outcome}, ${end.toolCalls} appels, ${end.cost}, ${Math.round(end.durationS)} s`);
+  log(`cartons de fin, lus dans ${episodePath} : ${end.outcome}, ${end.toolCalls} appels, ${Math.round(end.durationS)} s, coût ${end.cost ?? 'non journalisé'}`);
   return demoPlan(end);
 }
 

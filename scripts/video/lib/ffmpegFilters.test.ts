@@ -11,8 +11,6 @@ import {
   highlightFilter,
   pickFontFile,
   FONT_CANDIDATES,
-  lineCount,
-  wrapText,
   CAPTION_MAX_LINES,
 } from './ffmpegFilters';
 
@@ -118,23 +116,6 @@ describe('chain', () => {
   it('assemble les filtres avec des virgules en ignorant les vides', () => {
     expect(chain(['fps=30', '', 'setsar=1'])).toBe('fps=30,setsar=1');
     expect(chain([])).toBe('null');
-  });
-});
-
-describe('wrapText', () => {
-  it('coupe aux espaces sans dépasser la largeur demandée', () => {
-    expect(wrapText('Mûrissement, détection, réveil, observation, positionnement', 24)).toBe(
-      'Mûrissement, détection,\nréveil, observation,\npositionnement',
-    );
-  });
-
-  it('laisse un texte court sur une ligne', () => {
-    expect(wrapText('La coupe', 40)).toBe('La coupe');
-    expect(lineCount(wrapText('La coupe', 40))).toBe(1);
-  });
-
-  it('garde un mot plus long que la largeur plutôt que de le tronquer', () => {
-    expect(wrapText('anticonstitutionnellement ok', 10)).toBe('anticonstitutionnellement\nok');
   });
 });
 

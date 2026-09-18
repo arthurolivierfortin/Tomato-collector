@@ -70,7 +70,7 @@ const part1: PlanEntry[] = [
     // aucune seconde de la prise n'est montrée deux fois.
     to: { marker: 'detection', offsetS: 0.6 },
     title: { text: 'La perception détecte la tomate mûre', durationS: 3 },
-    caption: 'Contours (Canny + CLAHE), puis YOLOv8 (ONNX) si le modèle est disponible, sinon seuillage de couleur (HSV)',
+    caption: 'Contours (Canny + CLAHE), puis YOLOv8 (ONNX) ou seuillage de couleur (HSV)',
     freezeAt: [
       {
         at: { marker: 'detection', offsetS: 0.6 },
@@ -103,9 +103,9 @@ const part1: PlanEntry[] = [
     title: { text: 'Les trois vues de l’agent', durationS: 3.5, subtitle: 'Caméras orthographiques : un centimètre vaut le même nombre de pixels à toute profondeur' },
     caption: 'Grille en centimètres, axes, échelle, marqueurs numérotés, tige, ciseaux et panier',
     freezeAt: [
-      { at: { marker: 'vue_top', offsetS: 1 }, durationS: 3.5, caption: 'Vue de dessus (top) — X vers la droite, Y vers le haut : le panier et la verticale de chute' },
-      { at: { marker: 'vue_front', offsetS: 1 }, durationS: 3.5, caption: 'Vue de face (front) — X vers la droite, Z vers le haut : la tige et les tomates numérotées' },
-      { at: { marker: 'vue_side', offsetS: 1 }, durationS: 3.5, caption: 'Vue de côté (side) — Y vers la droite, Z vers le haut : les ciseaux et leur ouverture' },
+      { at: { marker: 'vue_top', offsetS: 1 }, durationS: 3.5, caption: 'Vue de dessus (top) — X à droite, Y en haut : le panier et la chute' },
+      { at: { marker: 'vue_front', offsetS: 1 }, durationS: 3.5, caption: 'Vue de face (front) — X à droite, Z en haut : la tige et les tomates' },
+      { at: { marker: 'vue_side', offsetS: 1 }, durationS: 3.5, caption: 'Vue de côté (side) — Y à droite, Z en haut : les ciseaux et l’ouverture' },
     ],
   },
   {
@@ -119,8 +119,11 @@ const part1: PlanEntry[] = [
     take: CONCEPTS,
     from: { marker: 'mode_agent', offsetS: -1 },
     to: { marker: 'mode_agent', offsetS: 3.5 },
-    caption: 'Le mode « ce que voit l’agent » (touche v) : les trois vues en grand',
-    freezeAt: [{ at: { marker: 'mode_agent', offsetS: 1 }, durationS: 3, caption: 'L’agent ne reçoit que cela : trois images et du JSON, jamais la scène 3D' }],
+    // En mode « ce que voit l'agent », la colonne spectateur se réduit à 450 px et la grande vue
+    // commence juste après : le bandeau se rétrécit d'autant pour ne rien recouvrir.
+    captionWidth: 450,
+    caption: 'Le mode « ce que voit l’agent » (touche v)',
+    freezeAt: [{ at: { marker: 'mode_agent', offsetS: 1 }, durationS: 3, caption: 'L’agent ne voit que ces trois images et du JSON' }],
   },
   // (f) Les outils MCP.
   {
@@ -131,9 +134,9 @@ const part1: PlanEntry[] = [
     caption: 'Chaque appel apparaît avec ses arguments et son résultat, en JSON',
     highlight: ZONE.trace,
     freezeAt: [
-      // Décalage négatif : le marqueur est posé environ une demi-seconde après l'apparition réelle
-      // de la ligne, et le résultat arrive une seconde plus tard — la fenêtre est étroite.
-      { at: { marker: 'mcp_appel', offsetS: -0.3 }, durationS: 3.5, caption: 'L’appel en cours : move_scissors, ses arguments et le chrono qui tourne' },
+      // Le marqueur est posé quand la ligne apparaît, le résultat arrive une seconde plus tard :
+      // on vise le milieu de cette fenêtre.
+      { at: { marker: 'mcp_appel', offsetS: 0.4 }, durationS: 3.5, caption: 'L’appel en cours : move_scissors, ses arguments et le chrono qui tourne' },
       { at: { marker: 'mcp_resultat', offsetS: 0.4 }, durationS: 4, caption: 'Le résultat : une collision, rendue comme une mesure et non comme une exception' },
       {
         at: { marker: 'flux_brut', offsetS: 1 },
@@ -171,8 +174,10 @@ const part2: PlanEntry[] = [
 ];
 
 function endCards(end: EndCardData): PlanEntry[] {
+  // Le coût n'apparaît que si le journal en porte un : mieux vaut ne rien dire que dire faux.
+  const facts = [`${end.toolCalls} appels d’outils`, `${Math.round(end.durationS)} s`, ...(end.cost === null ? [] : [end.cost])];
   return [
-    { card: { text: `Résultat : ${end.outcome}`, durationS: 4, subtitle: `${end.toolCalls} appels d’outils · ${end.cost} · ${Math.round(end.durationS)} s` } },
+    { card: { text: `Résultat : ${end.outcome}`, durationS: 4, subtitle: facts.join(' · ') } },
     { card: { text: 'Un LLM peut piloter un robot', durationS: 4.5, subtitle: 'à condition de lui donner des outils et des images qui se lisent comme du texte' } },
   ];
 }

@@ -6,21 +6,19 @@ import {
   captionFilters,
   chain,
   highlightFilter,
-  lineCount,
   CAPTION_MAX_LINES,
   escapeFilterPath,
   normalizeFilters,
   titleFilters,
-  wrapText,
   TITLE_BACKGROUND,
   type Format,
-  type Rect,
   type TextStyle,
 } from './ffmpegFilters';
+import { lineCount, wrapText } from './text';
 import { encoderArgs, ffmpeg, type VideoInfo } from './ffmpegRun';
 
 /** Largeurs de rupture, en caractères, calées sur les corps de `DEFAULT_STYLE` en 1920 px. */
-const WRAP = { caption: 45, title: 40, subtitle: 78 } as const;
+const WRAP = { title: 40, subtitle: 78 } as const;
 
 export interface RenderContext {
   readonly format: Format;
@@ -68,15 +66,22 @@ async function renderTitle(ctx: RenderContext, i: number, clip: Extract<Clip, { 
   ]);
 }
 
+/** Nombre de caractères tenant dans un bandeau de `width` pixels, au corps du style. */
+function wrapWidth(style: TextStyle, width: number): number {
+  return Math.max(12, Math.floor((width - 4 * style.bandPadding) / (style.captionSize * 0.44)));
+}
+
 /** Cadre de mise en évidence puis bandeau : le cadre passe dessous, le texte reste lisible. */
-async function overlayChain(ctx: RenderContext, i: number, caption: string | undefined, zone: Rect | undefined): Promise<string[]> {
-  const frame = zone === undefined ? [] : [highlightFilter(zone, ctx.style)];
+async function overlayChain(ctx: RenderContext, i: number, clip: Extract<Clip, { kind: 'video' | 'freeze' }>): Promise<string[]> {
+  const frame = clip.highlight === undefined ? [] : [highlightFilter(clip.highlight, ctx.style)];
+  const caption = clip.caption;
   if (caption === undefined) return frame;
-  const wrapped = wrapText(caption, WRAP.caption);
+  const style: TextStyle = clip.captionWidth === undefined ? ctx.style : { ...ctx.style, captionWidth: clip.captionWidth };
+  const wrapped = wrapText(caption, wrapWidth(style, style.captionWidth));
   const lines = lineCount(wrapped);
   if (lines > CAPTION_MAX_LINES) ctx.warn(`sous-titre sur ${lines} lignes, raccourcir : « ${caption} »`);
   const path = await textFile(ctx, `cap-${pad(i)}`, wrapped);
-  return [...frame, ...captionFilters(path, ctx.style, lines)];
+  return [...frame, ...captionFilters(path, style, lines)];
 }
 
 async function renderVideo(ctx: RenderContext, i: number, clip: Extract<Clip, { kind: 'video' }>, out: string): Promise<void> {
@@ -88,7 +93,7 @@ async function renderVideo(ctx: RenderContext, i: number, clip: Extract<Clip, { 
     '-t',
     (clip.toS - clip.fromS).toFixed(3),
     '-vf',
-    chain([...normalizeFilters(ctx.format), ...(await overlayChain(ctx, i, clip.caption, clip.highlight))]),
+    chain([...normalizeFilters(ctx.format), ...(await overlayChain(ctx, i, clip))]),
     ...encoderArgs(ctx.encoder, ctx.format.fps),
     out,
   ]);
@@ -107,7 +112,7 @@ async function renderFreeze(ctx: RenderContext, i: number, clip: Extract<Clip, {
     '-i',
     still,
     '-vf',
-    chain([...normalizeFilters(ctx.format), ...(await overlayChain(ctx, i, clip.caption, clip.highlight))]),
+    chain([...normalizeFilters(ctx.format), ...(await overlayChain(ctx, i, clip))]),
     ...encoderArgs(ctx.encoder, ctx.format.fps),
     out,
   ]);

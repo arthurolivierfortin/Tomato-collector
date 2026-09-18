@@ -8,8 +8,8 @@ import type { ResolvedEntry, ResolvedSegment } from './plan';
 
 export type Clip =
   | { readonly kind: 'title'; readonly text: string; readonly durationS: number; readonly subtitle?: string }
-  | { readonly kind: 'video'; readonly take: string; readonly fromS: number; readonly toS: number; readonly caption?: string; readonly highlight?: Rect }
-  | { readonly kind: 'freeze'; readonly take: string; readonly atS: number; readonly durationS: number; readonly caption: string; readonly highlight?: Rect };
+  | { readonly kind: 'video'; readonly take: string; readonly fromS: number; readonly toS: number; readonly caption?: string; readonly highlight?: Rect; readonly captionWidth?: number }
+  | { readonly kind: 'freeze'; readonly take: string; readonly atS: number; readonly durationS: number; readonly caption: string; readonly highlight?: Rect; readonly captionWidth?: number };
 
 /** Sous-plan vidéo plus court qu'une image à 30 fps : ffmpeg en ferait un fichier vide. */
 const MIN_CLIP_S = 0.04;
@@ -20,6 +20,7 @@ export function segmentClips(segment: ResolvedSegment): Clip[] {
   const caption = {
     ...(segment.caption === undefined ? {} : { caption: segment.caption }),
     ...(segment.highlight === undefined ? {} : { highlight: segment.highlight }),
+    ...(segment.captionWidth === undefined ? {} : { captionWidth: segment.captionWidth }),
   };
   let cursor = segment.fromS;
   for (const freeze of segment.freezes) {
@@ -33,6 +34,7 @@ export function segmentClips(segment: ResolvedSegment): Clip[] {
       durationS: freeze.durationS,
       caption: freeze.caption,
       ...(freeze.highlight === undefined ? {} : { highlight: freeze.highlight }),
+      ...(freeze.captionWidth === undefined ? {} : { captionWidth: freeze.captionWidth }),
     });
     cursor = freeze.atS;
   }
@@ -96,6 +98,15 @@ function isSegment(entry: ResolvedEntry): entry is ResolvedSegment {
 }
 
 /**
+ * Un segment à fusionner : trop court pour que son sous-titre se lise, et *simple* — ni carton, ni
+ * arrêt sur image. Un segment de la partie 1 dure souvent deux secondes avant un arrêt sur image de
+ * trois : son sous-titre n'est pas le texte que le spectateur lit, il ne faut pas y toucher.
+ */
+function isMergeable(entry: ResolvedEntry, minS: number): entry is ResolvedSegment {
+  return isSegment(entry) && entry.freezes.length === 0 && entry.title === undefined && entry.toS - entry.fromS < minS;
+}
+
+/**
  * Un sous-titre affiché moins de `minS` n'est pas lisible : le segment trop court est fusionné avec
  * le suivant de la même prise, et les deux légendes deviennent une phrase (« Coupe, puis chute dans
  * le panier »). Les durées réelles varient d'une prise à l'autre : c'est au montage de s'adapter,
@@ -111,7 +122,7 @@ export function mergeShortSegments(entries: readonly ResolvedEntry[], minS: numb
       else out.push(pending);
       pending = null;
     }
-    if (isSegment(current) && current.toS - current.fromS < minS) pending = current;
+    if (isMergeable(current, minS)) pending = current;
     else out.push(current);
   }
   if (pending === null) return out;
