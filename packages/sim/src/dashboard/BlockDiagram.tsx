@@ -34,7 +34,7 @@ export function BlockDiagram({ queue, episodeActive, open, onToggle, onAdvance }
   const label = flow ?? queue.last;
   const isActive = (id: BlockId): boolean => id === flow?.to || (episodeActive && id === 'agent');
   return (
-    <footer data-testid="block-diagram" className="shrink-0 border-t border-line bg-panel-2">
+    <footer data-testid="block-diagram" className="shrink-0 border-t border-line bg-panel-2 pb-2">
       <button
         type="button"
         onClick={onToggle}
