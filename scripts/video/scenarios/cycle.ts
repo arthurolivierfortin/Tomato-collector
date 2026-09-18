@@ -49,9 +49,12 @@ export function cycleScenario(mode: TakeMode): Scenario {
       { kind: 'marker', name: 'chute' },
       { kind: 'waitForText', selector: TRACE, text: 'Rapport :', timeoutMs: EPISODE_TIMEOUT_MS },
       { kind: 'marker', name: 'rapport' },
-      { kind: 'wait', ms: 4000 },
+      // Queue courte, et c'est une contrainte, pas un réglage de confort : une fois l'épisode clos
+      // la tomate suivante reprend son mûrissement et un second épisode — payant — démarrerait
+      // pendant les cartons de fin. Au plus sept secondes après le rapport, arrêt compris.
+      { kind: 'wait', ms: 3000 },
       { kind: 'marker', name: 'fin' },
-      { kind: 'wait', ms: 1500 },
+      { kind: 'wait', ms: 1000 },
     ],
   };
 }

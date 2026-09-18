@@ -7,7 +7,7 @@ import type { TakeMode } from './markers';
 
 export type SimAction = 'ripen_next' | 'new_plant';
 
-export type ScenarioStep =
+export type StepBody =
   | { readonly kind: 'wait'; readonly ms: number }
   | { readonly kind: 'press'; readonly key: string }
   | { readonly kind: 'click'; readonly selector: string }
@@ -22,9 +22,22 @@ export type ScenarioStep =
    */
   | { readonly kind: 'waitForRipeness'; readonly minPercent: number; readonly timeoutMs?: number }
   | { readonly kind: 'marker'; readonly name: string }
+  /**
+   * Ouvre un écran par une touche et **ouvre la vanne du même nom si l'écran apparaît**. Les étapes
+   * qui portent `gate: <nom>` ne sont jouées que si la vanne est ouverte. C'est ainsi qu'un
+   * scénario montre un panneau livré par une autre branche sans casser la prise tant qu'il n'est
+   * pas là : touche absente, vanne fermée, toutes les étapes du bloc sont sautées.
+   */
+  | { readonly kind: 'gate'; readonly name: string; readonly key: string; readonly selector: string; readonly timeoutMs?: number }
   /** Rejoue le journal d'épisode passé en option `--episode` via le pont simulé. */
   | { readonly kind: 'replay'; readonly speed?: number }
   | { readonly kind: 'sim'; readonly action: SimAction };
+
+/**
+ * Une étape, avec sa vanne éventuelle : `gate` nomme une vanne ouverte par une étape `gate`
+ * précédente. Vanne fermée, l'étape est sautée sans bruit et son marqueur n'est jamais posé.
+ */
+export type ScenarioStep = StepBody & { readonly gate?: string };
 
 export interface Scenario {
   readonly name: string;
@@ -55,8 +68,14 @@ function optNum(o: Record<string, unknown>, key: string): { [k: string]: number 
   return { [key]: v };
 }
 
-function parseStep(raw: unknown): ScenarioStep {
-  if (!isRecord(raw)) throw new Error('étape non lisible');
+function optStr(o: Record<string, unknown>, key: string): { [k: string]: string } {
+  const v = o[key];
+  if (v === undefined) return {};
+  if (typeof v !== 'string' || v === '') throw new Error(`« ${key} » vide ou non textuel`);
+  return { [key]: v };
+}
+
+function parseBody(raw: Record<string, unknown>): StepBody {
   const kind = raw['kind'];
   switch (kind) {
     case 'wait':
@@ -75,6 +94,8 @@ function parseStep(raw: unknown): ScenarioStep {
       return { kind, minPercent: num(raw, 'minPercent'), ...optNum(raw, 'timeoutMs') };
     case 'marker':
       return { kind, name: str(raw, 'name') };
+    case 'gate':
+      return { kind, name: str(raw, 'name'), key: str(raw, 'key'), selector: str(raw, 'selector'), ...optNum(raw, 'timeoutMs') };
     case 'replay':
       return { kind, ...optNum(raw, 'speed') };
     case 'sim': {
@@ -85,6 +106,11 @@ function parseStep(raw: unknown): ScenarioStep {
     default:
       throw new Error(`type d’étape inconnu : ${String(kind)}`);
   }
+}
+
+function parseStep(raw: unknown): ScenarioStep {
+  if (!isRecord(raw)) throw new Error('étape non lisible');
+  return { ...parseBody(raw), ...optStr(raw, 'gate') };
 }
 
 export function parseScenario(raw: unknown): Scenario {
@@ -107,8 +133,14 @@ export function parseScenario(raw: unknown): Scenario {
   return { name, mode, steps };
 }
 
+/** Marqueurs que la prise doit poser ; ceux qui sont derrière une vanne n'en font pas partie. */
 export function scenarioMarkers(scenario: Scenario): string[] {
-  return scenario.steps.flatMap((s) => (s.kind === 'marker' ? [s.name] : []));
+  return scenario.steps.flatMap((s) => (s.kind === 'marker' && s.gate === undefined ? [s.name] : []));
+}
+
+/** Marqueurs qui peuvent manquer sans que la prise soit ratée : ceux derrière une vanne. */
+export function optionalMarkers(scenario: Scenario): string[] {
+  return scenario.steps.flatMap((s) => (s.kind === 'marker' && s.gate !== undefined ? [s.name] : []));
 }
 
 /** Somme des attentes fixes : une borne basse de la durée de la prise, pour annoncer l'ordre de grandeur. */

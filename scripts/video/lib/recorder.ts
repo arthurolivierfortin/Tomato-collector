@@ -7,6 +7,7 @@ import type { ScriptEntry } from './episodes';
 import { createMarkerLog, type MarkerLog, type TakeMarkers } from './markers';
 import { scenarioMarkers, type Scenario } from './scenario';
 import { runStep } from './steps';
+import { startTerminalCapture, type TerminalCapture } from './terminal';
 
 export interface RecordOptions {
   readonly scenario: Scenario;
@@ -15,6 +16,8 @@ export interface RecordOptions {
   readonly apiUrl: string;
   readonly outDir: string;
   readonly episode: readonly ScriptEntry[];
+  /** Titre de la fenêtre de terminal à filmer en parallèle (`--terminal`), '' pour n'en filmer aucune. */
+  readonly terminalTitle: string;
   readonly log: (line: string) => void;
 }
 
@@ -28,6 +31,9 @@ export interface RecordResult {
   /** Message de l'étape qui a échoué ; la prise est écrite quand même. */
   readonly failure: string | null;
 }
+
+/** Cadence de la capture de terminal : celle du screencast Playwright, pour ne pas dériver. */
+const TERMINAL_FPS = 25;
 
 const READY_TIMEOUT_MS = 120_000;
 
@@ -55,12 +61,14 @@ async function waitForServer(page: Page, log: (line: string) => void): Promise<v
 
 async function playSteps(page: Page, options: RecordOptions, markerLog: MarkerLog): Promise<string | null> {
   const { scenario, log } = options;
+  const gates = new Set<string>();
   for (const [i, step] of scenario.steps.entries()) {
     const position = `${i + 1}/${scenario.steps.length}`;
     let label: string = step.kind;
     try {
       await runStep(page, step, {
         log: markerLog,
+        gates,
         episode: options.episode,
         onStep: (text) => {
           label = text;
@@ -87,6 +95,17 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
   const videoStartMs = Date.now();
   const markerLog = createMarkerLog(() => Date.now());
   markerLog.startAt(videoStartMs);
+  // Le terminal démarre tout de suite : les deux vidéos partagent l'horloge de la prise, et le
+  // montage sait à quelle seconde du terminal correspond chaque seconde de la page.
+  let terminal: TerminalCapture | null = null;
+  if (options.terminalTitle !== '') {
+    terminal = startTerminalCapture(
+      { title: options.terminalTitle, fps: TERMINAL_FPS, outPath: join(outAbs, `${take}.terminal.mkv`) },
+      videoStartMs,
+      (line) => log(`  [ffmpeg terminal] ${line}`),
+    );
+    log(`terminal : fenêtre « ${options.terminalTitle} » filmée dans ${terminal.outPath} (+${terminal.startMs} ms)`);
+  }
   const startedAt = new Date().toISOString();
   let renderer = 'inconnu';
   let rafFps = 0;
@@ -109,6 +128,7 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
   } catch (e) {
     failure = firstLine(e);
   } finally {
+    await terminal?.stop();
     markers = markerLog.snapshot({
       take,
       video: `${take}.webm`,
@@ -116,6 +136,7 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
       startedAt,
       expected: scenarioMarkers(scenario),
       firstPaintMs,
+      ...(terminal === null ? {} : { terminal: { video: `${take}.terminal.mkv`, startMs: terminal.startMs } }),
       ...(failure === null ? {} : { failedStep: failure }),
     });
     await context.close();

@@ -30,6 +30,16 @@ export interface TakeMarkers {
    * dizaine de secondes à froid). Ce n'est **pas** l'origine des marqueurs.
    */
   readonly firstPaintMs?: number;
+  /** Capture de la fenêtre de terminal filmée en parallèle (issue #35), absente sans `--terminal`. */
+  readonly terminal?: TerminalTrack;
+}
+
+/** La seconde vidéo d'une prise : le terminal, et son décalage sur l'horloge de la prise. */
+export interface TerminalTrack {
+  /** Nom du fichier, relatif au dossier des prises. */
+  readonly video: string;
+  /** Instant du début de la capture, depuis le t = 0 de la vidéo de la prise. */
+  readonly startMs: number;
 }
 
 export interface TakeMeta {
@@ -41,6 +51,7 @@ export interface TakeMeta {
   readonly expected?: readonly string[];
   readonly failedStep?: string;
   readonly firstPaintMs?: number;
+  readonly terminal?: TerminalTrack;
 }
 
 export interface MarkerLog {
@@ -101,7 +112,7 @@ export function createMarkerLog(nowMs: () => number): MarkerLog {
       if (marks.some((m) => m.name === name)) throw new Error(`marqueur « ${name} » posé deux fois dans la même prise`);
       marks.push({ name, atMs: nowMs() - origin });
     },
-    snapshot({ expected = [], failedStep, firstPaintMs, ...meta }) {
+    snapshot({ expected = [], failedStep, firstPaintMs, terminal, ...meta }) {
       if (origin === null) throw new Error('snapshot() avant start() : la prise n’a pas d’origine');
       const posed = new Set(marks.map((m) => m.name));
       return {
@@ -111,6 +122,7 @@ export function createMarkerLog(nowMs: () => number): MarkerLog {
         missing: expected.filter((name) => !posed.has(name)),
         ...(failedStep === undefined ? {} : { failedStep }),
         ...(firstPaintMs === undefined ? {} : { firstPaintMs }),
+        ...(terminal === undefined ? {} : { terminal }),
       };
     },
   };
