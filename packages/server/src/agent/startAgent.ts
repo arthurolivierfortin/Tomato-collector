@@ -1,9 +1,12 @@
 import { createAgentRunner } from './agentRunner';
 import { DEFAULT_MODEL } from './queryOptions';
 import { loadSystemPrompt } from './systemPrompt';
-import type { AgentHub, AgentRunner, AgentSession, AgentSim, QueryFn, WakeEvent } from './types';
+import type { AgentHub, AgentRunner, AgentSession, AgentSim, QueryFn } from './types';
 import { summarizeWorld } from './wakePrompt';
-import { DEFAULT_WAKE_PORT, createWakeServer } from './wakeServer';
+import { createWakeServer, readWakePort, resolveWakeEvent } from './wakeServer';
+
+/** Réexport : la résolution d'une tomate vit avec le serveur de réveil, qui sert les deux modes (issue #29). */
+export { resolveWakeEvent } from './wakeServer';
 
 export interface StartAgentDeps {
   hub: AgentHub;
@@ -25,22 +28,10 @@ export interface AgentHandle {
   close(): Promise<void>;
 }
 
-/**
- * Événement de réveil pour une tomate connue de la sim, null sinon.
- * Reconstruit hors détection (réveil manuel, épisode ouvert par M5) : détecteur `manual` (issue #23).
- */
-export function resolveWakeEvent(sim: AgentSim, tomatoId: number): WakeEvent | null {
-  const tomato = sim.latestState()?.tomatoes.find((t) => t.id === tomatoId);
-  return tomato === undefined
-    ? null
-    : { tomatoId, positionCm: tomato.positionCm, ripeness: tomato.ripeness, detector: 'manual', confidence: 1 };
-}
-
 export function agentEnv(env: NodeJS.ProcessEnv = process.env): { model: string; wakePort: number; enabled: boolean } {
-  const port = Number(env.TOMATO_WAKE_PORT ?? DEFAULT_WAKE_PORT);
   return {
     model: env.TOMATO_MODEL ?? DEFAULT_MODEL,
-    wakePort: Number.isInteger(port) ? port : DEFAULT_WAKE_PORT,
+    wakePort: readWakePort(env),
     enabled: env.TOMATO_AGENT !== 'off',
   };
 }
