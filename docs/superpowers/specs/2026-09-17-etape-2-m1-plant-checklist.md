@@ -33,9 +33,9 @@ Issue #1. Plan : `docs/superpowers/plans/2026-09-17-etape-2-m1-plant.md`. Contra
 ## Gates
 - [x] [GATE-1] `npm run lint`
 - [x] [GATE-2] `npm run typecheck`
-- [x] [GATE-3] `npm test` (72 tests : shared 18, sim 53, server 1)
+- [x] [GATE-3] `npm test` (138 tests : shared 18, sim 119, server 1 — après rebase sur main, M2 mergé)
 - [x] [GATE-4] `npm run build`
-- [x] [GATE-5] `npm run shot` → `data/shots/scene.png` produite et conforme aux critères visuels ci-dessous
+- [x] [GATE-5] `npm run shot` → `data/shots/scene.png` et `robot.png` produites et conformes aux critères visuels ci-dessous (3 passages consécutifs verts)
 
 ## Critères visuels (visual-checker, `data/shots/scene.png`)
 - Plant entier visible dans la vue spectateur, au centre, sur le sol gris avec grille ; rien de noir ni de vide, ombres portées au sol.

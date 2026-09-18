@@ -20,14 +20,38 @@ test('spectator scene renders the plant module and is captured', async ({ page }
   expect(tomatoCount).toBeGreaterThanOrEqual(4);
   const ripen = await page.evaluate(() => window.__tomato!.runtime.apply({ type: 'ripen_next' }));
   expect(ripen.ok).toBe(true);
-  // `ripen_next` rend rouge la tomate qui était en transition ; on accélère le temps sim pour que
-  // la suivante entre dans sa rampe, et que la capture montre bien du rouge, de l'orange et du vert.
-  await page.evaluate(() => window.__tomato!.runtime.apply({ type: 'set_time_scale', scale: 20 }));
-  await page.waitForTimeout(2200);
-  const states = await page.evaluate(() => window.__tomato!.runtime.ctx.store.get().tomatoes.map((t) => t.state));
-  expect(states).toContain('ripe');
-  expect(states).toContain('turning');
-  expect(states).toContain('unripe');
+  // `ripen_next` rend rouge une tomate ; on accélère le temps sim jusqu'à ce que la SUIVANTE entre
+  // dans sa rampe, puis on gèle la sim DANS LA MÊME FRAME que la détection. Attendre l'état plutôt
+  // qu'un délai fixe rend la capture reproductible : sans le gel, la seconde que prend
+  // page.screenshot avançait de 20 à 40 s sim et tout finissait rouge.
+  const states = await page.evaluate(async () => {
+    const rt = window.__tomato!.runtime;
+    rt.apply({ type: 'set_time_scale', scale: 20 });
+    const deadline = performance.now() + 30_000;
+    const freeze = (): void => {
+      rt.apply({ type: 'set_time_scale', scale: 1 });
+      rt.apply({ type: 'set_paused', paused: true });
+    };
+    await new Promise<void>((resolve) => {
+      const tick = (): void => {
+        if (rt.ctx.store.get().tomatoes.some((t) => t.state === 'turning') || performance.now() > deadline) {
+          freeze();
+          resolve();
+          return;
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    const s = rt.ctx.store.get();
+    return { states: s.tomatoes.map((t) => t.state), paused: s.paused, timeScale: s.timeScale };
+  });
+  // État gelé et déterministe : exactement une tomate rouge (celle de ripen_next), une en transition, le reste vert.
+  expect(states.paused).toBe(true);
+  expect(states.timeScale).toBe(1);
+  expect(states.states.filter((s) => s === 'ripe')).toHaveLength(1);
+  expect(states.states.filter((s) => s === 'turning')).toHaveLength(1);
+  expect(states.states.filter((s) => s === 'unripe').length).toBeGreaterThanOrEqual(2);
   mkdirSync(shotsDir, { recursive: true });
   await page.screenshot({ path: resolve(shotsDir, 'scene.png') });
   expect(errors).toEqual([]);
