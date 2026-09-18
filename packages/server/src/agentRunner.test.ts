@@ -17,7 +17,7 @@ describe('agent runner hook', () => {
   it('the no-op runner only logs wake-ups', () => {
     const logs: string[] = [];
     const runner = createNoopRunner((l) => logs.push(l));
-    runner.wake({ tomatoId: 4, positionCm: [0, 0, 0], ripeness: 1, detector: 'manual', confidence: 1 });
+    runner.wake({ tomatoId: 4, positionCm: [0, 0, 0], detector: 'manual', confidence: 1 });
     expect(runner.busy()).toBe(false);
     expect(logs).toEqual(['agent: désactivé, réveil ignoré (tomate 4)']);
   });
@@ -57,7 +57,7 @@ describe('no-op runner staging (issue #29)', () => {
     const logs: string[] = [];
     const runner = createNoopRunner((l) => logs.push(l), { hub: d.hub, session: d.session });
     d.session.onWake((e) => runner.wake(e));
-    runner.wake({ tomatoId: 1, positionCm: [0, 0, 0], ripeness: 1, detector: 'manual', confidence: 1 });
+    runner.wake({ tomatoId: 1, positionCm: [0, 0, 0], detector: 'manual', confidence: 1 });
 
     expect(d.session.get().phase).toBe('detected');
     expect(d.session.get().targetTomatoId).toBe(1);
@@ -91,8 +91,8 @@ describe('no-op runner staging (issue #29)', () => {
     const d = deps();
     const logs: string[] = [];
     const runner = createNoopRunner((l) => logs.push(l), { hub: d.hub, session: d.session });
-    runner.wake({ tomatoId: 1, positionCm: [0, 0, 0], ripeness: 1, detector: 'manual', confidence: 1 });
-    runner.wake({ tomatoId: 2, positionCm: [0, 0, 0], ripeness: 1, detector: 'manual', confidence: 1 });
+    runner.wake({ tomatoId: 1, positionCm: [0, 0, 0], detector: 'manual', confidence: 1 });
+    runner.wake({ tomatoId: 2, positionCm: [0, 0, 0], detector: 'manual', confidence: 1 });
     expect(wakes(d.hub)).toHaveLength(1);
     expect(d.session.get().targetTomatoId).toBe(1);
     expect(logs.at(-1)).toMatch(/épisode en cours pour la tomate 1/);

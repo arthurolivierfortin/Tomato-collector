@@ -20,7 +20,7 @@ describe('resolveWakeEvent / agentEnv', () => {
   it('builds the wake event from the latest sim state', () => {
     // Hors détection, le réveil est étiqueté `manual` avec une confiance de 1 (issue #23).
     expect(resolveWakeEvent({ latestState: () => world }, 4)).toEqual({
-      tomatoId: 4, positionCm: [11, -3, 39], ripeness: 0.95, detector: 'manual', confidence: 1,
+      tomatoId: 4, positionCm: [11, -3, 39], detector: 'manual', confidence: 1,
     });
     expect(resolveWakeEvent({ latestState: () => world }, 5)).toBeNull();
     expect(resolveWakeEvent({ latestState: () => null }, 4)).toBeNull();
@@ -74,7 +74,7 @@ describe('startAgent', () => {
       for (const fn of listeners) fn('detected');
       await handle.runner.whenIdle();
       expect(prompts[0]).toContain('tomato #4 at X 11.0, Y -3.0, Z 39.0 cm');
-      expect(prompts[0]).toContain('1 tomatoes on the plant (ripe: #4)');
+      expect(prompts[0]).toContain('1 tomatoes on the plant');
       expect(out.map((m) => m.type)).toEqual(['agent_wake', 'episode_start', 'agent_raw', 'episode_end']);
 
       const r = await fetch(`http://127.0.0.1:${handle.wakePort}/wake/4`, { method: 'POST' });

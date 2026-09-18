@@ -23,14 +23,17 @@ function makeCtx(tomatoes: Tomato[]): { ctx: SimContext; events: SimEvent[] } {
   return { ctx, events };
 }
 
+/** Boîte de 40 px centrée sur la projection d'une position monde dans l'image du détecteur. */
+function boxAt(pos: Vec3, widthPx: number, score: number): Detection {
+  const [px, py] = frontProjector(createDefaultWorld(1), widthPx)(pos);
+  return { bbox: [px - 20, py - 20, 40, 40], score, label: 'ripe' };
+}
+
 /** Détecteur qui renvoie une boîte de 40 px centrée sur la projection de TOMATO_POS. */
 function detectorAt(score: number, calls: number[] = []): RipeDetector {
   return (img) => {
     calls.push(img.width);
-    const world = { ...createDefaultWorld(1) };
-    const [px, py] = frontProjector(world, img.width)(TOMATO_POS);
-    const d: Detection = { bbox: [px - 20, py - 20, 40, 40], score, label: 'ripe' };
-    return [d];
+    return [boxAt(TOMATO_POS, img.width, score)];
   };
 }
 
@@ -76,18 +79,43 @@ describe('perception module (runtime pur)', () => {
     expect(mod.state().lastDetections).toHaveLength(1);
   });
 
-  it('ground-truth guard blocks a turning tomato; disabling it lets the detector wake the agent', async () => {
-    const guarded = deps({}, 'turning');
-    const m1 = createPerceptionModule(guarded.deps);
-    m1.init(guarded.ctx);
-    await run(m1, guarded.ctx, 12);
-    expect(guarded.events).toEqual([]);
+  // Issue #36 : la décision « mûre » sort du traitement d'image, jamais du store.
+  it('wakes on what the detector sees, even when the sim calls the tomato unripe', async () => {
+    const turning = deps({}, 'turning');
+    const m1 = createPerceptionModule(turning.deps);
+    m1.init(turning.ctx);
+    await run(m1, turning.ctx, 6);
+    expect(turning.events).toEqual([{ type: 'ripe_detected', tomatoId: 1, detector: 'hsv', confidence: 0.8 }]);
 
-    const open = deps({ options: { consecutiveFrames: 3, groundTruthGuard: false } }, 'turning');
-    const m2 = createPerceptionModule(open.deps);
-    m2.init(open.ctx);
-    await run(m2, open.ctx, 6);
-    expect(open.events).toHaveLength(1);
+    const unripe = deps({}, 'unripe');
+    const m2 = createPerceptionModule(unripe.deps);
+    m2.init(unripe.ctx);
+    await run(m2, unripe.ctx, 6);
+    expect(unripe.events).toHaveLength(1);
+  });
+
+  it('stays silent on a tomato the sim calls ripe while the detector sees nothing', async () => {
+    const blind = deps({ hsv: () => [] }, 'ripe');
+    const mod = createPerceptionModule(blind.deps);
+    mod.init(blind.ctx);
+    await run(mod, blind.ctx, 20);
+    expect(blind.events).toEqual([]);
+    expect(mod.state().gate).toEqual({ tomatoId: null, count: 0, target: 3 });
+  });
+
+  it('exposes the detector input frame, its inference time and the wake gate progress', async () => {
+    const img = makeRgba(DETECTOR_INPUT_PX, DETECTOR_INPUT_PX, [12, 34, 56]);
+    const { deps: d, ctx } = deps({ captureFront: () => img });
+    const mod = createPerceptionModule(d);
+    mod.init(ctx);
+    await mod.loaded();
+    expect(mod.state().lastImage).toBeNull();
+    await run(mod, ctx, 2);
+    expect(mod.state().lastImage).toBe(img);
+    expect(mod.state().lastInferenceMs).toBeGreaterThanOrEqual(0);
+    expect(mod.state().gate).toEqual({ tomatoId: 1, count: 1, target: 3 });
+    await run(mod, ctx, 2);
+    expect(mod.state().gate).toEqual({ tomatoId: 1, count: 2, target: 3 });
   });
 
   it('prefers YOLO when its score reaches 0.4 and falls back to HSV below', async () => {
@@ -119,6 +147,7 @@ describe('perception module (runtime pur)', () => {
     await run(mod, ctx, 6);
     expect(events).toHaveLength(1);
     ctx.signals.emit({ type: 'plant_regenerated', seed: 2 });
+    expect(mod.state().gate).toEqual({ tomatoId: null, count: 0, target: 3 });
     await run(mod, ctx, 6);
     expect(events).toHaveLength(2);
   });
@@ -151,20 +180,15 @@ describe('perception module (runtime pur)', () => {
     expect(calls).toHaveLength(2);
   });
 
-  it('wakes once per tomato when they ripen one after the other (issue #23)', async () => {
+  it('wakes once per tomato when they redden one after the other (issue #23)', async () => {
     const SECOND_POS: Vec3 = [-14, 0, 40];
     const { ctx, events } = makeCtx([testTomato(1, TOMATO_POS, 'ripe'), testTomato(2, SECOND_POS, 'unripe')]);
-    // Le détecteur voit les DEUX fruits à chaque image : seule la vérité terrain les distingue.
-    const both: RipeDetector = (img) => {
-      const project = frontProjector(createDefaultWorld(1), img.width);
-      return [TOMATO_POS, SECOND_POS].map((pos) => {
-        const [px, py] = project(pos);
-        return { bbox: [px - 20, py - 20, 40, 40], score: 0.8, label: 'ripe' } as Detection;
-      });
-    };
+    // Le détecteur ne voit que ce qui est rouge dans l'image : le test change l'image, jamais le store.
+    let red: Vec3[] = [TOMATO_POS];
+    const seen: RipeDetector = (img) => red.map((pos) => boxAt(pos, img.width, 0.8));
     const mod = createPerceptionModule({
       captureFront: () => makeRgba(DETECTOR_INPUT_PX, DETECTOR_INPUT_PX),
-      hsv: both,
+      hsv: seen,
       loadYolo: async () => null,
       loadEdgeFilter: noEdges,
       setEdgeFilter: () => undefined,
@@ -175,12 +199,9 @@ describe('perception module (runtime pur)', () => {
     await run(mod, ctx, 12);
     expect(events).toEqual([{ type: 'ripe_detected', tomatoId: 1, detector: 'hsv', confidence: 0.8 }]);
 
-    // La première est coupée et la seconde mûrit à son tour : la porte doit repartir sur elle,
-    // sans jamais réarmer sur la première, qui reste visible et mûre dans l'image.
-    ctx.store.update((w) => ({
-      ...w,
-      tomatoes: w.tomatoes.map((t) => (t.id === 2 ? { ...t, state: 'ripe' as const, ripeness: 1 } : t)),
-    }));
+    // La seconde rougit à son tour : la porte repart sur elle, sans jamais réarmer sur la première,
+    // qui reste rouge et visible dans l'image.
+    red = [TOMATO_POS, SECOND_POS];
     await run(mod, ctx, 4);
     expect(events).toHaveLength(1);
     await run(mod, ctx, 4);

@@ -37,7 +37,7 @@ describe('session', () => {
     expect(s.targetTomatoId).toBe(2);
     expect(s.lastEvent?.type).toBe('ripe_detected');
     expect(sim.applied).toEqual([{ type: 'set_target', tomatoId: 2 }]);
-    expect(wakes).toEqual([{ tomatoId: 2, positionCm: [20, 0, 60], ripeness: 1, detector: 'hsv', confidence: 0.9 }]);
+    expect(wakes).toEqual([{ tomatoId: 2, positionCm: [20, 0, 60], detector: 'hsv', confidence: 0.9 }]);
     expect(journal.current()).toBe(s.episodeId);
     // Issue #23 : le schéma bloc s'allume perception → serveur (avec le détecteur) puis serveur → agent.
     expect(hub.broadcasts.map((m) => m.type)).toEqual(['sim_event', 'block_activity', 'phase', 'block_activity', 'block_activity']);

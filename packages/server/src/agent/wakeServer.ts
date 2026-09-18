@@ -18,7 +18,7 @@ export function resolveWakeEvent(sim: AgentSim, tomatoId: number): WakeEvent | n
   const tomato = sim.latestState()?.tomatoes.find((t) => t.id === tomatoId);
   return tomato === undefined
     ? null
-    : { tomatoId, positionCm: tomato.positionCm, ripeness: tomato.ripeness, detector: 'manual', confidence: 1 };
+    : { tomatoId, positionCm: tomato.positionCm, detector: 'manual', confidence: 1 };
 }
 
 export interface WakeServerOptions {

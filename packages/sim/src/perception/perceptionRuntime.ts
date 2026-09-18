@@ -13,15 +13,12 @@ export const YOLO_ACCEPT_SCORE_MIN = 0.4;
 
 export interface PerceptionOptions {
   consecutiveFrames: number;
-  /** Garde-fou de démo : n'annonce que des tomates dont `state === 'ripe'` dans le store (désactivable). */
-  groundTruthGuard: boolean;
   periodS: number;
   yoloScoreMin: number;
 }
 
 export const DEFAULT_PERCEPTION_OPTIONS: PerceptionOptions = {
   consecutiveFrames: DEFAULT_CONSECUTIVE_FRAMES,
-  groundTruthGuard: true,
   periodS: PERCEPTION_PERIOD_S,
   yoloScoreMin: YOLO_ACCEPT_SCORE_MIN,
 };
@@ -61,7 +58,15 @@ export function createPerceptionModule(deps: PerceptionDeps): PerceptionModule {
   const gate = createWakeGate(opts.consecutiveFrames);
   const announced = new Set<number>();
   const listeners = new Set<(s: PerceptionState) => void>();
-  let state: PerceptionState = { opencvReady: false, yoloReady: false, lastDetector: null, lastDetections: [] };
+  let state: PerceptionState = {
+    opencvReady: false,
+    yoloReady: false,
+    lastDetector: null,
+    lastDetections: [],
+    lastImage: null,
+    lastInferenceMs: null,
+    gate: gate.progress(),
+  };
   let yolo: RipeDetector | null = null;
   let accumulatedS = 0;
   let inFlight: Promise<void> | null = null;
@@ -89,18 +94,20 @@ export function createPerceptionModule(deps: PerceptionDeps): PerceptionModule {
 
   async function tick(ctx: SimContext, img: RgbaImage): Promise<void> {
     const world = ctx.store.get();
+    const startedMs = performance.now();
     const { detections, detector } = await detect(img);
+    const inferenceMs = performance.now() - startedMs;
     const trusted = detector === 'yolo' ? detections.filter((d) => d.score >= opts.yoloScoreMin) : detections;
+    // Issue #36 : l'association boîte → tomate est purement géométrique (centre projeté le plus proche).
+    // La maturité vient du détecteur, jamais de `tomato.state` : aucune garde de vérité terrain ici.
     const matches = matchDetections(trusted, world.tomatoes, frontProjector(world, img.width));
-    const byId = new Map(world.tomatoes.map((t) => [t.id, t]));
-    const candidate =
-      matches.find((m) => !announced.has(m.tomatoId) && (!opts.groundTruthGuard || byId.get(m.tomatoId)?.state === 'ripe')) ?? null;
+    const candidate = matches.find((m) => !announced.has(m.tomatoId)) ?? null;
     const woke = gate.push(candidate?.tomatoId ?? null);
     if (woke !== null && candidate) {
       announced.add(woke);
       ctx.emitEvent({ type: 'ripe_detected', tomatoId: woke, detector, confidence: candidate.score });
     }
-    publish({ lastDetector: detector, lastDetections: detections });
+    publish({ lastDetector: detector, lastDetections: detections, lastImage: img, lastInferenceMs: inferenceMs, gate: gate.progress() });
   }
 
   return {
@@ -109,6 +116,7 @@ export function createPerceptionModule(deps: PerceptionDeps): PerceptionModule {
       ctx.signals.on('plant_regenerated', () => {
         announced.clear();
         gate.reset();
+        publish({ gate: gate.progress() });
       });
       loading = Promise.all([
         deps.loadEdgeFilter().then((filter) => {
