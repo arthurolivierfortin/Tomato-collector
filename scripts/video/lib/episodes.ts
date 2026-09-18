@@ -11,7 +11,8 @@ export interface ScriptEntry {
 export interface EpisodeFile {
   readonly episodeId: string;
   readonly messages: readonly ScriptEntry[];
-  readonly outcome?: string;
+  /** `null` tant que l'épisode n'est pas clos : le journal est ouvert à l'éveil, fermé au rapport. */
+  readonly outcome?: string | null;
   readonly toolCalls?: number;
   readonly costUsd?: number;
   readonly startedAt?: string;
@@ -27,15 +28,16 @@ export interface EndCardData {
   readonly durationS: number;
 }
 
+/** Les cartons de fin sont gravés dans la vidéo, qui est en anglais : ces libellés le sont aussi. */
 const OUTCOME_LABEL: Record<string, string> = {
-  harvested: 'tomate récoltée',
-  missed: 'tomate ratée',
-  aborted: 'épisode abandonné',
+  harvested: 'tomato harvested',
+  missed: 'tomato missed',
+  aborted: 'episode aborted',
 };
 
-/** Montant en français : virgule décimale, deux décimales, symbole après. */
+/** Montant à l'anglaise : symbole devant, point décimal, deux décimales — « $0.38 ». */
 export function formatCostUsd(usd: number): string {
-  return `${usd.toFixed(2).replace('.', ',')} $`;
+  return `$${usd.toFixed(2)}`;
 }
 
 function countToolCalls(file: EpisodeFile): number {
@@ -50,12 +52,13 @@ function durationS(file: EpisodeFile): number {
 }
 
 /**
- * Cartons de fin d'un épisode réel. `outcome` manquant est une erreur : mieux vaut refuser de
- * monter que d'afficher un résultat inventé.
+ * Cartons de fin d'un épisode réel. `outcome` absent **ou `null`** est une erreur : le journal
+ * s'ouvre avec `outcome: null` et n'est clos qu'au rapport de l'agent. Un `--episode latest` lancé
+ * juste après une prise interrompue afficherait sinon « Result: null ».
  */
 export function endCardFrom(file: EpisodeFile): EndCardData {
-  if (file.outcome === undefined) {
-    throw new Error(`journal ${file.episodeId} : pas de « outcome », impossible d’écrire les cartons de fin`);
+  if (file.outcome === undefined || file.outcome === null) {
+    throw new Error(`journal ${file.episodeId} : « outcome » absent (épisode non clos), impossible d’écrire les cartons de fin`);
   }
   return {
     outcome: OUTCOME_LABEL[file.outcome] ?? file.outcome,

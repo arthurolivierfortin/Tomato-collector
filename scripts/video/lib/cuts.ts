@@ -71,10 +71,11 @@ function lowerFirst(text: string): string {
   return text.length === 0 ? text : text[0]!.toLowerCase() + text.slice(1);
 }
 
+/** Les sous-titres sont gravés dans la vidéo, qui est en anglais : la jointure l'est aussi. */
 function joinCaptions(first: string | undefined, second: string | undefined): string | undefined {
   if (first === undefined) return second;
   if (second === undefined) return first;
-  return `${first}, puis ${lowerFirst(second)}`;
+  return `${first}, then ${lowerFirst(second)}`;
 }
 
 function merge(a: ResolvedSegment, b: ResolvedSegment): ResolvedSegment {
@@ -108,9 +109,9 @@ function isMergeable(entry: ResolvedEntry, minS: number): entry is ResolvedSegme
 
 /**
  * Un sous-titre affiché moins de `minS` n'est pas lisible : le segment trop court est fusionné avec
- * le suivant de la même prise, et les deux légendes deviennent une phrase (« Coupe, puis chute dans
- * le panier »). Les durées réelles varient d'une prise à l'autre : c'est au montage de s'adapter,
- * pas au plan de deviner.
+ * le suivant de la même prise, et les deux légendes deviennent une phrase (« Cut, then the fall
+ * into the basket »). Les durées réelles varient d'une prise à l'autre : c'est au montage de
+ * s'adapter, pas au plan de deviner.
  */
 export function mergeShortSegments(entries: readonly ResolvedEntry[], minS: number): ResolvedEntry[] {
   const out: ResolvedEntry[] = [];

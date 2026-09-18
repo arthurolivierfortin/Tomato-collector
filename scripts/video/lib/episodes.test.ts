@@ -51,7 +51,7 @@ describe('endCardFrom', () => {
   };
 
   it('lit le résultat, les appels, le coût et la durée dans le journal', () => {
-    expect(endCardFrom(journal)).toEqual({ outcome: 'tomate récoltée', toolCalls: 10, cost: '0,35 $', durationS: 57.969 });
+    expect(endCardFrom(journal)).toEqual({ outcome: 'tomato harvested', toolCalls: 10, cost: '$0.35', durationS: 57.969 });
   });
 
   it('compte les appels d’outils quand le journal ne les résume pas', () => {
@@ -71,9 +71,15 @@ describe('endCardFrom', () => {
 
   it('retombe sur le dernier message quand les horodatages manquent', () => {
     expect(endCardFrom({ episodeId: 'x', outcome: 'missed', messages: [{ atMs: 0, message: {} }, { atMs: 4200, message: {} }] })).toMatchObject({
-      outcome: 'tomate ratée',
+      outcome: 'tomato missed',
       durationS: 4.2,
     });
+  });
+
+  it('refuse un journal non clos : « outcome » à null n’est pas un résultat', () => {
+    // `EpisodeRecord.outcome` vaut `null` tant que l'épisode n'est pas clos (journal.ts). Avec
+    // `--episode latest` juste après une prise interrompue, le carton dirait « Result: null ».
+    expect(() => endCardFrom({ episodeId: 'ep-9', outcome: null, messages: [] })).toThrow(/ep-9.*outcome.*non clos/s);
   });
 
   it('n’annonce pas de coût quand le journal n’en a pas', () => {
@@ -89,9 +95,9 @@ describe('endCardFrom', () => {
 });
 
 describe('formatCostUsd', () => {
-  it('écrit le montant à la française', () => {
-    expect(formatCostUsd(0.3551)).toBe('0,36 $');
-    expect(formatCostUsd(0)).toBe('0,00 $');
+  it('écrit le montant à l’anglaise : la vidéo est en anglais', () => {
+    expect(formatCostUsd(0.3551)).toBe('$0.36');
+    expect(formatCostUsd(0)).toBe('$0.00');
   });
 });
 
