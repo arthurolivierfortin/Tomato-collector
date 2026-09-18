@@ -61,7 +61,7 @@ Pour positionner une variable ponctuellement : bash `TOMATO_MODEL=claude-sonnet-
 PowerShell `$env:TOMATO_MODEL = "claude-sonnet-5"; npm run demo`.
 
 Touches du dashboard : `h` masque/affiche les contrôles, `v` bascule la vue « ce que voit l'agent »,
-`b` ouvre/ferme le schéma bloc (flux agent ↔ serveur ↔ sim).
+`b` ouvre/ferme le schéma bloc (flux agent ↔ serveur ↔ sim), `c` affiche/masque les gizmos des trois caméras dans la vue 3D.
 
 Replay : le panneau « Épisodes », à côté des contrôles, liste les journaux de `data/episodes/` ;
 choisir un épisode et une vitesse puis « Rejouer » le repasse via un pont simulé, sans serveur ni agent.
@@ -75,6 +75,7 @@ appels d'outils, résultat, coût). Coût observé pour un épisode complet men�
 - `v` : mode « ce que voit l'agent » (vues caméra agrandies à 70 % de l'écran).
 - `h` : masque les contrôles pour un cadrage propre.
 - `b` : ouvre le schéma bloc en bandeau bas, utile pour montrer le flux agent ↔ serveur ↔ sim.
+- `c` : affiche les gizmos des trois caméras (masqués par défaut), utile pour expliquer d'où viennent les vues.
 - Vitesse ×1 pendant l'épisode : les vitesses ×2/×5/×10 accélèrent la simulation mais brouillent la prise.
 - « Nouveau plant » entre deux prises pour repartir d'un plant frais.
 - Ne pas fermer l'onglet : la simulation (Three.js + Rapier) vit dans la page ; la fermer arrête tout.
