@@ -81,6 +81,8 @@ appels d'outils, résultat, coût). Coût observé pour un épisode complet men�
 - Les mouvements sont animés : l'outil ne répond qu'une fois le bras arrivé. Vitesses en temps sim (donc
   multipliées par le facteur ×2/×5/×10) : ciseaux et panier 15 cm/s, rotations 45°/s, caméras 20 cm/s et
   45°/s, ouverture ou fermeture des lames 0,5 s. Elles se règlent dans `packages/sim/src/core/speeds.ts`.
+- Ne pas mettre en pause ni changer la vitesse pendant un appel d'outil : le serveur attend la fin du
+  mouvement en temps réel (30 s au maximum), et une sim gelée le fait expirer.
 - « Nouveau plant » entre deux prises pour repartir d'un plant frais.
 - Ne pas fermer l'onglet : la simulation (Three.js + Rapier) vit dans la page ; la fermer arrête tout.
 

@@ -1,4 +1,4 @@
-import { parseMessage, type CameraId, type ServerToDashboard, type ServerToSim, type SimToServer, type ViewsResult } from '@tomato/shared';
+import { fail, parseMessage, type ActionResult, type CameraId, type ServerToDashboard, type ServerToSim, type SimToServer, type ViewsResult } from '@tomato/shared';
 import type { SimRuntime } from '../core/runtime';
 import { emptyViews } from './viewsFallback';
 
@@ -114,9 +114,13 @@ export function createBridge(opts: BridgeOptions): Bridge {
     if (m.type === 'apply_action') {
       // Mouvements animés (issue #21) : la promesse ne se résout qu'à la fin du déplacement.
       // L'état continue d'être diffusé à 5 Hz pendant ce temps (abonnement au store).
-      void opts.runtime.apply(m.action).then((result) => {
+      const answer = (result: ActionResult): void => {
         send({ type: 'action_result', requestId: m.requestId, result });
         sendState();
+      };
+      opts.runtime.apply(m.action).then(answer, (e: unknown) => {
+        // Un throw inattendu ne doit pas laisser le serveur attendre son délai complet.
+        answer(fail(store.get(), 'not_available', `the simulation failed to apply ${m.action.type}: ${e instanceof Error ? e.message : String(e)}`));
       });
       return;
     }
