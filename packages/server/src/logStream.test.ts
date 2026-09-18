@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { logStreamLine, stripAnsi } from './logStream';
 
-/** Caractere d'echappement ANSI, ecrit une fois : l'ecrire en clair casserait le lint. */
-const ESC = '[';
+/** Caractère d'échappement ANSI ; écrit par son code pour ne pas poser un caractère de contrôle dans le source. */
+const ESC = String.fromCharCode(27);
 
 describe('logStreamLine', () => {
   it('prints one line per raw SDK event, with a prefix per kind', () => {

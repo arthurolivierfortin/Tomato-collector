@@ -40,6 +40,7 @@ async function loadTakes(dir: string): Promise<Map<string, TakeMarkers>> {
     log(`prise « ${parsed.take} » : ${parsed.markers.length} marqueurs, ${info.durationS.toFixed(1)} s, ${info.width}×${info.height}, ${info.fps.toFixed(1)} img/s`);
     const missing = parsed.missing ?? [];
     if (missing.length > 0) log(`ATTENTION : prise « ${parsed.take} » incomplète, marqueurs manquants : ${missing.join(', ')}`);
+    if (parsed.terminal !== undefined) log(`  terminal : ${parsed.terminal.video}, décalé de ${(parsed.terminal.startMs / 1000).toFixed(1)} s`);
   }
   if (takes.size === 0) throw new Error(`aucune prise dans ${dir} : lancer d’abord « npm run video:record »`);
   return takes;
@@ -105,7 +106,7 @@ async function main(): Promise<void> {
   const style = resolveStyle();
   const takes = await loadTakes(takesDir);
   const plan = keepAvailable(await buildPlan(args), takes, flag(args, 'skip-missing'));
-  const entries = mergeShortSegments(resolvePlan(plan, takes), MIN_CAPTION_S);
+  const entries = mergeShortSegments(resolvePlan(plan, takes, (line) => log(`ATTENTION : ${line}`)), MIN_CAPTION_S);
   const clips: Clip[] = entries.flatMap(entryClips);
   log(`plan : ${entries.length} entrées → ${clips.length} sous-plans, ${formatDurationS(totalDurationS(clips))} attendus`);
 
@@ -119,6 +120,11 @@ async function main(): Promise<void> {
     takesDir,
     workDir,
     videoOf: new Map([...takes].map(([name, t]) => [name, join(takesDir, t.video)])),
+    terminalOf: new Map(
+      [...takes].flatMap(([name, t]) =>
+        t.terminal === undefined ? [] : [[name, { path: join(takesDir, t.terminal.video), startMs: t.terminal.startMs }] as const],
+      ),
+    ),
     warn: (line) => log(`ATTENTION : ${line}`),
   };
   const parts: string[] = [];
