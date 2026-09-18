@@ -1,5 +1,11 @@
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { EPISODES_DIR, formatTraceLine, transcriptPath, wakeFollowUp } from './wakeCli';
+import type { WakeEvent } from './types';
+import { EPISODES_DIR, formatTraceLine, runWakeCli, transcriptPath, wakeFollowUp } from './wakeCli';
+import { createWakeServer } from './wakeServer';
 
 describe('wake CLI formatting', () => {
   it('formats the messages that matter for a console transcript', () => {
@@ -40,5 +46,45 @@ describe('wake CLI follow-up (issue #29)', () => {
     expect(wakeFollowUp(202, { ok: true, agent: 'off', tomatoId: 3 })).toBe('staged');
     expect(wakeFollowUp(404, { error: 'unknown_tomato', tomatoId: 9, known: [3] })).toBe('error');
     expect(wakeFollowUp(202, 'pas du JSON')).toBe('follow');
+  });
+});
+
+describe('runWakeCli with the agent off (issue #29)', () => {
+  /** Un port fermé : celui d'un serveur ouvert puis refermé. */
+  async function closedPort(): Promise<number> {
+    const server = createServer();
+    const port = await new Promise<number>((done) => {
+      server.listen(0, '127.0.0.1', () => {
+        const a = server.address();
+        done(typeof a === 'object' && a !== null ? a.port : 0);
+      });
+    });
+    await new Promise<void>((done) => server.close(() => done()));
+    return port;
+  }
+
+  it('stages the wake and returns 0 without waiting for an episode end, hub reachable or not', async () => {
+    const woken: WakeEvent[] = [];
+    const wake = await createWakeServer({
+      port: 0,
+      agent: 'off',
+      runner: { wake: (e) => woken.push(e), busy: () => false },
+      resolve: (id) => (id === 1 ? { tomatoId: 1, positionCm: [0, 0, 0], ripeness: 1, detector: 'manual', confidence: 1 } : null),
+      knownIds: () => [1],
+    });
+    const dir = mkdtempSync(join(tmpdir(), 'tomato-wake-'));
+    try {
+      const code = await runWakeCli(['1'], {
+        TOMATO_WAKE_PORT: String(wake.port),
+        TOMATO_WS_PORT: String(await closedPort()),
+        TOMATO_EPISODES_DIR: dir,
+      });
+      expect(code).toBe(0);
+      expect(woken).toHaveLength(1);
+      expect(readdirSync(dir).filter((f) => f.startsWith('wake-1-'))).toHaveLength(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      await wake.close();
+    }
   });
 });

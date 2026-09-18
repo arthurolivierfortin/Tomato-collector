@@ -56,33 +56,29 @@ export function wakeFollowUp(status: number, body: unknown): 'follow' | 'staged'
   return agent === 'off' ? 'staged' : 'follow';
 }
 
-export function transcriptPath(tomatoId: number, now: Date = new Date()): string {
-  return `${EPISODES_DIR}wake-${tomatoId}-${now.toISOString().replace(/[:.]/g, '-')}.log`;
+export function transcriptPath(tomatoId: number, now: Date = new Date(), dir: string = EPISODES_DIR): string {
+  return `${dir.replace(/[\\/]?$/, '/')}wake-${tomatoId}-${now.toISOString().replace(/[:.]/g, '-')}.log`;
 }
 
-/** `npm run wake -w @tomato/server -- <tomatoId>` : déclenche un réveil et suit l'épisode en console. */
-export async function runWakeCli(argv: string[], env: NodeJS.ProcessEnv = process.env): Promise<number> {
-  const tomatoId = Number(argv[0]);
-  if (!Number.isInteger(tomatoId)) {
-    console.error('usage: npm run wake -w @tomato/server -- <tomatoId>');
-    return 2;
-  }
-  const wsUrl = `ws://localhost:${env.TOMATO_WS_PORT ?? String(DEFAULT_WS_PORT)}`;
-  const wakeUrl = `http://127.0.0.1:${env.TOMATO_WAKE_PORT ?? String(DEFAULT_WAKE_PORT)}/wake/${tomatoId}`;
-  mkdirSync(EPISODES_DIR, { recursive: true });
-  const file = transcriptPath(tomatoId);
-  const write = (line: string): void => {
-    console.log(line);
-    appendFileSync(file, `${new Date().toISOString()} ${line}\n`);
-  };
-
+/** Hub du serveur, ou null s'il est injoignable : le réveil part quand même, sans trace en direct. */
+async function openHub(wsUrl: string, write: (line: string) => void): Promise<WebSocket | null> {
   const ws = new WebSocket(wsUrl);
-  await new Promise<void>((resolve, reject) => {
-    ws.once('open', resolve);
-    ws.once('error', reject);
-  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      ws.once('open', resolve);
+      ws.once('error', reject);
+    });
+  } catch (e) {
+    write(`== hub WebSocket injoignable sur ${wsUrl} (${e instanceof Error ? e.message : String(e)}) : pas de trace en direct`);
+    return null;
+  }
   ws.send(JSON.stringify({ type: 'hello', role: 'dashboard' }));
-  const finished = new Promise<number>((resolve) => {
+  return ws;
+}
+
+/** Suit l'épisode jusqu'à `episode_end` : 0 si la tomate est récoltée, 1 sinon (échec ou délai dépassé). */
+function followEpisode(ws: WebSocket, write: (line: string) => void): Promise<number> {
+  return new Promise((resolve) => {
     const timer = setTimeout(() => {
       write('== timeout waiting for episode_end');
       resolve(1);
@@ -98,24 +94,49 @@ export async function runWakeCli(argv: string[], env: NodeJS.ProcessEnv = proces
       }
     });
   });
+}
+
+/** `npm run wake -w @tomato/server -- <tomatoId>` : déclenche un réveil et suit l'épisode en console. */
+export async function runWakeCli(argv: string[], env: NodeJS.ProcessEnv = process.env): Promise<number> {
+  const tomatoId = Number(argv[0]);
+  if (!Number.isInteger(tomatoId)) {
+    console.error('usage: npm run wake -w @tomato/server -- <tomatoId>');
+    return 2;
+  }
+  const wsUrl = `ws://localhost:${env.TOMATO_WS_PORT ?? String(DEFAULT_WS_PORT)}`;
+  const wakeUrl = `http://127.0.0.1:${env.TOMATO_WAKE_PORT ?? String(DEFAULT_WAKE_PORT)}/wake/${tomatoId}`;
+  const dir = env.TOMATO_EPISODES_DIR ?? EPISODES_DIR;
+  mkdirSync(dir, { recursive: true });
+  const file = transcriptPath(tomatoId, new Date(), dir);
+  const write = (line: string): void => {
+    console.log(line);
+    appendFileSync(file, `${new Date().toISOString()} ${line}\n`);
+  };
+
+  const ws = await openHub(wsUrl, write);
+  const finished = ws === null ? null : followEpisode(ws, write);
 
   const r = await fetch(wakeUrl, { method: 'POST' });
   const text = await r.text();
   write(`POST ${wakeUrl} -> ${r.status} ${text}`);
   const followUp = wakeFollowUp(r.status, parseBody(text));
   if (followUp === 'error') {
-    ws.close();
+    ws?.close();
     return 1;
   }
   write(`transcript: ${file}`);
   if (followUp === 'staged') {
     // Agent off : la mise en scène est déjà diffusée, le temps qu'elle arrive par le WebSocket.
-    await new Promise<void>((done) => setTimeout(done, STAGED_GRACE_MS));
+    if (ws !== null) await new Promise<void>((done) => setTimeout(done, STAGED_GRACE_MS));
     write('== agent désactivé : réveil mis en scène, épisode à piloter à la main (aucune requête au SDK)');
-    ws.close();
+    ws?.close();
     return 0;
   }
+  if (finished === null) {
+    write("== réveil envoyé, mais l'épisode n'est pas suivi faute de hub (vérifier TOMATO_WS_PORT)");
+    return 1;
+  }
   const code = await finished;
-  ws.close();
+  ws?.close();
   return code;
 }
