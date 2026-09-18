@@ -30,15 +30,27 @@ export function compactJson(value: unknown): string {
 /** Remplaçant des images dans le résultat diffusé au dashboard (issue #22 : jamais de base64 dans la trace). */
 export const IMAGE_PLACEHOLDER = `<image ${VIEW_SIZE_PX}×${VIEW_SIZE_PX}>`;
 
-/** Un bloc de texte qui est un objet ou un tableau JSON redevient cette valeur ; sinon il reste du texte. */
-function parsedText(t: string): unknown {
+function parseJson(t: string): unknown {
   const trimmed = t.trim();
-  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return t;
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return undefined;
   try {
     return JSON.parse(trimmed) as unknown;
   } catch {
-    return t;
+    return undefined;
   }
+}
+
+/**
+ * Un bloc de texte devient une ou deux valeurs : du JSON pur redevient un objet, et « ok : … \n{…} »
+ * (le format de `actionResultText`) devient la phrase suivie de l'objet, jamais du JSON échappé.
+ */
+function textParts(t: string): unknown[] {
+  const whole = parseJson(t);
+  if (whole !== undefined) return [whole];
+  const cut = t.indexOf('\n');
+  if (cut === -1) return [t];
+  const tail = parseJson(t.slice(cut + 1));
+  return tail === undefined ? [t] : [t.slice(0, cut).trim(), tail];
 }
 
 /**
@@ -46,7 +58,7 @@ function parsedText(t: string): unknown {
  * les images un simple `<image 800×800>` (jamais de base64), un bloc unique n'est pas enveloppé.
  */
 export function resultPayload(content: ContentBlock[]): unknown {
-  const blocks = content.map((b) => (b.type === 'image' ? IMAGE_PLACEHOLDER : parsedText(b.text)));
+  const blocks = content.flatMap((b) => (b.type === 'image' ? [IMAGE_PLACEHOLDER] : textParts(b.text)));
   if (blocks.length === 0) return null;
   return blocks.length === 1 ? blocks[0] : blocks;
 }
