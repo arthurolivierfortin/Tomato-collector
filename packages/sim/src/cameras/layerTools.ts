@@ -1,6 +1,6 @@
 import type { BasketPose, CameraId, CameraPose, ScissorsPose, TomatoView, Vec2, Vec3, ViewsPayload } from '@tomato/shared';
 import { projectToPixel } from './ortho';
-import { line, text, type OverlayCommand } from './overlayTypes';
+import { leader, line, text, type OverlayCommand } from './overlayTypes';
 import { PALETTE } from './palette';
 import { scissorsPoints } from './scissorsGeometry';
 
@@ -23,7 +23,8 @@ export function stemCommands(camId: CameraId, pose: CameraPose, target: TomatoVi
   return [
     line(a, b, PALETTE.stem, 3),
     { kind: 'circle', center: a, radiusPx: 4, color: PALETTE.stem, width: 1, fill: PALETTE.stem },
-    text([b[0] + LABEL_GAP_PX, b[1] + 16], 'tige cible', PALETTE.stem),
+    leader(b, [b[0] + LABEL_GAP_PX - 2, b[1] + 11], PALETTE.stem, 'tige-cible'),
+    text([b[0] + LABEL_GAP_PX, b[1] + 16], 'tige cible', PALETTE.stem, undefined, undefined, 'tige-cible'),
   ];
 }
 
@@ -59,10 +60,13 @@ export function scissorsCommands(camId: CameraId, pose: CameraPose, s: ScissorsP
     { kind: 'circle', center: pivot, radiusPx: 5, color: PALETTE.bladeAxis, width: 1, fill: PALETTE.bladeAxis },
     { kind: 'cross', center: cut, sizePx: CUT_CROSS_PX, color: PALETTE.bladeAxis, width: 2 },
     line(cut, axisEnd, PALETTE.bladeAxis, 2),
-    text([axisEnd[0] + LABEL_GAP_PX, axisEnd[1] + 4], 'lame', PALETTE.bladeAxis),
+    leader(axisEnd, [axisEnd[0] + LABEL_GAP_PX - 2, axisEnd[1]], PALETTE.bladeAxis, 'lame'),
+    text([axisEnd[0] + LABEL_GAP_PX, axisEnd[1] + 4], 'lame', PALETTE.bladeAxis, undefined, undefined, 'lame'),
     line(cut, normalEnd, PALETTE.bladeNormal, 2),
-    text(normalLabelAt(cut, normalEnd), 'normale', PALETTE.bladeNormal),
-    text([pivot[0] + 10, pivot[1] - 12], angles, PALETTE.bladeAxis),
+    leader(normalEnd, normalLabelAt(cut, normalEnd), PALETTE.bladeNormal, 'normale'),
+    text(normalLabelAt(cut, normalEnd), 'normale', PALETTE.bladeNormal, undefined, undefined, 'normale'),
+    leader(pivot, [pivot[0] + 8, pivot[1] - 16], PALETTE.bladeAxis, 'ciseaux'),
+    text([pivot[0] + 10, pivot[1] - 12], angles, PALETTE.bladeAxis, undefined, undefined, 'ciseaux'),
   ];
 }
 
@@ -85,7 +89,8 @@ export function basketCommands(camId: CameraId, pose: CameraPose, b: BasketPose)
   const c = projectToPixel(camId, pose, b.centerCm);
   out.push(
     { kind: 'cross', center: c, sizePx: BASKET_CROSS_PX, color: PALETTE.basket, width: 2 },
-    text([c[0] + 8, c[1] - 8], `panier (${cx.toFixed(0)}, ${cy.toFixed(0)}) z=${z0.toFixed(0)}`, PALETTE.basket),
+    leader(c, [c[0] + 6, c[1] - 12], PALETTE.basket, 'panier'),
+    text([c[0] + 8, c[1] - 8], `panier (${cx.toFixed(0)}, ${cy.toFixed(0)}) z=${z0.toFixed(0)}`, PALETTE.basket, undefined, undefined, 'panier'),
   );
   return out;
 }
@@ -100,7 +105,8 @@ export function fallLineCommands(camId: CameraId, pose: CameraPose, target: Toma
   return [
     { kind: 'dashedLine', from: a, to: b, color: PALETTE.fall, width: 1.5, dash: FALL_DASH },
     { kind: 'circle', center: b, radiusPx: 6, color: PALETTE.basket, width: 2 },
-    text([b[0] + 8, b[1] + 5], `impact (${fmt(x)}, ${fmt(y)})`, PALETTE.fall),
+    leader([b[0] + 6, b[1]], [b[0] + 6, b[1] + 1], PALETTE.fall, 'impact'),
+    text([b[0] + 8, b[1] + 5], `impact (${fmt(x)}, ${fmt(y)})`, PALETTE.fall, undefined, undefined, 'impact'),
   ];
 }
 

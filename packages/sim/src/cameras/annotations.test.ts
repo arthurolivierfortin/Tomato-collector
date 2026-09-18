@@ -42,6 +42,21 @@ describe('buildOverlay', () => {
     expect(texts).toContain('#2 unripe (-8.0, 5.0, 40.0)');
   });
 
+  it('never lets two tomato labels cover each other, even when the fruits project onto the same band', () => {
+    // Vue top : huit fruits dans une bande étroite en Y — le cas où les étiquettes se recouvraient.
+    const many = Array.from({ length: 8 }, (_, i) => testTomato(i + 1, [-14 + i * 4, -6 + (i % 2) * 2, 40 + i], 'unripe'));
+    const crowded = buildOverlay('top', world.cameras.top, toViewsPayload({ ...world, tomatoes: many, targetTomatoId: 1 }), 10);
+    const boxes = ofKind(crowded, 'text')
+      .filter((c) => c.text.startsWith('#'))
+      .map((c) => ({ left: c.at[0], right: c.at[0] + labelWidthPx(c.text, c.sizePx), top: c.at[1] - FONT_PX, bottom: c.at[1] + 4 }));
+    expect(boxes).toHaveLength(8);
+    for (const [i, a] of boxes.entries()) {
+      for (const b of boxes.slice(i + 1)) {
+        expect(a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top, `étiquettes ${i} et ${boxes.indexOf(b)} superposées`).toBe(false);
+      }
+    }
+  });
+
   it('badges a tomato hidden in this view (visibleIn < 0.5) and not in a view where it is visible', () => {
     expect(texts.some((s) => s.startsWith(OCCLUDED_LABEL))).toBe(true);
     const top = buildOverlay('top', world.cameras.top, payload, 10);
@@ -58,7 +73,8 @@ describe('buildOverlay', () => {
   it('draws the scissors schematic: pivot, two blades, cut cross, blade axis and normal in two colours, angles text', () => {
     const pts = scissorsPoints(world.scissors);
     const pivotPx = projectToPixel('front', front, pts.pivot);
-    const blades = ofKind(cmds, 'line').filter((c) => c.color === PALETTE.bladeAxis && c.from[0] === pivotPx[0] && c.from[1] === pivotPx[1]);
+    // Les lames sont les traits épais partant du pivot ; l'amorce de l'étiquette d'angles en part aussi, en 1 px.
+    const blades = ofKind(cmds, 'line').filter((c) => c.color === PALETTE.bladeAxis && c.width > 1 && c.from[0] === pivotPx[0] && c.from[1] === pivotPx[1]);
     expect(blades.length).toBe(2);
     expect(ofKind(cmds, 'circle').some((c) => c.color === PALETTE.bladeAxis && c.fill === PALETTE.bladeAxis)).toBe(true);
     const cutPx = projectToPixel('front', front, world.scissors.cutPointCm);

@@ -6,10 +6,10 @@ export const LABEL_MARGIN_PX = 4;
 /** Largeur d'un caractère du monospace gras, mesurée à 7,5 px pour une police de 13 px. */
 export const CHAR_WIDTH_RATIO = 7.5 / 13;
 /** Débord du halo (HALO_WIDTH_PX / 2 dans drawOverlay) de chaque côté du glyphe. */
-const HALO_PAD_PX = 2;
+export const HALO_PAD_PX = 2;
 /** Hauteur de capitale et profondeur de jambage, en fraction de la taille de police. */
-const ASCENT_RATIO = 0.8;
-const DESCENT_RATIO = 0.25;
+export const ASCENT_RATIO = 0.8;
+export const DESCENT_RATIO = 0.25;
 
 /** Largeur estimée d'une étiquette, halo compris (le contexte 2D n'est pas disponible côté pur). */
 export function labelWidthPx(value: string, fontPx: number): number {
@@ -32,7 +32,7 @@ export function clampLabel(x: number, y: number, value: string, fontPx: number, 
 }
 
 /** Décalage entre l'ancre et le bord gauche du texte selon l'alignement du canvas 2D. */
-const leftOffset = (align: TextAlign, w: number): number => (align === 'center' ? w / 2 : align === 'right' ? w : 0);
+export const leftOffset = (align: TextAlign, w: number): number => (align === 'center' ? w / 2 : align === 'right' ? w : 0);
 
 /** Passe finale : chaque commande `text` est ramenée dans le cadre, son alignement conservé. */
 export function clampCommands(commands: readonly OverlayCommand[], size: number): OverlayCommand[] {
