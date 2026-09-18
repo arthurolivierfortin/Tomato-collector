@@ -1,8 +1,13 @@
 /**
- * `GET <api>/health` du serveur, et la seule règle qui compte avant une prise en direct :
- * **aucune autre page sim ne doit être connectée**. La page du pilote est elle-même une sim ; si un
- * onglet `npm run demo` reste ouvert, le hub remplace l'ancienne sim par celle du pilote, l'ancienne
- * se reconnecte deux secondes plus tard et reprend la main, et les deux alternent toute la prise.
+ * `GET <api>/health` du serveur, et les deux règles qui comptent avant une prise en direct.
+ *
+ * 1. **Aucune autre page sim ne doit être connectée.** La page du pilote est elle-même une sim ; si
+ *    un onglet `npm run demo` reste ouvert, le hub remplace l'ancienne sim par celle du pilote,
+ *    l'ancienne se reconnecte deux secondes plus tard et reprend la main, et les deux alternent
+ *    toute la prise.
+ * 2. **Le serveur doit être neuf** (`phase: 'idle'`). Une détection jouée avec l'agent coupé
+ *    (`TOMATO_AGENT=off`) ouvre un épisode que personne ne clôt : le serveur reste en phase
+ *    `detected`, refuse la détection suivante, et la prise filmerait un épisode fantôme.
  */
 
 export interface Health {
@@ -41,6 +46,14 @@ export function liveBlocker(health: Health | null, apiUrl: string): string | nul
       'une page de simulation est déjà connectée au serveur. La page du pilote en est une aussi : ' +
       'les deux se voleraient la connexion toutes les deux secondes pendant la prise. Fermer l’onglet ' +
       'de la simulation (le serveur seul suffit : « npm run start -w @tomato/server »), puis relancer.'
+    );
+  }
+  if (health.phase !== undefined && health.phase !== 'idle') {
+    return (
+      `le serveur porte déjà un épisode ouvert (phase « ${health.phase} », attendu « idle »). ` +
+      'Un épisode fantôme — souvent laissé par une détection jouée avec l’agent coupé — empêche la ' +
+      'détection suivante d’ouvrir le sien, et la prise filmerait un serveur qui ne réagit plus. ' +
+      'Redémarrer le serveur avant chaque prise, puis relancer.'
     );
   }
   return null;
