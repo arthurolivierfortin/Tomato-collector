@@ -120,6 +120,8 @@ function reduceBlocks(state: StreamState, blocks: ReadonlyArray<AgentContentBloc
   for (const block of blocks) {
     if (block.type === 'text' && block.text !== undefined && block.text.trim() !== '') {
       out.push({ type: 'agent_text', episodeId: state.episodeId, text: block.text.trim() });
+      // Le flux brut en donne l'aperçu sur une ligne (coupé à RAW_LINE_MAX) ; le texte complet
+      // reste dans le `agent_text` émis juste au-dessus.
       out.push(agentRaw(state.episodeId, 'text', shortLine(block.text)));
     } else if (block.type === 'tool_use' && block.name !== undefined) {
       // Le flux brut montre TOUS les outils ; seuls ceux du robot comptent dans les statistiques.
