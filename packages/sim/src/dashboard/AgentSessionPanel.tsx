@@ -46,7 +46,7 @@ export function AgentSessionPanel({ raw, sinceMs, open, onToggle }: Props) {
             <li key={line.id} data-kind={line.kind} className="flex gap-2">
               <span className="shrink-0 tabular-nums text-ink-dim/70">{formatRawTime(line.atMs, base)}</span>
               <span className={`shrink-0 ${RAW_KIND_COLOR[line.kind]}`}>{RAW_KIND_LABEL[line.kind]}</span>
-              <span className={`min-w-0 whitespace-pre-wrap break-all ${line.kind === 'stderr' ? 'text-ripe' : 'text-ink'}`}>{line.text}</span>
+              <span className={`min-w-0 whitespace-pre-wrap break-words ${line.kind === 'stderr' ? 'text-ripe' : 'text-ink'}`}>{line.text}</span>
             </li>
           ))}
         </ol>

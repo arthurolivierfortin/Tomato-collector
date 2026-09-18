@@ -73,7 +73,19 @@ PowerShell `$env:TOMATO_MODEL = "claude-sonnet-5"; npm run demo`.
 
 Touches du dashboard : `h` masque/affiche les contrôles, `v` bascule la vue « ce que voit l'agent »,
 `b` ouvre/ferme le schéma bloc (flux agent ↔ serveur ↔ sim), `c` affiche/masque les gizmos des trois caméras dans la vue 3D,
-`z` ouvre la loupe plein écran sur la vue mise en avant.
+`z` ouvre la loupe plein écran sur la vue mise en avant, `t` replie/déplie le panneau « Session agent (brut) ».
+
+Suivre la chaîne de bout en bout : le bandeau de statuts affiche la tomate en cours de mûrissement
+(« tomate 3 : mûrit 62 % ») — une seule mûrit à la fois. Quand la perception la détecte, un bandeau
+orange s'affiche 3,5 s au-dessus de la vue spectateur (« Tomate 3 mûre détectée → le serveur réveille
+l'agent »), la trace garde la même ligne sur-lignée, et le schéma bloc allume les flèches une par une
+(perception → serveur, puis serveur → agent), 1,2 s chacune, le bloc « Agent » restant allumé pendant
+tout l'épisode.
+
+Panneau « Session agent (brut) », sous la trace : le flux de la session Claude Code tel quel, façon
+terminal (`init` avec la session et l'état du MCP, `text`, `tool_use`, `tool_result`, `result` avec le
+coût, `stderr` en rouge), horodaté depuis le réveil, 300 dernières lignes. Il repart à vide à chaque
+épisode. `t` le replie pour rendre la place à la trace.
 
 Panneau des vues : la vue demandée en dernier par l'agent (`get_views` sur une seule caméra, ou `move_camera`)
 est affichée en grand à droite, les deux autres en vignettes dessous ; un clic sur une vignette la met en avant.
@@ -94,6 +106,8 @@ appels d'outils, résultat, coût). Coût observé pour un épisode complet men�
 - Résolution recommandée : 1920×1080 (redimensionner la fenêtre avant d'enregistrer).
 - `v` : mode « ce que voit l'agent » (vues caméra agrandies à 70 % de l'écran).
 - `h` : masque les contrôles pour un cadrage propre.
+- `t` : replie le panneau « Session agent (brut) » ; le laisser ouvert pour montrer le travail de
+  l'agent en direct, le replier pour donner toute la hauteur à la trace.
 - `b` : ouvre le schéma bloc en bandeau bas, utile pour montrer le flux agent ↔ serveur ↔ sim.
 - `c` : affiche les gizmos des trois caméras (masqués par défaut), utile pour expliquer d'où viennent les vues.
 - `z` : loupe plein écran sur la vue mise en avant (ou clic sur la grande vue) — molette pour zoomer de ×1 à ×4
@@ -114,6 +128,10 @@ appels d'outils, résultat, coût). Coût observé pour un épisode complet men�
 - Port occupé (`EADDRINUSE`) : un serveur ou une sim précédente tourne encore. Identifier et arrêter le
   processus (Windows : `netstat -ano | findstr :7331` puis `taskkill /PID <pid> /F` ; répéter pour 7332,
   7333, 5173).
+- Panneau « Épisodes » : « serveur injoignable (Failed to fetch) » alors que le serveur répond dans un
+  terminal ; c'était le CORS manquant sur `/health` et `/episodes` (issue #27, corrigé). Si le message
+  revient, vérifier que `VITE_TOMATO_API_URL` pointe le bon port et que la réponse porte bien
+  `Access-Control-Allow-Origin: *` (`curl -i http://localhost:7331/episodes`).
 - `simConnected:false` dans `GET /health`, ou vue spectateur vide : la page http://localhost:5173 n'est
   pas ouverte ou n'a pas encore établi le WebSocket ; ouvrir ou recharger la page.
 - L'agent ne se réveille jamais : vérifier `TOMATO_AGENT` (doit être `on` ou absent), que Claude Code CLI

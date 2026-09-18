@@ -40,4 +40,17 @@ describe('buildDemoScript', () => {
     expect(st.costUsd).toBeCloseTo(0.0421);
     expect(st.trace[0]?.title).toBe('Phase repos');
   });
+
+  // Issue #23 partie C : le scénario doit montrer le réveil et le flux brut, ce que la capture Playwright vérifie à l'écran.
+  it('wakes the agent and streams its raw session, so the panel and the banner have something to show', () => {
+    const store = createDashboardStore();
+    for (const e of buildDemoScript(views, world)) store.dispatch(e.message, e.atMs);
+    const st = store.get();
+    expect(st.wake).toMatchObject({ tomatoId: world.tomatoes[0]?.id ?? 1, detector: 'hsv', confidence: 0.9, sessionResumed: false });
+    expect(st.trace.some((t) => t.kind === 'wake')).toBe(true);
+    expect(st.raw.map((l) => l.kind)).toEqual(['init', 'text', 'tool_use', 'tool_result', 'tool_use', 'stderr', 'tool_use', 'result']);
+    expect(st.raw[0]?.text).toContain('MCP robot : connected');
+    // Le flux brut arrive après le réveil : les horodatages du panneau partent de là.
+    expect(st.rawSinceMs).toBe(400);
+  });
 });
