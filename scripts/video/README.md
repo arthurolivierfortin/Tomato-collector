@@ -77,7 +77,7 @@ Dans un second, la page (Vite n'ouvre aucun onglet tout seul, et il ne faut pas 
 
 Dans un troisième, la prise :
 
-    npm run video:record -- --scenario cycle --mode live --take cycle --terminal "Tomato server"
+    npm run video:record -- --scenario cycle --mode live --take cycle
 
 Le pilote ouvre sa propre page (headless, invisible), attend « serveur connecté », masque les
 contrôles (`h`), laisse la première tomate mûrir toute seule — depuis l'issue #23 elle démarre sa
@@ -160,19 +160,25 @@ dashboard. La vidéo filme donc, en parallèle de la page, **la sortie réelle d
    **C'est la sortie réelle du processus, pas une reconstitution** : chaque ligne à l'écran a été
    écrite par le serveur, dans l'ordre où il l'a écrite.
 
-3. **Playwright la filme.** `--terminal page` ouvre une seconde page headless de 1280×800 dans le
-   même navigateur, au moment même où s'ouvre la page du dashboard : les deux vidéos partagent
+3. **Playwright la filme.** `--terminal page`, le défaut, ouvre une seconde page headless de
+   960×600 dans le même navigateur, au moment même où s'ouvre la page du dashboard : les deux vidéos partagent
    l'horloge de la prise, et le décalage (quelques centaines de millisecondes) est écrit dans
    `<prise>.markers.json`. Rien ne dépend du bureau Windows, donc la capture marche depuis
    n'importe quelle session, y compris sans écran.
 
 4. **Le montage l'incruste.** Un segment qui porte `pip` met le terminal par-dessus la prise :
-   vignette de 480×300 en bas à droite pendant toute la partie 2 dès le réveil, et moitié droite de
+   vignette de 610×180 en bas à droite pendant toute la partie 2 dès le réveil, et moitié droite de
    l'écran en partie 1, sur le segment « The agent is a real Claude Code session », avec un arrêt
-   sur image sur le premier `tool_use` de la session. La vignette est posée sur la rangée de
-   vignettes de vues, la seule zone dont l'information est redondante : elle ne couvre ni la colonne
-   de trace, ni la vue mise en avant, ni la vue spectateur, ni le bandeau de statuts, ni le
-   sous-titre.
+   sur image sur le premier `tool_use` de la session.
+
+   La vignette occupe la rangée de vignettes de vues, la seule bande de l'écran dont l'information
+   est redondante, et elle est **rognée par le bas** plutôt que réduite : on lit les dernières
+   lignes de la console au lieu de la page entière devenue illisible. Les zones qu'aucune vignette
+   ne doit recouvrir sont déclarées (`PROTECTED` dans `plans/zones.ts`) — bandeau de statuts, trace,
+   vue mise en avant, schéma bloc **et son étiquette d'activité**, bandeau de sous-titre — et
+   `plans/demo.test.ts` vérifie zone par zone qu'elle n'en touche aucune. Le demi-écran, lui,
+   recouvre volontairement la trace et la vue mise en avant : un carton l'annonce, le terminal
+   devient le sujet ; il laisse en revanche le sous-titre libre.
 
 ### `--terminal gdigrab`, l'option
 
@@ -262,20 +268,23 @@ la session viennent du SDK. Le panneau « Session agent (brut) » reste donc vid
 attente du flux de la session agent ». Tout le reste est identique.
 
 Résultat de la répétition du 2026-09-18 : les **dix-sept marqueurs** de `concepts` posés, aucun
-manquant, prise de 81 s, code de sortie 0. `ripening_50` à 12,0 s, `detected` à 21,7 s,
-`wake_perception` à 21,7 s, `wake_agent` à 23,4 s, `views_first` à 26,4 s, la loupe de 29,7 à 41,5 s,
-`gizmos` à 48,3 s, `rotate` à 53,9 s, `agent_view` à 59,2 s, `normal_view` à 66,5 s, `cut` à 68,6 s,
-`landed` à 69,6 s, `report` à 77,1 s. La coupe et la chute sont bien tombées **après** le retour en
-vue spectateur.
+manquant, code de sortie 0, piste terminal à +0,25 s de la prise. La coupe et la chute sont bien
+tombées **après** le retour en vue spectateur (`normal_view` 66,0 s, `cut` 68,5 s), et le journal
+filmé porte le démarrage, la détection, le réveil mis en scène et les douze appels MCP.
 
-Puis le montage d'essai, à partir de cette répétition et de la prise `cycle` de la veille :
+La prise `cycle` a été rejouée de la même façon, en `replay` contre le même journal. **En replay, la
+vignette du terminal ne suit pas l'épisode rejoué** : la page du terminal montre le fichier tel
+qu'il est à ce moment-là, c'est-à-dire la session qui a réellement tourné, pas celle du journal.
+Utile pour caler l'incrustation, trompeur dans un film final : les deux prises finales se font en
+direct, où le terminal et la page racontent le même épisode.
+
+Puis le montage d'essai :
 
     npx tsx scripts/video/montage.ts --episode data/episodes/2026-09-18T16-36-29-196Z-t1.json \
-      --out data/video/dry-run.mp4 --frames 14 --frames-prefix dry-
+      --out data/video/dry-run.mp4 --frames 16 --frames-prefix dry-
 
-Il sort 4 min 15 s en 58 sous-plans, retire les huit segments facultatifs (panneau Perception et les
-sept tuiles du traitement des vues) avec un avertissement chacun, et prévient qu'aucune des deux
-prises n'a de capture de terminal.
+Il sort quatre minutes en 58 sous-plans et retire les huit segments facultatifs (panneau Perception
+et les sept tuiles du traitement des vues) avec un avertissement chacun.
 
 ## Style des sous-titres
 
@@ -370,7 +379,9 @@ sous-titre dépasse deux lignes.
     rehearse.ts            faux agent MCP pour la répétition sans coût
     terminal.ps1           ouvre et dimensionne la fenêtre de terminal filmée
     storyboard.md          le découpage, en français
-    plans/demo.ts          le même découpage, exécutable
+    plans/demo.ts          le même découpage, exécutable : assemblage et cartons de fin
+    plans/part1.ts         partie 1, plans/part2.ts partie 2, plans/pipeline.ts le traitement des vues
+    plans/zones.ts         géographie de l'écran : zones encadrables, zones protégées, incrustations
     scenarios/             concepts.ts, cycle.ts, pipeline.ts — ce que le pilote fait sur la page
     lib/browser.ts         ouverture de Chromium, mesures GPU et cadence
     lib/health.ts          GET /health, serveur neuf et aucune autre sim
@@ -384,10 +395,13 @@ sous-titre dépasse deux lignes.
     lib/markers.ts         marqueurs horodatés
     lib/episodes.ts        lecture d'un journal de data/episodes/
     lib/plan.ts            plan de montage, résolution des marqueurs en secondes
+    lib/planGuard.ts       garde de type d'un plan lu depuis un JSON
     lib/cuts.ts            découpe d'un segment en sous-plans
+    lib/style.ts           rectangles, format de sortie, style des textes gravés
     lib/ffmpegFilters.ts   construction des filtres ffmpeg (pur, testé)
     lib/ffmpegRun.ts       lancement de ffmpeg et ffprobe
-    lib/render.ts          fabrication des sous-plans et concaténation
+    lib/render.ts          fabrication des sous-plans
+    lib/renderOutput.ts    dossier de travail, concaténation, images extraites
     lib/cli.ts             lecture des options
 
 Les fonctions pures — filtres, échappement, découpes, résolution des marqueurs, textes du plan —

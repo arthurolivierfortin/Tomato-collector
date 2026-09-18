@@ -101,22 +101,8 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
   const videoStartMs = Date.now();
   const markerLog = createMarkerLog(() => Date.now());
   markerLog.startAt(videoStartMs);
-  // Le terminal démarre tout de suite : les deux vidéos partagent l'horloge de la prise, et le
-  // montage sait à quelle seconde du terminal correspond chaque seconde de la page.
   let terminal: TerminalCapture | null = null;
   let terminalVideo: (() => Promise<string>) | null = null;
-  if (options.terminalMode === 'gdigrab') {
-    terminal = startTerminalCapture(
-      { title: options.terminalWindow, fps: TERMINAL_FPS, outPath: join(outAbs, `${take}.terminal.mkv`) },
-      videoStartMs,
-      (line) => log(`  [ffmpeg terminal] ${line}`),
-    );
-    log(`terminal : fenêtre « ${options.terminalWindow} » filmée dans ${terminal.video} (+${terminal.startMs} ms)`);
-  } else if (options.terminalMode === 'page') {
-    const capture = await startPageCapture(browser, options.terminalLog, join(rawDir, 'terminal'), videoStartMs, log);
-    terminal = capture;
-    terminalVideo = () => capture.videoPath();
-  }
   const startedAt = new Date().toISOString();
   let renderer = 'inconnu';
   let rafFps = 0;
@@ -124,6 +110,22 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
   let failure: string | null = null;
   let markers: TakeMarkers;
   try {
+    // Le terminal démarre tout de suite : les deux vidéos partagent l'horloge de la prise, et le
+    // montage sait à quelle seconde du terminal correspond chaque seconde de la page. Ouvert dans
+    // le `try` : un échec ici (fichier illisible, page qui ne charge pas) doit passer par le
+    // `finally`, qui ferme le navigateur, plutôt que de le laisser tourner.
+    if (options.terminalMode === 'gdigrab') {
+      terminal = startTerminalCapture(
+        { title: options.terminalWindow, fps: TERMINAL_FPS, outPath: join(outAbs, `${take}.terminal.mkv`) },
+        videoStartMs,
+        (line) => log(`  [ffmpeg terminal] ${line}`),
+      );
+      log(`terminal : fenêtre « ${options.terminalWindow} » filmée dans ${terminal.video} (+${terminal.startMs} ms)`);
+    } else if (options.terminalMode === 'page') {
+      const capture = await startPageCapture(browser, options.terminalLog, join(rawDir, 'terminal'), videoStartMs, log);
+      terminal = capture;
+      terminalVideo = () => capture.videoPath();
+    }
     log(`page : ${options.pageUrl}`);
     await page.goto(options.pageUrl, { timeout: READY_TIMEOUT_MS });
     await waitForReady(page);

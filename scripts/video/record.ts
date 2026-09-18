@@ -6,7 +6,7 @@
  *
  * Options : --scenario <concepts|cycle> | --scenario-file <json>, --mode <live|replay>,
  * --take <nom>, --page <url>, --api <url>, --episode <id ou chemin>, --out <dossier>,
- * --terminal <page|gdigrab|off>, --terminal-log <fichier>, --terminal-window <titre>.
+ * --terminal <page|gdigrab|off> (défaut : page), --terminal-log <fichier>, --terminal-window <titre>.
  */
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -57,7 +57,7 @@ async function main(): Promise<void> {
   const take = opt(args, 'take', scenario.name);
   const apiUrl = opt(args, 'api', DEFAULTS.api);
   const episode = await loadEpisode(opt(args, 'episode', ''), opt(args, 'episodes-dir', DEFAULTS.episodes));
-  const terminalMode = parseTerminalMode(opt(args, 'terminal', 'off'));
+  const terminalMode = parseTerminalMode(opt(args, 'terminal', 'page'));
   log(`prise « ${take} » — scénario « ${scenario.name} », mode ${scenario.mode}, ${scenario.steps.length} étapes`);
   log(`marqueurs prévus : ${scenarioMarkers(scenario).join(', ')}`);
   const optional = optionalMarkers(scenario);
