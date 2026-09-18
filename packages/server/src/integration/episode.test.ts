@@ -60,7 +60,8 @@ async function runScript(basketX: number, basketY: number): Promise<{ cut: strin
   const views = await mcp.call('get_views');
   expect(views.isError).toBe(false);
   expect(views.blocks.filter((b) => b.type === 'image')).toHaveLength(3);
-  expect(views.blocks.at(-1)!.text).toContain('"targetTomatoId":1');
+  expect(views.blocks.at(-2)!.text).toContain('"targetTomatoId":1');
+  expect(views.blocks.at(-1)!.text).toMatch(/^suggestedScissors for target stem #1 \(rotate_scissors, mode absolute, roll 0\): \{"yawDeg":/);
 
   expect((await mcp.call('move_basket', { x: basketX, y: basketY, mode: 'absolute' })).isError).toBe(false);
   expect(session.get().phase).toBe('harvesting');
