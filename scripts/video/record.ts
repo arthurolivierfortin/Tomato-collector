@@ -62,7 +62,7 @@ async function main(): Promise<void> {
   if (scenario.mode === 'live') {
     const blocker = liveBlocker(await fetchHealth(apiUrl), apiUrl);
     if (blocker !== null) throw new Error(blocker);
-    log(`serveur ${apiUrl} : prêt, aucune simulation connectée.`);
+    log(`serveur ${apiUrl} : neuf (phase idle), aucune simulation connectée.`);
   }
   const result = await record({
     scenario,

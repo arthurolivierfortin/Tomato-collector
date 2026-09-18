@@ -20,6 +20,17 @@ describe('parseHealth', () => {
 describe('liveBlocker', () => {
   it('laisse passer quand le serveur répond et qu’aucune sim n’est connectée', () => {
     expect(liveBlocker({ ok: true, simConnected: false }, 'http://localhost:7331')).toBeNull();
+    expect(liveBlocker({ ok: true, simConnected: false, phase: 'idle' }, 'http://localhost:7331')).toBeNull();
+  });
+
+  it('refuse un serveur qui porte déjà un épisode : la prise filmerait un épisode fantôme', () => {
+    const message = liveBlocker({ ok: true, simConnected: false, phase: 'detected' }, 'http://localhost:7331');
+    expect(message).toMatch(/detected/);
+    expect(message).toMatch(/redémarrer le serveur/i);
+  });
+
+  it('refuse aussi une phase de fin restée ouverte', () => {
+    expect(liveBlocker({ ok: true, simConnected: false, phase: 'harvested' }, 'http://x')).toMatch(/harvested/);
   });
 
   it('refuse quand une sim est déjà connectée : les deux pages se voleraient la connexion', () => {
