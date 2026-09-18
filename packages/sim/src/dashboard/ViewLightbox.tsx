@@ -32,6 +32,11 @@ export function ViewLightbox({ view, views, onClose, onCamera, onView }: Props) 
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  /**
+   * Côté de l'image telle qu'elle est affichée : les vues sont carrées et mises à l'échelle en
+   * `object-contain`, donc le plus petit côté du cadre. C'est cette taille — pas celle de la scène —
+   * qui borne le déplacement, sinon on pourrait tirer l'image hors du cadre sur son axe long.
+   */
   const sizeOf = useCallback((): number => {
     const box = stage.current?.getBoundingClientRect();
     return box ? Math.min(box.width, box.height) : 0;
@@ -42,9 +47,9 @@ export function ViewLightbox({ view, views, onClose, onCamera, onView }: Props) 
       const box = stage.current?.getBoundingClientRect();
       if (!box) return;
       const factor = e.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP;
-      onView(zoomAtCursor(view, factor, e.clientX - (box.left + box.width / 2), e.clientY - (box.top + box.height / 2), Math.min(box.width, box.height)));
+      onView(zoomAtCursor(view, factor, e.clientX - (box.left + box.width / 2), e.clientY - (box.top + box.height / 2), sizeOf()));
     },
-    [onView, view],
+    [onView, sizeOf, view],
   );
 
   const onPointerDown = useCallback(
@@ -94,7 +99,9 @@ export function ViewLightbox({ view, views, onClose, onCamera, onView }: Props) 
             src={`data:image/png;base64,${image.pngBase64}`}
             draggable={false}
             style={{ transform: `translate(${view.panXPx}px, ${view.panYPx}px) scale(${view.zoom})` }}
-            className="max-h-full max-w-full select-none object-contain"
+            // `h-full w-full` : l'image 800×800 est agrandie jusqu'au cadre (≈ 950 px à 1080p), pas laissée
+            // à sa taille d'origine comme le ferait `max-h-full`.
+            className="h-full w-full select-none object-contain"
           />
         ) : (
           <p className="text-[13px] text-ink-dim">Aucune image reçue pour la vue {view.camera}.</p>

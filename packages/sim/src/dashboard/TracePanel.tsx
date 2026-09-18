@@ -1,5 +1,5 @@
 import type { TraceEntry } from './dashboardTypes';
-import { TraceRow } from './TraceRow';
+import { isPending, TraceRow } from './TraceRow';
 import { useNow } from './useNow';
 
 interface Props {
@@ -13,14 +13,17 @@ interface Props {
 
 /** Trace de l'agent, plus récent en haut (le store garantit l'ordre et le plafond). */
 export function TracePanel({ trace, isExpanded, onToggle, nowMs }: Props) {
-  const now = useNow(nowMs);
+  // L'horloge ne tourne que tant qu'un appel attend son résultat : sinon la trace ne se redessine pas.
+  const pending = trace.some(isPending);
+  const now = useNow(nowMs, undefined, pending);
   return (
     <section aria-label="Trace de l'agent" className="flex min-h-0 flex-col border-l border-line">
       <h2 className="shrink-0 border-b border-line px-3 py-1.5 text-[12px] text-ink-dim">Trace de l&apos;agent, plus récent en haut</h2>
       <ol data-testid="trace" className="min-h-0 flex-1 overflow-y-auto">
         {trace.length === 0 && <li className="px-3 py-2 text-[12px] text-ink-dim">En attente d&apos;un épisode.</li>}
         {trace.map((entry) => (
-          <TraceRow key={entry.id} entry={entry} expanded={isExpanded(entry.id)} onToggle={onToggle} nowMs={now} />
+          // Seule une ligne en cours dépend de l'horloge : les autres reçoivent 0 et `memo` les garde telles quelles.
+          <TraceRow key={entry.id} entry={entry} expanded={isExpanded(entry.id)} onToggle={onToggle} nowMs={isPending(entry) ? now : 0} />
         ))}
       </ol>
     </section>

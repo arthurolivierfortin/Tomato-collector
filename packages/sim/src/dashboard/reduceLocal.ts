@@ -14,7 +14,8 @@ export function reduceLocal(state: DashboardState, m: LocalMessage): DashboardSt
       return {
         ...initialDashboardState(state.model),
         connection: state.connection,
-        ui: state.ui,
+        // `nextTraceId` repart à 1 : garder les replis viserait les entrées du nouvel épisode.
+        ui: { ...state.ui, traceOverrides: {} },
         views: state.views,
         viewsAt: state.viewsAt,
         featured: state.featured,

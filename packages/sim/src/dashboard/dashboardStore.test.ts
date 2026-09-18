@@ -200,6 +200,7 @@ describe('reduce — messages locaux', () => {
     s = reduce(s, { type: 'local_connection', connection: 'replay' });
     s = reduce(s, { type: 'local_model', model: 'claude-test' });
     s = reduce(s, { type: 'local_toggle_agent_view' });
+    s = reduce(s, { type: 'local_toggle_trace', id: s.trace[0]!.id });
     s = reduce(s, { type: 'local_reset' });
     expect(s.trace).toEqual([]);
     // Issue #22 : une remise à zéro ne vide jamais les vignettes, elles seraient grises jusqu'au premier get_views.
@@ -207,6 +208,9 @@ describe('reduce — messages locaux', () => {
     expect(s.connection).toBe('replay');
     expect(s.model).toBe('claude-test');
     expect(s.ui.agentView).toBe(true);
+    // Les identifiants de trace repartent à 1 : garder les replis viserait les entrées du nouvel épisode.
+    expect(s.nextTraceId).toBe(1);
+    expect(s.ui.traceOverrides).toEqual({});
   });
 });
 

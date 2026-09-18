@@ -2,7 +2,7 @@ import { CAMERA_IDS, type CameraId, type ViewImage } from '@tomato/shared';
 import { formatAge } from './traceFormat';
 import { BTN } from './ui';
 import { useFlash } from './useFlash';
-import { useNow } from './useNow';
+import { AGE_TICK_MS, useNow } from './useNow';
 
 /** Durée du flash du cadre à chaque message `views`. */
 export const VIEWS_FLASH_MS = 400;
@@ -39,7 +39,8 @@ function Tile({ camera, image, age, big, onClick }: TileProps) {
         {image ? (
           <img alt={`vue ${camera}`} src={src(image)} className="h-full w-full object-contain" />
         ) : (
-          <span className="p-2 text-[12px] text-ink-dim">en attente…</span>
+          // Lisible de loin en tournage : c'est la seule chose à l'écran tant que l'agent n'a rien demandé.
+          <span className={`p-2 text-ink ${big ? 'text-[18px]' : 'text-[16px]'}`}>en attente…</span>
         )}
       </button>
       <figcaption className="flex shrink-0 items-baseline justify-between gap-2 text-[11px] text-ink-dim">
@@ -73,7 +74,7 @@ interface Props {
  */
 export function ViewsPanel({ views, viewsAt, featured, lastViewsAt, agentView, onFeature, onOpen, onRefresh, nowMs }: Props) {
   const flash = useFlash(lastViewsAt, VIEWS_FLASH_MS);
-  const now = useNow(nowMs);
+  const now = useNow(nowMs, AGE_TICK_MS);
   const others = CAMERA_IDS.filter((id) => id !== featured);
 
   return (
@@ -81,16 +82,17 @@ export function ViewsPanel({ views, viewsAt, featured, lastViewsAt, agentView, o
       data-testid="views"
       data-flash={flash ? 'true' : undefined}
       aria-label="Ce que voit l'agent"
-      className={`flex h-full min-h-0 min-w-0 flex-col gap-2 overflow-hidden border-l border-line p-3 ${flash ? 'views-flash' : ''}`}
+      className={`flex h-full min-h-0 min-w-0 flex-col gap-1.5 overflow-hidden border-l border-line px-3 pb-2 pt-1.5 ${flash ? 'views-flash' : ''}`}
     >
-      {onRefresh && (
-        <div className="flex shrink-0 items-center justify-between gap-2">
-          <h2 className="text-[11px] uppercase tracking-widest text-ink-dim">Vues de l&apos;agent</h2>
+      {/* Le titre reste toujours affiché ; seul le rendu local (page seule) ajoute son bouton. */}
+      <div className="flex min-h-5 shrink-0 items-center justify-between gap-2">
+        <h2 className="text-[11px] uppercase tracking-widest text-ink-dim">Vues de l&apos;agent</h2>
+        {onRefresh && (
           <button type="button" data-testid="refresh-views" onClick={onRefresh} className={BTN}>
             Rafraîchir les vues
           </button>
-        </div>
-      )}
+        )}
+      </div>
       {agentView ? (
         <div className="grid min-h-0 flex-1 grid-cols-3 gap-3">
           {CAMERA_IDS.map((id) => (
@@ -101,7 +103,7 @@ export function ViewsPanel({ views, viewsAt, featured, lastViewsAt, agentView, o
         <>
           <Tile camera={featured} image={views[featured]} age={formatAge(viewsAt[featured], now)} big onClick={() => onOpen(featured)} />
           {/* Les deux autres vues en vignettes carrées : hauteur fixe pour laisser ≥ 600 px à la vue en avant. */}
-          <div className="flex h-[13rem] shrink-0 justify-center gap-4">
+          <div className="flex h-[11.5rem] shrink-0 justify-center gap-4">
             {others.map((id) => (
               <Tile key={id} camera={id} image={views[id]} age={formatAge(viewsAt[id], now)} big={false} onClick={() => onFeature(id)} />
             ))}
