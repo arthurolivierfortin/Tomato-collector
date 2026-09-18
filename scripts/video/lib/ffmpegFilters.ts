@@ -7,32 +7,76 @@
  * textes accentués passent par `textfile=` (fichier UTF-8) plutôt que par `text=`.
  */
 
+/** Rectangle en pixels dans l'image de sortie, origine en haut à gauche. */
+export interface Rect {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
 export interface TextStyle {
   /** Chemin système de la police (Segoe UI sous Windows, DejaVu Sans ailleurs). */
   readonly fontFile: string;
   readonly titleSize: number;
   readonly subtitleSize: number;
   readonly captionSize: number;
-  /** Marge du bandeau de sous-titre au-dessus et en dessous du texte, en pixels. */
+  /**
+   * Où vit le sous-titre : dans le bas de la colonne spectateur, qui ne porte plus aucune
+   * information une fois les contrôles masqués (touche `h`). Surtout pas en haut, c'est le bandeau
+   * de statuts ; ni tout en bas, c'est le schéma bloc.
+   */
+  readonly captionX: number;
+  readonly captionWidth: number;
+  /** Distance entre le bas de l'image et le bas du bandeau, en pixels. */
+  readonly captionBottom: number;
+  /** Marge du bandeau autour du texte, en pixels. */
   readonly bandPadding: number;
-  /** Distance entre le bord de l'image et le bandeau, en pixels. */
-  readonly bandMargin: number;
   readonly bandOpacity: number;
   readonly fontColor: string;
+  /** Cadre de mise en évidence : couleur et épaisseur. */
+  readonly highlightColor: string;
+  readonly highlightThickness: number;
 }
 
-export const WINDOWS_FONT = 'C:/Windows/Fonts/segoeui.ttf';
+/**
+ * Polices essayées dans l'ordre : Segoe UI (Windows), Arial (Windows aussi, toujours là), puis
+ * DejaVu Sans (Linux). `pickFontFile` choisit la première présente ; `montage.ts` refuse de partir
+ * si aucune ne l'est, plutôt que de laisser ffmpeg échouer au premier carton.
+ */
+export const FONT_CANDIDATES: readonly string[] = [
+  'C:/Windows/Fonts/segoeui.ttf',
+  'C:/Windows/Fonts/arial.ttf',
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+  '/usr/share/fonts/TTF/DejaVuSans.ttf',
+  '/System/Library/Fonts/Supplemental/Arial.ttf',
+];
+
+/** Première police existante parmi les candidates ; `null` si aucune, pour un message clair. */
+export function pickFontFile(candidates: readonly string[], exists: (path: string) => boolean): string | null {
+  return candidates.find(exists) ?? null;
+}
 
 export const DEFAULT_STYLE: TextStyle = {
-  fontFile: WINDOWS_FONT,
+  // Remplacée au lancement du montage par la première police réellement installée.
+  fontFile: 'C:/Windows/Fonts/segoeui.ttf',
   titleSize: 64,
   subtitleSize: 36,
-  captionSize: 38,
-  bandPadding: 24,
-  bandMargin: 24,
-  bandOpacity: 0.72,
+  captionSize: 34,
+  // Colonne spectateur (0–800 px), bas de la zone 3D : le bandeau de statuts descend jusqu'à y 84
+  // et le schéma bloc commence à y 960 ; le bandeau s'arrête donc à y 935, soit 1080 − 145.
+  captionX: 0,
+  captionWidth: 800,
+  captionBottom: 145,
+  bandPadding: 16,
+  bandOpacity: 0.78,
   fontColor: 'white',
+  highlightColor: '0x38BDF8@0.95',
+  highlightThickness: 4,
 };
+
+/** Deux lignes au plus : au-delà, le bandeau mange la scène 3D. */
+export const CAPTION_MAX_LINES = 2;
 
 /** Fond des cartons de titre : le même bleu nuit que le dashboard. */
 export const TITLE_BACKGROUND = '0x0E1116';
@@ -70,10 +114,18 @@ export function normalizeFilters(format: Format): string[] {
 /**
  * `expansion=none` : sans ça drawtext interprète `%` et `{}` comme de la syntaxe (strftime, texte
  * dynamique) et refuse un sous-titre aussi banal que « mûrit 62 % » — « Stray % near … ».
- * `text_align=C` : sans ça les lignes d'un texte sur deux lignes sont collées à gauche du bloc.
+ * `text_align` : `C` centre chaque ligne d'un carton, `L` aligne le sous-titre à gauche.
  */
-function drawtext(parts: readonly string[]): string {
-  return `drawtext=${['expansion=none', 'text_align=C', ...parts].join(':')}`;
+function drawtext(align: 'C' | 'L', parts: readonly string[]): string {
+  return `drawtext=${['expansion=none', `text_align=${align}`, ...parts].join(':')}`;
+}
+
+/**
+ * Cadre léger autour de la zone qu'un arrêt sur image met en évidence (schéma bloc, trace, vue).
+ * Les coordonnées viennent du plan de montage : c'est lui qui sait ce qu'il montre.
+ */
+export function highlightFilter(rect: Rect, style: TextStyle): string {
+  return `drawbox=x=${rect.x}:y=${rect.y}:w=${rect.w}:h=${rect.h}:color=${style.highlightColor}:t=${style.highlightThickness}`;
 }
 
 /** Hauteur d'une ligne de sous-titre, interligne compris. */
@@ -87,24 +139,24 @@ export function bandHeight(style: TextStyle, lines: number): number {
 }
 
 /**
- * Bandeau de sous-titre en bas + le texte centré dedans (deux filtres, dans cet ordre).
+ * Bandeau de sous-titre + le texte aligné à gauche dedans (deux filtres, dans cet ordre). Le
+ * bandeau occupe une zone fixe du bas de la colonne spectateur : il ne recouvre ni le bandeau de
+ * statuts, ni le schéma bloc, ni la trace, ni les vues.
  *
  * Deux pièges, tous deux vérifiés : dans `drawbox`, `h` désigne la hauteur de la BOÎTE, il faut
  * `ih` pour celle de l'image ; dans `drawtext`, `ih` n'existe pas et ffmpeg 9 segfault si on
  * l'écrit — c'est `h` qui vaut la hauteur de l'image.
  */
-export function captionFilters(textFile: string, style: TextStyle, lines = 1, atTop = false): [string, string] {
+export function captionFilters(textFile: string, style: TextStyle, lines = 1): [string, string] {
   const height = bandHeight(style, lines);
-  const boxY = atTop ? String(style.bandMargin) : `ih-${style.bandMargin + height}`;
-  const textY = atTop ? String(style.bandMargin + style.bandPadding) : `h-${style.bandMargin + height - style.bandPadding}`;
-  const box = `drawbox=x=0:y=${boxY}:w=iw:h=${height}:color=black@${style.bandOpacity}:t=fill`;
-  const text = drawtext([
+  const box = `drawbox=x=${style.captionX}:y=ih-${style.captionBottom + height}:w=${style.captionWidth}:h=${height}:color=black@${style.bandOpacity}:t=fill`;
+  const text = drawtext('L', [
     `fontfile=${escapeFilterPath(style.fontFile)}`,
     `textfile=${escapeFilterPath(textFile)}`,
     `fontsize=${style.captionSize}`,
     `fontcolor=${style.fontColor}`,
-    'x=(w-text_w)/2',
-    `y=${textY}`,
+    `x=${style.captionX + 2 * style.bandPadding}`,
+    `y=h-${style.captionBottom + height - style.bandPadding}`,
     `line_spacing=${captionLineHeight(style) - style.captionSize}`,
   ]);
   return [box, text];
@@ -114,11 +166,11 @@ export function captionFilters(textFile: string, style: TextStyle, lines = 1, at
 export function titleFilters(titleFile: string, subtitleFile: string | null, style: TextStyle): string[] {
   const common = [`fontfile=${escapeFilterPath(style.fontFile)}`, `fontcolor=${style.fontColor}`, 'x=(w-text_w)/2', 'line_spacing=14'];
   if (subtitleFile === null) {
-    return [drawtext([...common, `textfile=${escapeFilterPath(titleFile)}`, `fontsize=${style.titleSize}`, 'y=(h-text_h)/2'])];
+    return [drawtext('C', [...common, `textfile=${escapeFilterPath(titleFile)}`, `fontsize=${style.titleSize}`, 'y=(h-text_h)/2'])];
   }
   return [
-    drawtext([...common, `textfile=${escapeFilterPath(titleFile)}`, `fontsize=${style.titleSize}`, 'y=(h-text_h)/2-50']),
-    drawtext([
+    drawtext('C', [...common, `textfile=${escapeFilterPath(titleFile)}`, `fontsize=${style.titleSize}`, 'y=(h-text_h)/2-50']),
+    drawtext('C', [
       ...common,
       `textfile=${escapeFilterPath(subtitleFile)}`,
       `fontsize=${style.subtitleSize}`,

@@ -20,6 +20,10 @@ export interface TakeMarkers {
   readonly startedAt: string;
   readonly durationMs: number;
   readonly markers: readonly Marker[];
+  /** Marqueurs que le scénario prévoyait et qui n'ont pas été atteints (prise interrompue). */
+  readonly missing: readonly string[];
+  /** Étape sur laquelle la prise s'est arrêtée, absente si elle est allée au bout. */
+  readonly failedStep?: string;
 }
 
 export interface TakeMeta {
@@ -27,6 +31,9 @@ export interface TakeMeta {
   readonly video: string;
   readonly mode: TakeMode;
   readonly startedAt: string;
+  /** Marqueurs prévus par le scénario, dans l'ordre : sert à nommer ceux qui manquent. */
+  readonly expected?: readonly string[];
+  readonly failedStep?: string;
 }
 
 export interface MarkerLog {
@@ -54,6 +61,7 @@ export function isTakeMarkers(x: unknown): x is TakeMarkers {
   if (!isRecord(x)) return false;
   if (typeof x['take'] !== 'string' || typeof x['durationMs'] !== 'number') return false;
   if (typeof x['video'] !== 'string') return false;
+  if (x['missing'] !== undefined && !Array.isArray(x['missing'])) return false;
   return Array.isArray(x['markers']) && x['markers'].every(isMarker);
 }
 
@@ -86,9 +94,16 @@ export function createMarkerLog(nowMs: () => number): MarkerLog {
       if (marks.some((m) => m.name === name)) throw new Error(`marqueur « ${name} » posé deux fois dans la même prise`);
       marks.push({ name, atMs: nowMs() - origin });
     },
-    snapshot(meta) {
+    snapshot({ expected = [], failedStep, ...meta }) {
       if (origin === null) throw new Error('snapshot() avant start() : la prise n’a pas d’origine');
-      return { ...meta, durationMs: nowMs() - origin, markers: [...marks] };
+      const posed = new Set(marks.map((m) => m.name));
+      return {
+        ...meta,
+        durationMs: nowMs() - origin,
+        markers: [...marks],
+        missing: expected.filter((name) => !posed.has(name)),
+        ...(failedStep === undefined ? {} : { failedStep }),
+      };
     },
   };
 }

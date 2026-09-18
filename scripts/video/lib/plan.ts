@@ -3,6 +3,7 @@
  * peuvent être des secondes ou des marqueurs posés pendant l'enregistrement — c'est ce qui permet
  * de refaire une prise sans réécrire le plan. Tout est pur et testé sans ffmpeg.
  */
+import type { Rect } from './ffmpegFilters';
 import { markerS, type TakeMarkers } from './markers';
 
 /** Un instant du plan : des secondes, un marqueur (avec décalage), ou la fin de la prise. */
@@ -12,8 +13,8 @@ export interface FreezeSpec {
   readonly at: TimeRef;
   readonly durationS: number;
   readonly caption: string;
-  /** Bandeau en haut plutôt qu'en bas : sur le schéma bloc, le bas de l'image porte l'information. */
-  readonly atTop?: boolean;
+  /** Zone de l'image à entourer d'un cadre, en pixels (schéma bloc, trace, vue mise en avant). */
+  readonly highlight?: Rect;
 }
 
 export interface TitleSpec {
@@ -30,8 +31,8 @@ export interface SegmentSpec {
   readonly title?: TitleSpec;
   /** Sous-titre affiché en bandeau pendant tout le segment. */
   readonly caption?: string;
-  /** Bandeau en haut pour tout le segment. */
-  readonly atTop?: boolean;
+  /** Cadre gardé pendant tout le segment ; un arrêt sur image peut le remplacer par le sien. */
+  readonly highlight?: Rect;
   readonly freezeAt?: readonly FreezeSpec[];
 }
 
@@ -60,7 +61,7 @@ export interface ResolvedFreeze {
   readonly atS: number;
   readonly durationS: number;
   readonly caption: string;
-  readonly atTop: boolean;
+  readonly highlight?: Rect;
 }
 
 export interface ResolvedSegment {
@@ -70,7 +71,7 @@ export interface ResolvedSegment {
   readonly toS: number;
   readonly title?: TitleSpec;
   readonly caption?: string;
-  readonly atTop: boolean;
+  readonly highlight?: Rect;
   readonly freezes: readonly ResolvedFreeze[];
 }
 
@@ -87,7 +88,10 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
     throw new Error(`prise « ${spec.take} » : segment vide ou à l’envers (${fromS.toFixed(2)} s → ${toS.toFixed(2)} s)`);
   }
   const freezes = [...(spec.freezeAt ?? [])]
-    .map((f) => ({ atS: resolveTime(f.at, take), durationS: f.durationS, caption: f.caption, atTop: f.atTop ?? spec.atTop ?? false }))
+    .map((f) => {
+      const zone = f.highlight ?? spec.highlight;
+      return { atS: resolveTime(f.at, take), durationS: f.durationS, caption: f.caption, ...(zone === undefined ? {} : { highlight: zone }) };
+    })
     .sort((a, b) => a.atS - b.atS);
   for (const f of freezes) {
     if (f.atS < fromS || f.atS > toS) {
@@ -100,7 +104,7 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
     fromS,
     toS,
     freezes,
-    atTop: spec.atTop ?? false,
+    ...(spec.highlight === undefined ? {} : { highlight: spec.highlight }),
     ...(spec.title === undefined ? {} : { title: spec.title }),
     ...(spec.caption === undefined ? {} : { caption: spec.caption }),
   };
@@ -116,4 +120,35 @@ export function resolvePlan(plan: MontagePlan, takes: ReadonlyMap<string, TakeMa
     }
     return resolveSegment(spec, take);
   });
+}
+
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return typeof x === 'object' && x !== null;
+}
+
+function isTimeRef(x: unknown): boolean {
+  if (typeof x === 'number' || x === 'end') return true;
+  return isRecord(x) && typeof x['marker'] === 'string' && (x['offsetS'] === undefined || typeof x['offsetS'] === 'number');
+}
+
+function isTitle(x: unknown): boolean {
+  return isRecord(x) && typeof x['text'] === 'string' && typeof x['durationS'] === 'number';
+}
+
+function isEntry(x: unknown): boolean {
+  if (!isRecord(x)) return false;
+  if ('card' in x) return isTitle(x['card']);
+  if (typeof x['take'] !== 'string' || !isTimeRef(x['from']) || !isTimeRef(x['to'])) return false;
+  if (x['title'] !== undefined && !isTitle(x['title'])) return false;
+  const freezes = x['freezeAt'];
+  if (freezes === undefined) return true;
+  return Array.isArray(freezes) && freezes.every((f: unknown) => isRecord(f) && isTimeRef(f['at']) && typeof f['durationS'] === 'number' && typeof f['caption'] === 'string');
+}
+
+/** Garde de type d'un plan lu depuis un JSON (`--plan-file`) : un plan bâclé échoue avant ffmpeg. */
+export function isMontagePlan(x: unknown): x is MontagePlan {
+  if (!isRecord(x)) return false;
+  if (typeof x['output'] !== 'string') return false;
+  for (const key of ['width', 'height', 'fps']) if (typeof x[key] !== 'number') return false;
+  return Array.isArray(x['segments']) && x['segments'].every(isEntry);
 }

@@ -11,15 +11,18 @@ const TRACE = '[data-testid="trace"]';
 const EPISODE_TIMEOUT_MS = 300_000;
 
 /**
- * Le mûrissement est local à la page : il a lieu dans les deux modes, avant que l'épisode
- * proprement dit commence (en direct c'est lui qui déclenchera la détection ; en replay il donne
- * au spectateur la même entrée en matière, pendant que le journal attend son tour).
+ * Le mûrissement est local à la page et démarre seul : depuis l'issue #23, la première tomate
+ * lance sa rampe 3 s après le chargement du plant. Rien à déclencher, dans aucun des deux modes ;
+ * en direct c'est lui qui provoquera la détection, en replay il donne au spectateur la même entrée
+ * en matière pendant que le journal attend son tour.
  */
 function opening(mode: TakeMode): ScenarioStep[] {
   const steps: ScenarioStep[] = [
+    // Contrôles masqués dès le départ : cadrage propre, et le bas de la colonne spectateur reste
+    // libre pour les sous-titres du montage.
+    { kind: 'press', key: 'h' },
     { kind: 'marker', name: 'debut' },
     { kind: 'wait', ms: 2500 },
-    { kind: 'sim', action: 'ripen_next' },
     { kind: 'marker', name: 'murissement' },
   ];
   if (mode === 'replay') steps.push({ kind: 'wait', ms: 6000 }, { kind: 'replay', speed: 1 });

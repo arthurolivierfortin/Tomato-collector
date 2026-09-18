@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TakeMarkers } from './markers';
-import { resolvePlan, resolveTime, type MontagePlan, type ResolvedEntry, type ResolvedSegment } from './plan';
-import { entryClips, totalDurationS } from './cuts';
+import { isMontagePlan, resolvePlan, resolveTime, type MontagePlan, type ResolvedEntry, type ResolvedSegment } from './plan';
+import { entryClips, mergeShortSegments, totalDurationS } from './cuts';
 
 const concepts: TakeMarkers = {
   take: 'concepts',
@@ -15,6 +15,7 @@ const concepts: TakeMarkers = {
     { name: 'coupe', atMs: 20_000 },
     { name: 'fin', atMs: 32_000 },
   ],
+  missing: [],
 };
 const takes = new Map([['concepts', concepts]]);
 
@@ -59,7 +60,7 @@ describe('resolvePlan', () => {
     const [first, second] = resolvePlan(plan, takes);
     expect(seg(first)).toMatchObject({ take: 'concepts', fromS: 2, toS: 20, caption: 'L’application' });
     expect(seg(first).title).toEqual({ text: 'Partie 1', durationS: 3 });
-    expect(seg(second).freezes).toEqual([{ atS: 21, durationS: 3, caption: 'La coupe', atTop: false }]);
+    expect(seg(second).freezes).toEqual([{ atS: 21, durationS: 3, caption: 'La coupe' }]);
   });
 
   it('refuse un segment qui cite une prise absente', () => {
@@ -86,7 +87,7 @@ describe('entryClips', () => {
     const [, second] = resolvePlan(plan, takes);
     expect(entryClips(second!)).toEqual([
       { kind: 'video', take: 'concepts', fromS: 20, toS: 21 },
-      { kind: 'freeze', take: 'concepts', atS: 21, durationS: 3, caption: 'La coupe', atTop: false },
+      { kind: 'freeze', take: 'concepts', atS: 21, durationS: 3, caption: 'La coupe' },
       { kind: 'video', take: 'concepts', fromS: 21, toS: 40 },
     ]);
   });
@@ -95,7 +96,7 @@ describe('entryClips', () => {
     const [first] = resolvePlan(plan, takes);
     expect(entryClips(first!)).toEqual([
       { kind: 'title', text: 'Partie 1', durationS: 3 },
-      { kind: 'video', take: 'concepts', fromS: 2, toS: 20, caption: 'L’application', atTop: false },
+      { kind: 'video', take: 'concepts', fromS: 2, toS: 20, caption: 'L’application' },
     ]);
   });
 
@@ -105,17 +106,33 @@ describe('entryClips', () => {
       segments: [plan.segments[0]!, { take: 'concepts', from: { marker: 'coupe' }, to: 'end', freezeAt: [{ at: { marker: 'coupe' }, durationS: 2, caption: 'pile' }] }],
     }, takes);
     expect(entryClips(second!)).toEqual([
-      { kind: 'freeze', take: 'concepts', atS: 20, durationS: 2, caption: 'pile', atTop: false },
+      { kind: 'freeze', take: 'concepts', atS: 20, durationS: 2, caption: 'pile' },
       { kind: 'video', take: 'concepts', fromS: 20, toS: 40 },
     ]);
   });
 
-  it('fait suivre le bandeau en haut du segment à ses arrêts sur image', () => {
+  it('fait suivre le cadre du segment à ses arrêts sur image, sauf si l’arrêt a le sien', () => {
+    const zone = { x: 480, y: 980, w: 960, h: 96 };
+    const autre = { x: 800, y: 92, w: 484, h: 300 };
     const [entry] = resolvePlan(
-      { ...plan, segments: [{ take: 'concepts', from: 0, to: 10, atTop: true, caption: 'bloc', freezeAt: [{ at: 3, durationS: 1, caption: 'a' }] }] },
+      {
+        ...plan,
+        segments: [
+          {
+            take: 'concepts',
+            from: 0,
+            to: 10,
+            highlight: zone,
+            caption: 'bloc',
+            freezeAt: [{ at: 3, durationS: 1, caption: 'a' }, { at: 6, durationS: 1, caption: 'b', highlight: autre }],
+          },
+        ],
+      },
       takes,
     );
-    expect(entryClips(entry!).every((c) => c.kind === 'title' || c.atTop === true)).toBe(true);
+    const clips = entryClips(entry!);
+    expect(clips.filter((c) => c.kind === 'freeze').map((c) => (c.kind === 'freeze' ? c.highlight : null))).toEqual([zone, autre]);
+    expect(clips.filter((c) => c.kind === 'video').every((c) => c.kind === 'video' && c.highlight === zone)).toBe(true);
   });
 
   it('trie les arrêts sur image, quel que soit l’ordre du plan', () => {
@@ -138,5 +155,53 @@ describe('totalDurationS', () => {
   it('additionne les sous-plans : la durée du film avant de lancer ffmpeg', () => {
     const clips = resolvePlan(plan, takes).flatMap(entryClips);
     expect(totalDurationS(clips)).toBeCloseTo(3 + 18 + 1 + 3 + 19, 5);
+  });
+});
+
+describe('mergeShortSegments', () => {
+  const seg2 = (fromS: number, toS: number, caption: string): ResolvedSegment => ({
+    take: 'cycle',
+    video: 'cycle.webm',
+    fromS,
+    toS,
+    caption,
+    freezes: [],
+  });
+
+  it('fusionne un sous-titre trop bref avec le précédent, et joint les deux phrases', () => {
+    const merged = mergeShortSegments([seg2(10, 20, 'Positionnement'), seg2(20, 20.4, 'Coupe'), seg2(20.4, 26, 'Chute dans le panier')], 2.5);
+    expect(merged).toHaveLength(2);
+    expect(merged[1]).toMatchObject({ fromS: 20, toS: 26, caption: 'Coupe, puis chute dans le panier' });
+  });
+
+  it('laisse tranquilles les segments assez longs', () => {
+    const entries = [seg2(0, 10, 'Mûrissement'), seg2(10, 20, 'Détection')];
+    expect(mergeShortSegments(entries, 2.5)).toEqual(entries);
+  });
+
+  it('ne fusionne pas par-dessus un carton ni entre deux prises', () => {
+    const card = { card: { text: 'Partie 2', durationS: 3 } };
+    const merged = mergeShortSegments([card, seg2(0, 1, 'Bref')], 2.5);
+    expect(merged).toHaveLength(2);
+    expect(merged[1]).toMatchObject({ caption: 'Bref' });
+  });
+
+  it('un segment trop court en tête absorbe le suivant', () => {
+    const merged = mergeShortSegments([seg2(0, 1, 'Coupe'), seg2(1, 8, 'Chute dans le panier')], 2.5);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({ fromS: 0, toS: 8, caption: 'Coupe, puis chute dans le panier' });
+  });
+});
+
+describe('isMontagePlan', () => {
+  it('accepte le plan de la démo relu depuis un JSON', () => {
+    expect(isMontagePlan(JSON.parse(JSON.stringify(plan)))).toBe(true);
+  });
+
+  it('refuse un plan mal formé plutôt que d’échouer au milieu du montage', () => {
+    expect(isMontagePlan({ ...plan, fps: '30' })).toBe(false);
+    expect(isMontagePlan({ ...plan, segments: [{ take: 'concepts' }] })).toBe(false);
+    expect(isMontagePlan({ ...plan, segments: {} })).toBe(false);
+    expect(isMontagePlan(null)).toBe(false);
   });
 });

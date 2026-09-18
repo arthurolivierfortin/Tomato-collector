@@ -18,13 +18,18 @@ export const conceptsScenario: Scenario = {
   name: 'concepts',
   mode: 'replay',
   steps: [
+    // Cadrage propre dès la première image : les contrôles disparaissent, ce qui libère aussi le
+    // bas de la colonne spectateur, là où le montage pose ses sous-titres.
+    { kind: 'press', key: 'h' },
+
     // (a) L'application : vue 3D, dashboard, bandeau de statuts.
-    { kind: 'wait', ms: 3000 },
+    { kind: 'wait', ms: 2500 },
     { kind: 'marker', name: 'app' },
-    { kind: 'wait', ms: 5000 },
+    { kind: 'wait', ms: 4000 },
 
     // (b) Le plant et la tomate qui mûrit : la cellule « mûrissement » monte dans le bandeau.
-    { kind: 'sim', action: 'ripen_next' },
+    // Depuis l'issue #23, la première tomate démarre seule sa rampe 3 s après le chargement du
+    // plant : rien à déclencher, il suffit de la regarder monter.
     { kind: 'marker', name: 'maturite' },
     { kind: 'wait', ms: 7000 },
 
@@ -47,7 +52,13 @@ export const conceptsScenario: Scenario = {
     { kind: 'marker', name: 'mcp_appel' },
     { kind: 'waitForText', selector: SESSION, text: 'collision' },
     { kind: 'marker', name: 'mcp_resultat' },
-    { kind: 'wait', ms: 1200 },
+    // La touche `t` replie puis redéploie le panneau « Session agent (brut) » : la légende du
+    // montage cite cette touche, il faut donc qu'elle serve vraiment à l'écran.
+    { kind: 'wait', ms: 900 },
+    { kind: 'press', key: 't' },
+    { kind: 'wait', ms: 900 },
+    { kind: 'press', key: 't' },
+    { kind: 'wait', ms: 900 },
     { kind: 'marker', name: 'flux_brut' },
     // (g) La coupe et la chute dans le panier.
     { kind: 'waitForText', selector: TRACE, text: 'Coupe' },
@@ -82,13 +93,11 @@ export const conceptsScenario: Scenario = {
     { kind: 'wait', ms: 3200 },
     { kind: 'press', key: 'c' },
 
-    // Le cadrage de tournage : « ce que voit l'agent » (v) sans les contrôles (h).
+    // Le cadrage de tournage : « ce que voit l'agent » (v). Les contrôles sont déjà masqués.
     { kind: 'press', key: 'v' },
-    { kind: 'press', key: 'h' },
     { kind: 'wait', ms: 1200 },
     { kind: 'marker', name: 'mode_agent' },
     { kind: 'wait', ms: 4000 },
-    { kind: 'press', key: 'h' },
     { kind: 'press', key: 'v' },
     { kind: 'wait', ms: 1500 },
   ],

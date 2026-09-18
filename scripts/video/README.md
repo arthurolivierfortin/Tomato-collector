@@ -37,8 +37,12 @@ c'est elle qui possède la géométrie. Puis, dans un second terminal :
     npm run video:record -- --scenario cycle --mode live --take cycle
 
 Le pilote ouvre **sa propre page** (headless, invisible) sur la même URL et attend
-« serveur connecté » avant de commencer. Il déclenche le mûrissement (`ripen_next`), suit les
-phases réelles jusqu'au rapport de l'agent, et pose un marqueur à chaque étape.
+« serveur connecté » avant de commencer. Il masque les contrôles (`h`), laisse la première tomate
+mûrir toute seule — depuis l'issue #23 elle démarre sa rampe 3 s après le chargement du plant —
+puis suit les phases réelles jusqu'au rapport de l'agent, en posant un marqueur à chaque étape.
+
+> N'ouvrez pas la page vous-même : la première page connectée est celle qui possède la géométrie.
+> Laissez le pilote être cette page-là, sinon il n'est qu'un dashboard en lecture seule.
 
 > La sim doit tourner en mode développement (`npm run demo` ou `npm run dev:sim`) : le pont simulé
 > utilisé pour les replays n'est exposé par Vite qu'en `import.meta.env.DEV`. Un `vite preview` ne
@@ -119,8 +123,13 @@ image, produit un fichier par sous-plan puis les concatène :
 
 - **cartons de titre** : fond `0x0E1116`, Segoe UI, titre et sous-titre centrés ;
 - **arrêts sur image** : une image extraite à l'instant voulu, tenue 2 à 4 s, avec son sous-titre ;
-- **sous-titres** : bandeau noir à 72 %, en bas par défaut, **en haut** quand le bas de l'image
-  porte l'information (le schéma bloc) ;
+- **sous-titres** : bandeau noir à 78 %, toujours au même endroit — le bas de la colonne
+  spectateur (x 0–800, y 859–935), deux lignes au plus en 34 px alignées à gauche. Cette zone est
+  vide dès que les contrôles sont masqués (`h`, pressée au début de chaque scénario), si bien
+  qu'un sous-titre ne recouvre jamais le bandeau de statuts, le schéma bloc, la trace ni les vues ;
+- **mise en évidence** : quand un arrêt sur image montre un élément précis, le sous-titre ne bouge
+  pas ; un cadre bleu clair entoure la zone visée, dont les coordonnées viennent du plan
+  (`ZONE` dans `plans/demo.ts`) ;
 - **sortie** : 1920×1080, 30 img/s, H.264, piste audio silencieuse (AAC), `+faststart`.
 
 L'encodeur est `h264_nvenc` si la carte **et le pilote** le permettent, `libx264` sinon. Le test
@@ -138,8 +147,9 @@ contre 13.1 demandée), et le montage échouerait alors au premier plan.
 3. **Hauteur de l'image** : dans `drawbox` c'est `ih` (`h` y désigne la hauteur de la boîte) ; dans
    `drawtext` c'est `h`, et écrire `ih` **fait segfault ffmpeg 9**.
 
-`text_align=C` centre chaque ligne d'un sous-titre sur deux lignes, et le bandeau grandit avec le
-nombre de lignes.
+`text_align` règle l'alignement des lignes d'un bloc : `C` pour les cartons, `L` pour les
+sous-titres. Le bandeau grandit avec le nombre de lignes, et le montage prévient quand un
+sous-titre dépasse deux lignes.
 
 ## Organisation du code
 

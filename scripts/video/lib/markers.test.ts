@@ -16,6 +16,7 @@ const take: TakeMarkers = {
     { name: 'app', atMs: 0 },
     { name: 'coupe', atMs: 4500 },
   ],
+  missing: [],
 };
 
 describe('markerMs', () => {
