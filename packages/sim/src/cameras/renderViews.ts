@@ -1,7 +1,7 @@
 import { CAMERA_IDS, VIEW_SIZE_PX, type CameraId, type Tomato, type ViewImage, type ViewsResult } from '@tomato/shared';
 import type { SimContext } from '../core/module';
 import type { SceneHandle } from '../three/createScene';
-import { poseCamera, renderToImageData, type AgentCameras } from './agentCameras';
+import { poseCamera, renderToImageData, setGizmoVisible, type AgentCameras } from './agentCameras';
 import { buildOverlay } from './annotations';
 import { drawCommands } from './drawOverlay';
 import { compose, darken, sobelEdges, type EdgeFilter } from './edges';
@@ -48,7 +48,7 @@ export function createViewRenderer(ctx: SimContext, scene: SceneHandle, cams: Ag
   return (cameras) => {
     const requested = CAMERA_IDS.filter((id) => cameras.includes(id));
     const { renderer, scene: threeScene } = scene;
-    for (const id of CAMERA_IDS) cams[id].helper.visible = false;
+    for (const id of CAMERA_IDS) setGizmoVisible(cams[id], false);
     try {
       const before = ctx.store.get();
       const measured: Measured = new Map();
@@ -78,7 +78,7 @@ export function createViewRenderer(ctx: SimContext, scene: SceneHandle, cams: Ag
       });
       return Promise.resolve({ images, json: payload });
     } finally {
-      for (const id of CAMERA_IDS) cams[id].helper.visible = true;
+      for (const id of CAMERA_IDS) setGizmoVisible(cams[id], true);
     }
   };
 }

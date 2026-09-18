@@ -1,14 +1,44 @@
-import { CameraHelper, OrthographicCamera, WebGLRenderTarget, type Scene, type WebGLRenderer } from 'three';
-import { CAMERA_IDS, VIEW_SIZE_PX, vadd, type CameraId, type CameraPose } from '@tomato/shared';
+import {
+  BoxGeometry,
+  BufferGeometry,
+  Float32BufferAttribute,
+  Group,
+  LineBasicMaterial,
+  LineSegments,
+  Mesh,
+  MeshBasicMaterial,
+  OrthographicCamera,
+  WebGLRenderTarget,
+  type Scene,
+  type WebGLRenderer,
+} from 'three';
+import { CAMERA_IDS, VIEW_SIZE_PX, vadd, vscale, type CameraId, type CameraPose, type Vec3 } from '@tomato/shared';
 import { worldToThree } from '../three/frame';
-import { cameraBasis } from './ortho';
+import { cameraBasis, type CameraBasis } from './ortho';
 import { LINEAR_TO_SRGB_LUT, applyLutRgb, flipRowsRgba } from './pixels';
+
+/** Issue #18 : les CameraHelper (frustums pleine longueur) traversaient toute la vue spectateur. */
+const GIZMO_COLOR = '#9ca3af';
+/** Corps de caméra : petite boîte discrète, face 6×6 cm, 4 cm de profondeur. */
+const BODY_WIDTH_CM = 6;
+const BODY_HEIGHT_CM = 6;
+const BODY_DEPTH_CM = 4;
+/** Tronçon de frustum : même largeur que le corps, 20 cm de profondeur vers la cible (pas toute la scène). */
+const FRUSTUM_WIDTH_CM = BODY_WIDTH_CM;
+const FRUSTUM_DEPTH_CM = 20;
+/** Nom du groupe contenant tous les gizmos ; masqué par défaut, basculé par la touche « c » du dashboard. */
+export const CAMERA_GIZMOS_GROUP_NAME = 'camera-gizmos';
+
+export interface CameraGizmo {
+  body: Mesh;
+  frustum: LineSegments;
+}
 
 export interface AgentCamera {
   id: CameraId;
   camera: OrthographicCamera;
   target: WebGLRenderTarget;
-  helper: CameraHelper;
+  gizmo: CameraGizmo;
 }
 
 export type AgentCameras = Record<CameraId, AgentCamera>;
@@ -19,20 +49,94 @@ const FAR_CM = 300;
 /** Demi-largeur de champ initiale (100 cm de champ) ; poseCamera la remplace dès la première pose. */
 const DEFAULT_HALF_WIDTH_CM = 50;
 
-function createOne(id: CameraId, scene: Scene): AgentCamera {
+/**
+ * Les 8 sommets d'un tronçon de frustum, appairés (proche, loin) prêts pour un `LineSegments` (4 arêtes).
+ * Caméras orthographiques : les arêtes sont parallèles (pas de convergence) — chaque coin proche, dans le
+ * plan `right`/`up` autour de `position`, est relié au coin lointain correspondant, `depthCm` plus loin le
+ * long de `basis.forward`.
+ */
+export function frustumStubVertices(position: Vec3, basis: CameraBasis, widthCm: number, depthCm: number): Vec3[] {
+  const half = widthCm / 2;
+  const signs: ReadonlyArray<readonly [number, number]> = [
+    [-1, 1],
+    [1, 1],
+    [1, -1],
+    [-1, -1],
+  ];
+  const vertices: Vec3[] = [];
+  for (const [sr, su] of signs) {
+    const near = vadd(vadd(position, vscale(basis.right, sr * half)), vscale(basis.up, su * half));
+    vertices.push(near, vadd(near, vscale(basis.forward, depthCm)));
+  }
+  return vertices;
+}
+
+function createGizmo(id: CameraId, group: Group): CameraGizmo {
+  const body = new Mesh(
+    new BoxGeometry(BODY_WIDTH_CM, BODY_HEIGHT_CM, BODY_DEPTH_CM),
+    new MeshBasicMaterial({ color: GIZMO_COLOR, transparent: true, opacity: 0.9 }),
+  );
+  body.name = `camera-gizmo-body-${id}`;
+
+  const frustumGeometry = new BufferGeometry();
+  frustumGeometry.setAttribute('position', new Float32BufferAttribute(new Float32Array(8 * 3), 3));
+  const frustum = new LineSegments(
+    frustumGeometry,
+    new LineBasicMaterial({ color: GIZMO_COLOR, transparent: true, opacity: 0.35, depthWrite: false }),
+  );
+  frustum.name = `camera-gizmo-frustum-${id}`;
+
+  group.add(body, frustum);
+  return { body, frustum };
+}
+
+/** Repositionne le corps (position + orientation `cameraBasis`) et redessine le tronçon de frustum vers la cible. */
+function updateGizmo(gizmo: CameraGizmo, pose: CameraPose, basis: CameraBasis): void {
+  gizmo.body.position.copy(worldToThree(pose.positionCm));
+  gizmo.body.up.copy(worldToThree(basis.up));
+  gizmo.body.lookAt(worldToThree(vadd(pose.positionCm, basis.forward)));
+
+  const vertices = frustumStubVertices(pose.positionCm, basis, FRUSTUM_WIDTH_CM, FRUSTUM_DEPTH_CM);
+  const positions = gizmo.frustum.geometry.getAttribute('position');
+  vertices.forEach((v, i) => {
+    const p = worldToThree(v);
+    positions.setXYZ(i, p.x, p.y, p.z);
+  });
+  positions.needsUpdate = true;
+  gizmo.frustum.geometry.computeBoundingSphere();
+}
+
+/** Montre/masque un gizmo (corps + tronçon) sans toucher au groupe : utilisé pour l'exclure d'un rendu agent. */
+export function setGizmoVisible(cam: AgentCamera, visible: boolean): void {
+  cam.gizmo.body.visible = visible;
+  cam.gizmo.frustum.visible = visible;
+}
+
+/** Dernier groupe de gizmos créé (une scène à la fois en pratique) ; bascule par `setCameraGizmosVisible`. */
+let currentGizmoGroup: Group | null = null;
+
+function createOne(id: CameraId, group: Group): AgentCamera {
   const half = DEFAULT_HALF_WIDTH_CM;
   const camera = new OrthographicCamera(-half, half, half, -half, NEAR_CM, FAR_CM);
   camera.name = `agent-camera-${id}`;
   const target = new WebGLRenderTarget(VIEW_SIZE_PX, VIEW_SIZE_PX, { depthBuffer: true, stencilBuffer: false });
-  const helper = new CameraHelper(camera);
-  helper.name = `agent-camera-helper-${id}`;
-  scene.add(helper);
-  return { id, camera, target, helper };
+  const gizmo = createGizmo(id, group);
+  return { id, camera, target, gizmo };
 }
 
-/** Trois caméras orthographiques 800×800 et leurs frustums dessinés dans la scène spectateur. */
+/** Trois caméras orthographiques 800×800 ; leurs gizmos (corps + tronçon de frustum) sont groupés, masqués par défaut. */
 export function createAgentCameras(scene: Scene): AgentCameras {
-  return { top: createOne('top', scene), front: createOne('front', scene), side: createOne('side', scene) };
+  const group = new Group();
+  group.name = CAMERA_GIZMOS_GROUP_NAME;
+  group.visible = false;
+  scene.add(group);
+  currentGizmoGroup = group;
+  return { top: createOne('top', group), front: createOne('front', group), side: createOne('side', group) };
+}
+
+/** Affiche/masque le groupe `camera-gizmos` de la dernière scène créée (touche « c » du dashboard). */
+export function setCameraGizmosVisible(visible: boolean): void {
+  if (currentGizmoGroup) currentGizmoGroup.visible = visible;
 }
 
 /** Applique une pose du store : champ = widthCm, position, orientation par la base monde convertie en Three. */
@@ -48,7 +152,7 @@ export function poseCamera(cam: AgentCamera, pose: CameraPose): void {
   cam.camera.up.copy(worldToThree(b.up));
   cam.camera.lookAt(worldToThree(vadd(pose.positionCm, b.forward)));
   cam.camera.updateMatrixWorld(true);
-  cam.helper.update();
+  updateGizmo(cam.gizmo, pose, b);
 }
 
 export function poseAllCameras(cams: AgentCameras, poses: Record<CameraId, CameraPose>): void {

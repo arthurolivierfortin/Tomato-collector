@@ -1,7 +1,7 @@
 import { CAMERA_IDS, type CameraId, type ViewsResult, type WorldState } from '@tomato/shared';
 import type { SimModule } from '../core/module';
 import type { SceneHandle } from '../three/createScene';
-import { createAgentCameras, poseAllCameras, renderToImageData, type AgentCameras } from './agentCameras';
+import { createAgentCameras, poseAllCameras, renderToImageData, setGizmoVisible, type AgentCameras } from './agentCameras';
 import { moveCamera } from './cameraState';
 import { createViewRenderer } from './renderViews';
 
@@ -23,11 +23,11 @@ export function getRenderViews(): RenderViewsFn | null {
 export function renderCameraImage(scene: SceneHandle, camId: CameraId): ImageData | null {
   const owned = camerasByScene.get(scene);
   if (!owned) return null;
-  for (const id of CAMERA_IDS) owned[id].helper.visible = false;
+  for (const id of CAMERA_IDS) setGizmoVisible(owned[id], false);
   try {
     return renderToImageData(scene.renderer, scene.scene, owned[camId]);
   } finally {
-    for (const id of CAMERA_IDS) owned[id].helper.visible = true;
+    for (const id of CAMERA_IDS) setGizmoVisible(owned[id], true);
   }
 }
 
