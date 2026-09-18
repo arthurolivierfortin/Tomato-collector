@@ -10,7 +10,7 @@ const CYCLE = 'cycle';
 /** Partie 2 « Un cycle complet » : une prise sans coupure, sous-titres discrets par phase. */
 export const part2: PlanEntry[] = [
   { card: { text: 'Part 2: one full cycle', durationS: 4, subtitle: 'From the ripening tomato to the agent report, without a single cut' } },
-  { take: CYCLE, from: { marker: 'murissement', offsetS: -2 }, to: { marker: 'detection' }, caption: 'Ripening' },
+  { take: CYCLE, from: { marker: 'debut' }, to: { marker: 'detection' }, caption: 'Ripening' },
   { take: CYCLE, from: { marker: 'detection' }, to: { marker: 'observation' }, caption: 'Detection, then the agent wakes up', pip: PIP.corner },
   { take: CYCLE, from: { marker: 'observation' }, to: { marker: 'positionnement' }, caption: 'Observation: the agent asks for the three views and reads the scene', pip: PIP.corner },
   { take: CYCLE, from: { marker: 'positionnement' }, to: { marker: 'coupe' }, caption: 'Positioning: basket under the tomato, scissors at the middle of the stem', pip: PIP.corner },

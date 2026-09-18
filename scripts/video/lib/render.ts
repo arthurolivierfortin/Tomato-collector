@@ -80,7 +80,11 @@ async function overlayChain(ctx: RenderContext, i: number, clip: Extract<Clip, {
   const frame = clip.highlight === undefined ? [] : [highlightFilter(clip.highlight, ctx.style)];
   const caption = clip.caption;
   if (caption === undefined) return frame;
-  const style: TextStyle = clip.captionWidth === undefined ? ctx.style : { ...ctx.style, captionWidth: clip.captionWidth };
+  const style: TextStyle = {
+    ...ctx.style,
+    ...(clip.captionWidth === undefined ? {} : { captionWidth: clip.captionWidth }),
+    ...(clip.captionBottom === undefined ? {} : { captionBottom: clip.captionBottom }),
+  };
   const wrapped = wrapText(caption, wrapWidth(style, style.captionWidth));
   const lines = lineCount(wrapped);
   if (lines > CAPTION_MAX_LINES) ctx.warn(`sous-titre sur ${lines} lignes, raccourcir : « ${caption} »`);

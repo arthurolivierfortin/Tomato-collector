@@ -21,11 +21,11 @@ function endCards(end: EndCardData): PlanEntry[] {
   // Le coût n'apparaît que si le journal en porte un : mieux vaut ne rien dire que dire faux.
   const facts = [`${end.toolCalls} tool calls`, `${Math.round(end.durationS)} s`, ...(end.cost === null ? [] : [end.cost])];
   return [
-    { card: { text: `Result: ${end.outcome}`, durationS: 4, subtitle: facts.join(' · ') } },
+    { card: { text: `Result: ${end.outcome}`, durationS: 4.5, subtitle: facts.join(' · ') } },
     {
       card: {
         text: 'An LLM can drive a robot',
-        durationS: 4.5,
+        durationS: 5.5,
         subtitle: 'given tools it can call and images it can read like text',
       },
     },
