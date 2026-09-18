@@ -30,21 +30,66 @@ test('dashboard replays a scripted episode and is captured at 1920×1080 in both
   await expect(page.getByTestId('cost')).toHaveText('0,0421 $');
   await expect(page.getByTestId('connection')).toContainText('replay');
   await expect(page.getByTestId('block-last-flow')).toContainText('server → dashboard');
-  if (hasViews) await expect(page.locator('img[alt="vue front"]')).toBeVisible();
+
+  // Issue #22 : les trois vues sont conservées par caméra, la vue mise en avant est en grand (≥ 600 px).
+  if (hasViews) {
+    await expect(page.locator('img[alt="vue front"]')).toBeVisible();
+    await expect(page.getByTestId('view-thumb-top').locator('img')).toBeVisible();
+    await expect(page.getByTestId('view-thumb-side').locator('img')).toBeVisible();
+    const big = await page.getByTestId('view-featured').locator('img').boundingBox();
+    expect(big!.width).toBeGreaterThanOrEqual(600);
+    expect(big!.height).toBeGreaterThanOrEqual(600);
+    await expect(page.getByTestId('view-featured')).toContainText('il y a');
+  }
+
+  // Issue #22 : la trace montre les arguments et le résultat des appels en JSON, dépliés pour les 3 derniers.
+  const lastCall = trace.locator('li[data-kind="tool"]').first();
+  await expect(lastCall.getByTestId(/^trace-args-/)).toContainText('"outcome": "harvested"');
+  await expect(lastCall.getByTestId(/^trace-result-/)).toBeVisible();
+  await expect(trace).toContainText('"angleDeg": 78'); // résultat de la coupe, déplié d'office
+  await expect(trace).not.toContainText('iVBORw0KGgo');
 
   mkdirSync(shotsDir, { recursive: true });
   await page.screenshot({ path: resolve(shotsDir, 'dashboard.png') });
 
+  // Repli d'un appel : le JSON disparaît, le bouton le ramène.
+  const fold = lastCall.getByRole('button', { name: /Replier le JSON/ });
+  await fold.click();
+  await expect(lastCall.getByTestId(/^trace-args-/)).toHaveCount(0);
+  await lastCall.getByRole('button', { name: /Déplier le JSON/ }).click();
+  await expect(lastCall.getByTestId(/^trace-args-/)).toBeVisible();
+
+  // Clic sur une vignette : elle passe en grand.
+  if (hasViews) {
+    await page.getByTestId('view-thumb-top').getByRole('button').click();
+    await expect(page.getByTestId('view-featured')).toHaveAttribute('data-camera', 'top');
+  }
+
+  // Issue #22 : loupe plein écran (touche z), zoom à la molette, changement de caméra, fermeture par Échap.
+  await page.keyboard.press('z');
+  const lightbox = page.getByTestId('lightbox');
+  await expect(lightbox).toBeVisible();
+  await lightbox.getByRole('button', { name: 'Vue front', exact: true }).click();
+  await expect(lightbox).toContainText('×1,0');
+  await page.mouse.move(960, 500);
+  await page.mouse.wheel(0, -240);
+  await expect(lightbox).not.toContainText('×1,0');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: resolve(shotsDir, 'dashboard-lightbox.png') });
+  await page.keyboard.press('Escape');
+  await expect(lightbox).toHaveCount(0);
+
   // Issue #18 : gizmos de caméra discrets, masqués par défaut, affichés par la touche c.
   await page.keyboard.press('c');
-  await expect(page.getByRole('button', { name: "Caméras (c)" })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Caméras (c)' })).toHaveAttribute('aria-pressed', 'true');
   await page.screenshot({ path: resolve(shotsDir, 'dashboard-cameras.png') });
   await page.keyboard.press('c');
-  await expect(page.getByRole('button', { name: "Caméras (c)" })).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('button', { name: 'Caméras (c)' })).toHaveAttribute('aria-pressed', 'false');
 
   // Cadre de tournage : vues agrandies (v) et contrôles masqués (h).
   await page.keyboard.press('v');
   await expect(page.getByTestId('dashboard')).toHaveAttribute('data-layout', 'agent');
+  await expect(page.getByTestId('view-featured')).toHaveCount(3);
   await page.keyboard.press('h');
   await expect(page.getByTestId('controls')).toHaveCount(0);
   await page.waitForTimeout(500);
