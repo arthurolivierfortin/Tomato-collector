@@ -1,5 +1,8 @@
 {
-  "names": ["unripe", "ripe"],
+  "names": [
+    "unripe",
+    "ripe"
+  ],
   "imgsz": 640,
   "opset": 12,
   "source": "https://huggingface.co/spaces/iamsuman/ripe-and-unripe-tomatoes-detection/resolve/main/best.pt"

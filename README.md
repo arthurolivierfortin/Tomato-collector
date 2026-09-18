@@ -107,6 +107,65 @@ choisir un épisode et une vitesse puis « Rejouer » le repasse via un pont sim
 Journaux et coût : chaque épisode est écrit dans `data/episodes/<episodeId>.json` (messages horodatés,
 appels d'outils, résultat, coût). Coût observé pour un épisode complet mené par l'agent : environ 0,35 $.
 
+## Perception — ce qui est vraiment du traitement d'image
+
+La promesse de la démo est qu'un agent LLM décide et agit à partir de ce qu'il voit. Elle ne tient que si
+l'on dit exactement où s'arrête le traitement d'image et où commence l'aide venue de la simulation.
+
+**Ce qui sort du flux caméra, et de rien d'autre**
+
+- La décision « cette tomate est mûre ». Le module de perception rend la vue `front` en 800×800 sans
+  annotation, la réduit à 640×640 et la passe au détecteur actif. Aucun état de la simulation n'est lu :
+  la garde de vérité terrain qui recoupait la détection avec `tomato.state === 'ripe'` a été retirée
+  (issue #36). Une tomate que la simulation croit verte réveille l'agent si le détecteur la voit rouge,
+  et une tomate que la simulation sait mûre ne réveille personne tant que le détecteur ne la voit pas.
+- Le réveil lui-même : cinq images consécutives où la même tomate est vue mûre (`wakeGate`), puis
+  `ripe_detected` avec le nom du détecteur et sa confiance. Le message envoyé à l'agent cite cette
+  confiance, jamais la maturité connue de la simulation.
+- Les contours des vues : niveaux de gris, égalisation locale CLAHE, Canny 50/150 (OpenCV.js), ou Sobel
+  en repli si OpenCV ne se charge pas.
+
+**Ce qui vient encore de la simulation, et qui est assumé**
+
+- L'identifiant attribué à une boîte. L'association détection → tomate est purement géométrique — la
+  tomate dont le centre 3D se projette le plus près du centre de la boîte, dans un rayon de 0,75 × son
+  côté — mais elle utilise les positions connues de la simulation. Le détecteur dit « il y a un fruit
+  mûr ici » ; c'est la simulation qui dit « c'est le fruit n° 3 ».
+- Les annotations des vues envoyées à l'agent : repères et identifiants des tomates, ligne de tige, état
+  des ciseaux et du panier, ligne de chute prévue. Rien de tout cela n'est extrait de l'image.
+- La grille, les axes et l'échelle : calculés depuis la pose et le champ des caméras (calibration
+  parfaite, ce qu'un robot réel obtiendrait par étalonnage).
+- `get_status` renvoie aussi `state` et `ripeness` de chaque fruit : un agent qui les interroge lit la
+  vérité terrain. Le réveil, lui, ne passe plus par là.
+
+**Voir ce que voit le détecteur**
+
+- `p` : panneau « Perception » dans la colonne de trace — l'image telle que le détecteur la reçoit (pas
+  la vue annotée), ses boîtes avec classe et confiance, le nom du détecteur réellement actif, le temps de
+  la dernière inférence, l'avancement de la porte (« 3/5 frames consécutives ») et l'état
+  « modèle chargé » / « mode dégradé HSV ».
+- `x` : mode « Pipeline de traitement » plein écran (Échap ou `x` pour fermer, boutons `top` / `front` /
+  `side` pour changer de caméra). Dix tuiles, dans l'ordre du traitement, chacune montrant le tampon
+  intermédiaire réel produit par le code de production et étiquetée par sa provenance :
+
+  | # | Étape | Provenance |
+  |---|---|---|
+  | 1 | image caméra brute, 800×800 | caméra |
+  | 2 | prétraitement CLAHE (gris égalisé) | OpenCV |
+  | 3 | contours Canny 50/150 sur le rendu assombri à 35 % | OpenCV |
+  | 4 | détection de maturité : boîtes, classe, confiance, temps d'inférence | modèle YOLOv8n ONNX, ou seuillage HSV |
+  | 5 | association boîte → identifiant par projection | logique |
+  | 6 | grille, axes et échelle | calibration caméra |
+  | 7 | ciseaux et panier | état robot |
+  | 8 | repères de tomates et ligne de tige | simulation |
+  | 9 | ligne de chute prévue | physique |
+  | 10 | vue finale envoyée à l'agent | sortie |
+
+**Quel détecteur tourne ?** Le bandeau haut et la pastille de perception le nomment en entier :
+« YOLOv8n ONNX 640 » quand le modèle est chargé et a produit la dernière détection, « seuillage HSV 640 »
+sinon. Les chiffres du modèle, le jeu d'évaluation et la décision de le retenir ou non sont dans
+[`docs/perception-model.md`](docs/perception-model.md).
+
 ## Tournage
 
 - Résolution recommandée : 1920×1080 (redimensionner la fenêtre avant d'enregistrer).
@@ -118,6 +177,8 @@ appels d'outils, résultat, coût). Coût observé pour un épisode complet men�
 - `c` : affiche les gizmos des trois caméras (masqués par défaut), utile pour expliquer d'où viennent les vues.
 - `z` : loupe plein écran sur la vue mise en avant (ou clic sur la grande vue) — molette pour zoomer de ×1 à ×4
   autour du curseur, glisser pour se déplacer, boutons `top` / `front` / `side` pour changer de caméra, Échap pour fermer.
+- `p` : panneau « Perception » — l'image d'entrée du détecteur et ses boîtes (voir la section Perception).
+- `x` : mode « Pipeline de traitement » plein écran — les dix étapes du traitement et leur provenance.
 - Vitesse ×1 pendant l'épisode : les vitesses ×2/×5/×10 accélèrent la simulation mais brouillent la prise.
 - Les mouvements sont animés : l'outil ne répond qu'une fois le bras arrivé. Vitesses en temps sim (donc
   multipliées par le facteur ×2/×5/×10) : ciseaux et panier 15 cm/s, rotations 45°/s, caméras 20 cm/s et
@@ -165,6 +226,10 @@ appels d'outils, résultat, coût). Coût observé pour un épisode complet men�
 | `npm run dev:server` | serveur MCP + WebSocket seul, avec rechargement à chaud |
 | `npm run wake -w @tomato/server -- <tomatoId>` | réveil manuel de l'agent pour une tomate |
 | `npm run shot` | capture Playwright de la scène dans `data/shots/` |
+| `python scripts/export-yolo.py` | exporte le détecteur YOLOv8 ripe/unripe en ONNX dans `packages/sim/public/models/` |
+| `npx tsx scripts/perception/generate-dataset.ts` | rend un jeu étiqueté (vues caméra brutes + boîtes de vérité terrain) |
+| `python scripts/perception/evaluate.py --detector onnx` | précision, rappel et AP50 du détecteur sur ce jeu (`--detector hsv` pour le repli) |
+| `python scripts/perception/finetune.py` | affine YOLOv8n sur les rendus de la sim et réexporte l'ONNX |
 | `npm run lint` / `npm run typecheck` / `npm test` / `npm run build` | les quatre gates, obligatoires avant toute PR |
 
 ## Structure
@@ -180,7 +245,9 @@ appels d'outils, résultat, coût). Coût observé pour un épisode complet men�
       src/hub                     hub WebSocket (sim et dashboards)
       src/agent                   runner d'agent Claude, réveil, serveur de réveil manuel
       src/episodes                journal des épisodes (`data/episodes/`)
-    docs/                      spec, plans, STATUS.md
+    scripts/perception         jeu d'évaluation rendu par la sim, évaluation et fine-tuning du détecteur
+    scripts/video              enregistrement et montage de la vidéo de démo
+    docs/                      spec, plans, STATUS.md, perception-model.md
     .claude/                   agents et skills du cycle de développement
 
 ## Conventions
