@@ -18,7 +18,7 @@ describe('wake server', () => {
     server = await createWakeServer({
       port: 0,
       runner,
-      resolve: (id) => (id === 3 ? { tomatoId: 3, positionCm: [1, 2, 3], ripeness: 1 } : null),
+      resolve: (id) => (id === 3 ? { tomatoId: 3, positionCm: [1, 2, 3], ripeness: 1, detector: 'manual', confidence: 1 } : null),
       knownIds: () => [3],
     });
   });
@@ -30,7 +30,7 @@ describe('wake server', () => {
     const r = await fetch(url('/wake/3'), { method: 'POST' });
     expect(r.status).toBe(202);
     expect(await r.json()).toEqual({ queued: true, tomatoId: 3, behindRunningEpisode: false });
-    expect(woken).toEqual([{ tomatoId: 3, positionCm: [1, 2, 3], ripeness: 1 }]);
+    expect(woken).toEqual([{ tomatoId: 3, positionCm: [1, 2, 3], ripeness: 1, detector: 'manual', confidence: 1 }]);
     busy = true;
     const r2 = await fetch(url('/wake/3'), { method: 'POST' });
     expect(await r2.json()).toMatchObject({ behindRunningEpisode: true });

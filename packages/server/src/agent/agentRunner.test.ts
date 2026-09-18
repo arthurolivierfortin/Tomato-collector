@@ -71,7 +71,9 @@ const result = (sessionId: string, isError = false): AgentMessage => ({
   num_turns: 3,
   session_id: sessionId,
 });
-const wake = (tomatoId: number): WakeEvent => ({ tomatoId, positionCm: [1, 2, 3], ripeness: 1 });
+const wake = (tomatoId: number, detector: WakeEvent['detector'] = 'yolo', confidence = 0.56): WakeEvent => ({
+  tomatoId, positionCm: [1, 2, 3], ripeness: 1, detector, confidence,
+});
 
 function setup(scripts: Array<AgentMessage[] | Error>, gate?: () => Promise<void>) {
   const out: ServerToDashboard[] = [];
@@ -96,9 +98,14 @@ describe('createAgentRunner', () => {
     expect(t.runner.busy()).toBe(true);
     await t.runner.whenIdle();
     expect(t.runner.busy()).toBe(false);
-    expect(t.out.map((m) => m.type)).toEqual(['episode_start', 'agent_text', 'episode_end']);
-    expect(t.out[0]).toEqual({ type: 'episode_start', episodeId: 'ep-1', tomatoId: 3, sessionResumed: false });
-    expect(t.out[2]).toMatchObject({ type: 'episode_end', episodeId: 'ep-1', outcome: 'harvested', toolCalls: 1, costUsd: 0.1, durationMs: 500 });
+    expect(t.out.filter((m) => m.type !== 'agent_raw').map((m) => m.type)).toEqual([
+      'agent_wake', 'episode_start', 'agent_text', 'episode_end',
+    ]);
+    expect(t.out[0]).toEqual({
+      type: 'agent_wake', episodeId: 'ep-1', tomatoId: 3, detector: 'yolo', confidence: 0.56, sessionResumed: false,
+    });
+    expect(t.out[1]).toEqual({ type: 'episode_start', episodeId: 'ep-1', tomatoId: 3, sessionResumed: false });
+    expect(t.out.at(-1)).toMatchObject({ type: 'episode_end', episodeId: 'ep-1', outcome: 'harvested', toolCalls: 1, costUsd: 0.1, durationMs: 500 });
     expect(t.calls[0]?.prompt).toContain('tomato #3');
     expect(t.calls[0]?.resume).toBeUndefined();
     expect(t.ended).toEqual([{ outcome: 'harvested', note: 'ok' }]);
@@ -142,7 +149,7 @@ describe('createAgentRunner', () => {
       return base(prompt, options);
     };
     // M5 : `session.startEpisode` prévient ses abonnés `onWake`, qui rappellent `runner.wake`.
-    const s = fakeSession({ onStart: (tomatoId) => runner.wake({ tomatoId, positionCm: [1, 2, 3], ripeness: 1 }) });
+    const s = fakeSession({ onStart: (tomatoId) => runner.wake({ tomatoId, positionCm: [1, 2, 3], ripeness: 1, detector: 'hsv', confidence: 0.7 }) });
     const runner = createAgentRunner({
       hub: { broadcast: (m) => out.push(m) },
       session: s.session,
@@ -219,6 +226,44 @@ describe('createAgentRunner', () => {
     t.runner.wake(wake(3));
     await t.runner.whenIdle();
     expect(t.calls[2]?.resume).toBeUndefined();
+  });
+
+  it('broadcasts the raw stream of the session and the wake, manual wakes included (issue #23)', async () => {
+    const t = setup([[init('s1'), text('Je vise.'), report('harvested'), result('s1')]]);
+    t.runner.wake(wake(3, 'manual', 1));
+    await t.runner.whenIdle();
+    const raw = t.out.filter((m) => m.type === 'agent_raw');
+    expect(raw.map((m) => (m.type === 'agent_raw' ? m.kind : ''))).toEqual(['init', 'text', 'tool_use', 'result']);
+    expect(raw.every((m) => m.type === 'agent_raw' && m.episodeId === 'ep-1')).toBe(true);
+    expect(t.out[0]).toEqual({
+      type: 'agent_wake', episodeId: 'ep-1', tomatoId: 3, detector: 'manual', confidence: 1, sessionResumed: false,
+    });
+  });
+
+  it('forwards the subprocess stderr to the raw stream, line by line', async () => {
+    const out: ServerToDashboard[] = [];
+    const lines: string[] = [];
+    const query: QueryFn = async function* (_prompt, options) {
+      options.stderr?.('boom: 1\nboom: 2\n');
+      yield init('s1');
+      yield result('s1');
+    };
+    const runner = createAgentRunner({
+      hub: { broadcast: (m) => out.push(m) },
+      session: fakeSession().session,
+      mcpUrl: 'http://localhost:7331/mcp',
+      model: 'claude-opus-5',
+      systemPrompt: 'SYS',
+      query,
+      log: (l) => lines.push(l),
+    });
+    runner.wake(wake(1));
+    await runner.whenIdle();
+    expect(out.filter((m) => m.type === 'agent_raw' && m.kind === 'stderr')).toEqual([
+      { type: 'agent_raw', episodeId: 'ep-1', kind: 'stderr', line: 'boom: 1' },
+      { type: 'agent_raw', episodeId: 'ep-1', kind: 'stderr', line: 'boom: 2' },
+    ]);
+    expect(lines.some((l) => l.includes('[claude stderr]'))).toBe(true);
   });
 
   it('stop() aborts the current episode, clears the queue and refuses new wakes', async () => {

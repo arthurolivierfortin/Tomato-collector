@@ -66,12 +66,12 @@ describe('createAgentRunner (contrat M5 : src/agent/index.ts)', () => {
     const out: ServerToDashboard[] = [];
     const runner = createAgentRunner({ ...base(recorded, out), systemPrompt: '', sim: { latestState: () => world }, wakePort: -1 });
     try {
-      runner.wake({ tomatoId: 4, positionCm: [11, -3, 39], ripeness: 0.95 });
+      runner.wake({ tomatoId: 4, positionCm: [11, -3, 39], ripeness: 0.95, detector: 'yolo', confidence: 0.6 });
       await runner.whenIdle();
       expect(String(recorded[0]?.systemPrompt)).toContain('Tomato harvesting agent');
       expect(recorded[0]?.model).toBe('claude-opus-5');
       expect(recorded[0]?.prompt).toContain('1 tomatoes on the plant (ripe: #4)');
-      expect(out.map((m) => m.type)).toEqual(['episode_start', 'episode_end']);
+      expect(out.map((m) => m.type)).toEqual(['agent_wake', 'episode_start', 'agent_raw', 'episode_end']);
       expect(await runner.whenReady()).toEqual({ wakePort: null });
     } finally {
       runner.stop();
@@ -83,7 +83,7 @@ describe('createAgentRunner (contrat M5 : src/agent/index.ts)', () => {
     const out: ServerToDashboard[] = [];
     const runner = createAgentRunner({ ...base(recorded, out), systemPrompt: 'FROM M5', wakePort: -1 });
     try {
-      runner.wake({ tomatoId: 4, positionCm: [11, -3, 39], ripeness: 0.95 });
+      runner.wake({ tomatoId: 4, positionCm: [11, -3, 39], ripeness: 0.95, detector: 'yolo', confidence: 0.6 });
       await runner.whenIdle();
       expect(recorded[0]?.systemPrompt).toBe('FROM M5');
       expect(recorded[0]?.prompt).toContain('no simulation state received yet');

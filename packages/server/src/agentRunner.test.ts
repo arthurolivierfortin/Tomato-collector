@@ -15,7 +15,7 @@ describe('agent runner hook', () => {
   it('the no-op runner only logs wake-ups', () => {
     const logs: string[] = [];
     const runner = createNoopRunner((l) => logs.push(l));
-    runner.wake({ tomatoId: 4, positionCm: [0, 0, 0], ripeness: 1 });
+    runner.wake({ tomatoId: 4, positionCm: [0, 0, 0], ripeness: 1, detector: 'manual', confidence: 1 });
     expect(runner.busy()).toBe(false);
     expect(logs).toEqual(['agent: désactivé, réveil ignoré (tomate 4)']);
   });

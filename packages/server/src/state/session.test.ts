@@ -37,11 +37,13 @@ describe('session', () => {
     expect(s.targetTomatoId).toBe(2);
     expect(s.lastEvent?.type).toBe('ripe_detected');
     expect(sim.applied).toEqual([{ type: 'set_target', tomatoId: 2 }]);
-    expect(wakes).toEqual([{ tomatoId: 2, positionCm: [20, 0, 60], ripeness: 1 }]);
+    expect(wakes).toEqual([{ tomatoId: 2, positionCm: [20, 0, 60], ripeness: 1, detector: 'hsv', confidence: 0.9 }]);
     expect(journal.current()).toBe(s.episodeId);
-    expect(hub.broadcasts.map((m) => m.type)).toEqual(['sim_event', 'block_activity', 'phase', 'block_activity']);
-    expect(hub.broadcasts[1]).toMatchObject({ from: 'perception', to: 'server' });
+    // Issue #23 : le schéma bloc s'allume perception → serveur (avec le détecteur) puis serveur → agent.
+    expect(hub.broadcasts.map((m) => m.type)).toEqual(['sim_event', 'block_activity', 'phase', 'block_activity', 'block_activity']);
+    expect(hub.broadcasts[1]).toEqual({ type: 'block_activity', from: 'perception', to: 'server', label: 'tomate #2 mûre, hsv 0,90' });
     expect(hub.broadcasts[2]).toEqual({ type: 'phase', phase: 'detected', reason: 'tomate 2 mûre' });
+    expect(hub.broadcasts[4]).toEqual({ type: 'block_activity', from: 'server', to: 'agent', label: 'réveil' });
   });
 
   it('follows the nominal path through tool results and landing, then report closes to idle', () => {

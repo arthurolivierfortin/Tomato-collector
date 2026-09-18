@@ -25,10 +25,15 @@ export interface AgentHandle {
   close(): Promise<void>;
 }
 
-/** Événement de réveil pour une tomate connue de la sim, null sinon. */
+/**
+ * Événement de réveil pour une tomate connue de la sim, null sinon.
+ * Reconstruit hors détection (réveil manuel, épisode ouvert par M5) : détecteur `manual` (issue #23).
+ */
 export function resolveWakeEvent(sim: AgentSim, tomatoId: number): WakeEvent | null {
   const tomato = sim.latestState()?.tomatoes.find((t) => t.id === tomatoId);
-  return tomato === undefined ? null : { tomatoId, positionCm: tomato.positionCm, ripeness: tomato.ripeness };
+  return tomato === undefined
+    ? null
+    : { tomatoId, positionCm: tomato.positionCm, ripeness: tomato.ripeness, detector: 'manual', confidence: 1 };
 }
 
 export function agentEnv(env: NodeJS.ProcessEnv = process.env): { model: string; wakePort: number; enabled: boolean } {
