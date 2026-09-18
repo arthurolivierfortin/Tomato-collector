@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { logStreamLine, stripAnsi } from './logStream';
 
+/** Caractere d'echappement ANSI, ecrit une fois : l'ecrire en clair casserait le lint. */
+const ESC = '[';
+
 describe('logStreamLine', () => {
   it('prints one line per raw SDK event, with a prefix per kind', () => {
     const line = logStreamLine({ type: 'agent_raw', episodeId: 'ep-1', kind: 'tool_use', line: 'move_basket {"x":13}' });
@@ -11,8 +14,8 @@ describe('logStreamLine', () => {
   it('colours each kind differently, so the terminal reads at a glance', () => {
     const tool = logStreamLine({ type: 'agent_raw', episodeId: 'e', kind: 'tool_use', line: 'cut {}' }) ?? '';
     const err = logStreamLine({ type: 'agent_raw', episodeId: 'e', kind: 'stderr', line: 'boom' }) ?? '';
-    expect(tool).toMatch(/\[/);
-    expect(err).toMatch(/\[/);
+    expect(tool).toContain(ESC);
+    expect(err).toContain(ESC);
     expect(tool.slice(0, 8)).not.toBe(err.slice(0, 8));
   });
 

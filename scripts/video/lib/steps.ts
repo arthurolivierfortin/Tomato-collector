@@ -10,9 +10,13 @@ const DEFAULT_TIMEOUT_MS = 90_000;
 const RIPENING = '[data-testid="ripening"]';
 /** Période de scrutation du mûrissement : le pourcentage monte d'un point toutes les 150 ms. */
 const RIPENING_POLL_MS = 120;
+/** Un écran commandé par une touche s'ouvre tout de suite ou n'existe pas : attente courte. */
+const GATE_TIMEOUT_MS = 3000;
 
 export interface StepContext {
   readonly log: MarkerLog;
+  /** Vannes ouvertes jusqu'ici (étapes `gate`) ; une étape `gate: x` n'est jouée que si `x` y est. */
+  readonly gates: Set<string>;
   /** Messages du journal à rejouer, déjà ramenés à zéro (étape `replay`). */
   readonly episode: readonly ScriptEntry[];
   readonly onStep?: (label: string) => void;
@@ -63,6 +67,10 @@ async function injectReplay(page: Page, entries: readonly ScriptEntry[], speed: 
 }
 
 export async function runStep(page: Page, step: ScenarioStep, ctx: StepContext): Promise<void> {
+  if (step.gate !== undefined && !ctx.gates.has(step.gate)) {
+    ctx.onStep?.(`vanne « ${step.gate} » fermée, étape ${step.kind} sautée`);
+    return;
+  }
   switch (step.kind) {
     case 'wait':
       ctx.onStep?.(`attente ${step.ms} ms`);
@@ -100,6 +108,19 @@ export async function runStep(page: Page, step: ScenarioStep, ctx: StepContext):
       ctx.log.mark(step.name);
       ctx.onStep?.(`marqueur ${step.name}`);
       return;
+    case 'gate': {
+      ctx.onStep?.(`vanne ${step.name} : touche ${step.key}`);
+      await page.keyboard.press(step.key);
+      const opened = await page
+        .locator(step.selector)
+        .first()
+        .waitFor({ state: 'visible', timeout: step.timeoutMs ?? GATE_TIMEOUT_MS })
+        .then(() => true, () => false);
+      if (opened) ctx.gates.add(step.name);
+      // Écran absent de cette version de la page : la touche n'a rien ouvert, rien à refermer.
+      else ctx.onStep?.(`écran ${step.selector} absent, vanne ${step.name} fermée`);
+      return;
+    }
     case 'replay':
       ctx.onStep?.(`replay du journal ×${step.speed ?? 1}`);
       await injectReplay(page, ctx.episode, step.speed ?? 1);

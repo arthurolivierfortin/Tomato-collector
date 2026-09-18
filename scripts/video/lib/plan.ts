@@ -17,6 +17,8 @@ export interface FreezeSpec {
   readonly highlight?: Rect;
   /** Largeur du bandeau de sous-titre, quand la mise en page rétrécit la colonne spectateur. */
   readonly captionWidth?: number;
+  /** Zone où incruster la capture du terminal ; hérite de celle du segment quand elle est absente. */
+  readonly pip?: Rect;
 }
 
 export interface TitleSpec {
@@ -37,6 +39,16 @@ export interface SegmentSpec {
   readonly highlight?: Rect;
   /** Largeur du bandeau de sous-titre pour ce segment (défaut : celle du style). */
   readonly captionWidth?: number;
+  /**
+   * Incruste la capture du terminal de la prise dans cette zone (issue #35). Sans capture de
+   * terminal, le segment est monté tel quel : le montage prévient, il n'échoue pas.
+   */
+  readonly pip?: Rect;
+  /**
+   * Segment facultatif : s'il cite un marqueur que la prise n'a pas posé, il est retiré du plan
+   * au lieu de faire échouer le montage. Réservé aux panneaux qu'une autre branche livre.
+   */
+  readonly optional?: boolean;
   readonly freezeAt?: readonly FreezeSpec[];
 }
 
@@ -67,6 +79,7 @@ export interface ResolvedFreeze {
   readonly caption: string;
   readonly highlight?: Rect;
   readonly captionWidth?: number;
+  readonly pip?: Rect;
 }
 
 export interface ResolvedSegment {
@@ -78,6 +91,7 @@ export interface ResolvedSegment {
   readonly caption?: string;
   readonly highlight?: Rect;
   readonly captionWidth?: number;
+  readonly pip?: Rect;
   readonly freezes: readonly ResolvedFreeze[];
 }
 
@@ -97,12 +111,14 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
     .map((f) => {
       const zone = f.highlight ?? spec.highlight;
       const width = f.captionWidth ?? spec.captionWidth;
+      const pip = f.pip ?? spec.pip;
       return {
         atS: resolveTime(f.at, take),
         durationS: f.durationS,
         caption: f.caption,
         ...(zone === undefined ? {} : { highlight: zone }),
         ...(width === undefined ? {} : { captionWidth: width }),
+        ...(pip === undefined ? {} : { pip }),
       };
     })
     .sort((a, b) => a.atS - b.atS);
@@ -119,21 +135,40 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
     freezes,
     ...(spec.highlight === undefined ? {} : { highlight: spec.highlight }),
     ...(spec.captionWidth === undefined ? {} : { captionWidth: spec.captionWidth }),
+    ...(spec.pip === undefined ? {} : { pip: spec.pip }),
     ...(spec.title === undefined ? {} : { title: spec.title }),
     ...(spec.caption === undefined ? {} : { caption: spec.caption }),
   };
 }
 
-export function resolvePlan(plan: MontagePlan, takes: ReadonlyMap<string, TakeMarkers>): ResolvedEntry[] {
-  return plan.segments.map((entry) => {
-    if (isCard(entry)) return entry;
-    const spec = entry;
-    const take = takes.get(spec.take);
-    if (take === undefined) {
-      throw new Error(`plan : prise « ${spec.take} » absente (prises chargées : ${[...takes.keys()].join(', ') || 'aucune'})`);
+/**
+ * Résout chaque entrée contre les marqueurs des prises. Un segment `optional` dont un marqueur
+ * manque est retiré du plan, avec un avertissement : c'est le cas d'un panneau qu'une autre branche
+ * n'a pas encore livré, pas une erreur de plan.
+ */
+export function resolvePlan(
+  plan: MontagePlan,
+  takes: ReadonlyMap<string, TakeMarkers>,
+  warn: (line: string) => void = () => undefined,
+): ResolvedEntry[] {
+  const out: ResolvedEntry[] = [];
+  for (const entry of plan.segments) {
+    if (isCard(entry)) {
+      out.push(entry);
+      continue;
     }
-    return resolveSegment(spec, take);
-  });
+    const take = takes.get(entry.take);
+    if (take === undefined) {
+      throw new Error(`plan : prise « ${entry.take} » absente (prises chargées : ${[...takes.keys()].join(', ') || 'aucune'})`);
+    }
+    try {
+      out.push(resolveSegment(entry, take));
+    } catch (e) {
+      if (entry.optional !== true) throw e;
+      warn(`segment facultatif retiré : ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return out;
 }
 
 function isRecord(x: unknown): x is Record<string, unknown> {
@@ -154,6 +189,7 @@ function isEntry(x: unknown): boolean {
   if ('card' in x) return isTitle(x['card']);
   if (typeof x['take'] !== 'string' || !isTimeRef(x['from']) || !isTimeRef(x['to'])) return false;
   if (x['title'] !== undefined && !isTitle(x['title'])) return false;
+  if (x['optional'] !== undefined && typeof x['optional'] !== 'boolean') return false;
   const freezes = x['freezeAt'];
   if (freezes === undefined) return true;
   return Array.isArray(freezes) && freezes.every((f: unknown) => isRecord(f) && isTimeRef(f['at']) && typeof f['durationS'] === 'number' && typeof f['caption'] === 'string');

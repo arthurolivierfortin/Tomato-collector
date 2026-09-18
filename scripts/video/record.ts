@@ -5,7 +5,8 @@
  *   npx tsx scripts/video/record.ts --scenario cycle --mode live --take cycle
  *
  * Options : --scenario <concepts|cycle> | --scenario-file <json>, --mode <live|replay>,
- * --take <nom>, --page <url>, --api <url>, --episode <id ou chemin>, --out <dossier>.
+ * --take <nom>, --page <url>, --api <url>, --episode <id ou chemin>, --out <dossier>,
+ * --terminal <titre de fenêtre>.
  */
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -13,7 +14,7 @@ import { flag, opt, parseArgs } from './lib/cli';
 import { isEpisodeFile, normalizeEntries, type ScriptEntry } from './lib/episodes';
 import { fetchHealth, liveBlocker } from './lib/health';
 import type { TakeMode } from './lib/markers';
-import { parseScenario, scenarioMarkers, type Scenario } from './lib/scenario';
+import { optionalMarkers, parseScenario, scenarioMarkers, type Scenario } from './lib/scenario';
 import { record } from './lib/recorder';
 import { builtinScenario } from './scenarios';
 
@@ -55,6 +56,8 @@ async function main(): Promise<void> {
   const episode = await loadEpisode(opt(args, 'episode', ''), opt(args, 'episodes-dir', DEFAULTS.episodes));
   log(`prise « ${take} » — scénario « ${scenario.name} », mode ${scenario.mode}, ${scenario.steps.length} étapes`);
   log(`marqueurs prévus : ${scenarioMarkers(scenario).join(', ')}`);
+  const optional = optionalMarkers(scenario);
+  if (optional.length > 0) log(`marqueurs facultatifs (vanne) : ${optional.join(', ')}`);
   if (flag(args, 'dry-run')) {
     log('--dry-run : scénario valide, rien n’a été enregistré.');
     return;
@@ -71,10 +74,13 @@ async function main(): Promise<void> {
     apiUrl,
     outDir: opt(args, 'out', DEFAULTS.out),
     episode,
+    terminalTitle: opt(args, 'terminal', ''),
     log,
   });
   log(`vidéo    : ${result.videoPath}`);
   log(`marqueurs: ${result.markersPath} (${result.markers.markers.length}, prise de ${(result.markers.durationMs / 1000).toFixed(1)} s)`);
+  const terminal = result.markers.terminal;
+  if (terminal !== undefined) log(`terminal : ${terminal.video}, démarré à +${(terminal.startMs / 1000).toFixed(1)} s de la prise`);
   if (result.pageErrors.length > 0) {
     log(`ATTENTION : ${result.pageErrors.length} erreur(s) dans la page : ${result.pageErrors.join(' | ')}`);
   }

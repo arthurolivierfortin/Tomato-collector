@@ -8,8 +8,26 @@ import type { ResolvedEntry, ResolvedSegment } from './plan';
 
 export type Clip =
   | { readonly kind: 'title'; readonly text: string; readonly durationS: number; readonly subtitle?: string }
-  | { readonly kind: 'video'; readonly take: string; readonly fromS: number; readonly toS: number; readonly caption?: string; readonly highlight?: Rect; readonly captionWidth?: number }
-  | { readonly kind: 'freeze'; readonly take: string; readonly atS: number; readonly durationS: number; readonly caption: string; readonly highlight?: Rect; readonly captionWidth?: number };
+  | {
+      readonly kind: 'video';
+      readonly take: string;
+      readonly fromS: number;
+      readonly toS: number;
+      readonly caption?: string;
+      readonly highlight?: Rect;
+      readonly captionWidth?: number;
+      readonly pip?: Rect;
+    }
+  | {
+      readonly kind: 'freeze';
+      readonly take: string;
+      readonly atS: number;
+      readonly durationS: number;
+      readonly caption: string;
+      readonly highlight?: Rect;
+      readonly captionWidth?: number;
+      readonly pip?: Rect;
+    };
 
 /** Sous-plan vidéo plus court qu'une image à 30 fps : ffmpeg en ferait un fichier vide. */
 const MIN_CLIP_S = 0.04;
@@ -21,6 +39,7 @@ export function segmentClips(segment: ResolvedSegment): Clip[] {
     ...(segment.caption === undefined ? {} : { caption: segment.caption }),
     ...(segment.highlight === undefined ? {} : { highlight: segment.highlight }),
     ...(segment.captionWidth === undefined ? {} : { captionWidth: segment.captionWidth }),
+    ...(segment.pip === undefined ? {} : { pip: segment.pip }),
   };
   let cursor = segment.fromS;
   for (const freeze of segment.freezes) {
@@ -35,6 +54,7 @@ export function segmentClips(segment: ResolvedSegment): Clip[] {
       caption: freeze.caption,
       ...(freeze.highlight === undefined ? {} : { highlight: freeze.highlight }),
       ...(freeze.captionWidth === undefined ? {} : { captionWidth: freeze.captionWidth }),
+      ...(freeze.pip === undefined ? {} : { pip: freeze.pip }),
     });
     cursor = freeze.atS;
   }
@@ -82,6 +102,7 @@ function merge(a: ResolvedSegment, b: ResolvedSegment): ResolvedSegment {
   const caption = joinCaptions(a.caption, b.caption);
   const title = a.title ?? b.title;
   const highlight = a.highlight ?? b.highlight;
+  const pip = a.pip ?? b.pip;
   return {
     take: a.take,
     video: a.video,
@@ -91,6 +112,7 @@ function merge(a: ResolvedSegment, b: ResolvedSegment): ResolvedSegment {
     ...(caption === undefined ? {} : { caption }),
     ...(title === undefined ? {} : { title }),
     ...(highlight === undefined ? {} : { highlight }),
+    ...(pip === undefined ? {} : { pip }),
   };
 }
 
