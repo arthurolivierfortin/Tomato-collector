@@ -71,6 +71,21 @@ describe('episode journal', () => {
     expect((await journal.read('ep-c'))!.costUsd).toBe(0.42);
   });
 
+  it('patches the closed episode even when the session has already opened the next one', async () => {
+    // Réel (GATE-5) : `report` clôt l'épisode, `endEpisode` rejoue une détection en attente et
+    // rouvre aussitôt un journal ; l'`episode_end` du runner arrive après et ne doit pas y atterrir.
+    journal.open('ep-d', 3);
+    await journal.close('harvested', 'ok', 10);
+    journal.open('ep-e', 7);
+    journal.record({ type: 'episode_end', episodeId: 'ep-d', outcome: 'harvested', note: 'ok', toolCalls: 10, costUsd: 0.36, durationMs: 61000 });
+    await journal.flush();
+    const closed = await journal.read('ep-d');
+    expect(closed!.costUsd).toBe(0.36);
+    expect(closed!.messages.at(-1)!.message.type).toBe('episode_end');
+    await journal.close('missed', 'n', 1);
+    expect((await journal.read('ep-e'))!.messages).toEqual([]);
+  });
+
   it('returns an empty list when the directory does not exist yet', async () => {
     expect(await createEpisodeJournal(join(dir, 'missing')).list()).toEqual([]);
   });
