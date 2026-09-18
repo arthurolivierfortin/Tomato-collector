@@ -31,7 +31,7 @@ export interface EpisodeSummary {
 
 export interface EpisodeJournal {
   open(episodeId: string, tomatoId: number): void;
-  /** Enregistre un message diffusé ; hors épisode, seul un `episode_end` tardif de l'épisode qui vient de se clore est retenu (coût). */
+  /** Enregistre un message diffusé ; un `episode_end` est aiguillé par son `episodeId`, même si l'épisode suivant est déjà ouvert (coût). */
   record(message: ServerToDashboard): void;
   close(outcome: EpisodeOutcome, note: string, toolCalls: number): Promise<void>;
   current(): string | null;
@@ -73,15 +73,17 @@ export function createEpisodeJournal(dir: string, opts: { now?: () => number; lo
       open = { startedMs, record: emptyRecord(episodeId, tomatoId, startedMs) };
     },
     record(message) {
-      if (open) {
-        open.record.messages.push({ atMs: now() - open.startedMs, message });
+      // `episode_end` arrive après la clôture (le runner le diffuse après `report`), et la session
+      // a pu rouvrir un épisode entre-temps : on l'aiguille par son `episodeId`, jamais par « l'ouvert ».
+      if (message.type === 'episode_end' && open?.record.episodeId !== message.episodeId) {
+        if (lastClosed !== null && lastClosed.episodeId === message.episodeId) {
+          lastClosed.costUsd = message.costUsd;
+          lastClosed.messages.push({ atMs: now() - Date.parse(lastClosed.startedAt), message });
+          void write(lastClosed);
+        }
         return;
       }
-      if (message.type === 'episode_end' && lastClosed && lastClosed.episodeId === message.episodeId) {
-        lastClosed.costUsd = message.costUsd;
-        lastClosed.messages.push({ atMs: now() - Date.parse(lastClosed.startedAt), message });
-        void write(lastClosed);
-      }
+      if (open) open.record.messages.push({ atMs: now() - open.startedMs, message });
     },
     close(outcome, note, toolCalls) {
       if (!open) return Promise.resolve();
