@@ -22,16 +22,40 @@ export interface DatasetSample {
   readonly labels: readonly SampleLabel[];
 }
 
+export interface RipeDetectedEvent {
+  readonly type: string;
+  readonly tomatoId?: number;
+  readonly detector?: string;
+  readonly confidence?: number;
+}
+
 export interface TomatoGlobal {
-  readonly runtime: { applyNow(action: unknown): void };
+  readonly runtime: {
+    applyNow(action: unknown): void;
+    onEvent?(fn: (event: RipeDetectedEvent) => void): void;
+  };
   readonly renderViews?: (cameras: readonly string[]) => Promise<unknown>;
   /** Exposés par Vite en mode dev seulement : la génération exige donc `npm run dev`, pas `preview`. */
   readonly sample?: (camera: CameraName) => DatasetSample | null;
 }
 
+/** Ce que `packages/sim/src/perception/perceptionModule.ts` expose pour Playwright. */
+export interface PerceptionGlobal {
+  state(): {
+    yoloReady: boolean;
+    opencvReady: boolean;
+    lastDetector: string | null;
+    lastInferenceMs: number | null;
+    lastDetections: readonly { label: string; score: number }[];
+    gate: { tomatoId: number | null; count: number; target: number };
+  };
+  events: RipeDetectedEvent[];
+}
+
 declare global {
   interface Window {
     __tomato?: TomatoGlobal;
+    __tomatoPerception?: PerceptionGlobal;
   }
 }
 
