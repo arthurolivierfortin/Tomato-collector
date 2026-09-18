@@ -88,6 +88,31 @@ export function episodeDurationMs(entries: readonly ScriptEntry[]): number {
   return entries.reduce((max, e) => Math.max(max, e.atMs), 0);
 }
 
+/** Un appel d'outil du journal, prêt à être rejoué par un client MCP (`rehearse.ts`). */
+export interface ToolCall {
+  /** Millisecondes depuis le premier appel du journal. */
+  readonly atMs: number;
+  readonly tool: string;
+  readonly args: Record<string, unknown>;
+}
+
+/**
+ * Les appels d'outils d'un journal, triés et ramenés au premier : de quoi rejouer la même partie
+ * d'échecs sur le vrai serveur MCP, sans agent et donc sans coût. C'est la répétition générale du
+ * scénario en direct (voir `README.md`, « Répétition sans coût »).
+ */
+export function toolSequence(file: EpisodeFile): ToolCall[] {
+  const calls = [...file.messages]
+    .sort((a, b) => a.atMs - b.atMs)
+    .flatMap((e) => {
+      const m = e.message;
+      if (!isRecord(m) || m['type'] !== 'tool_call_start' || typeof m['tool'] !== 'string') return [];
+      return [{ atMs: e.atMs, tool: m['tool'], args: isRecord(m['args']) ? m['args'] : {} }];
+    });
+  const first = calls[0]?.atMs ?? 0;
+  return calls.map((c) => ({ ...c, atMs: c.atMs - first }));
+}
+
 export interface EpisodeCandidate {
   readonly name: string;
   readonly modifiedMs: number;

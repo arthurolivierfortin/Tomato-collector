@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { endCardFrom, episodeDurationMs, formatCostUsd, isEpisodeFile, newestEpisode, normalizeEntries } from './episodes';
+import { endCardFrom, episodeDurationMs, formatCostUsd, isEpisodeFile, newestEpisode, normalizeEntries, toolSequence } from './episodes';
 
 const file = {
   episodeId: 'ep-1',
@@ -115,5 +115,26 @@ describe('newestEpisode', () => {
   it('rend null quand le dossier ne contient aucun journal', () => {
     expect(newestEpisode([{ name: 'note.txt', modifiedMs: 1 }])).toBeNull();
     expect(newestEpisode([])).toBeNull();
+  });
+});
+
+describe('toolSequence', () => {
+  it('rend les appels d’outils d’un journal, ramenés à zéro et dans l’ordre', () => {
+    const journal = {
+      episodeId: 'ep-7',
+      messages: [
+        { atMs: 5400, message: { type: 'tool_call_start', tool: 'get_views', args: {} } },
+        { atMs: 5000, message: { type: 'agent_text', text: 'je regarde' } },
+        { atMs: 11_700, message: { type: 'tool_call_start', tool: 'move_basket', args: { x: 13, y: -4.2, mode: 'absolute' } } },
+      ],
+    };
+    expect(toolSequence(journal)).toEqual([
+      { atMs: 0, tool: 'get_views', args: {} },
+      { atMs: 6300, tool: 'move_basket', args: { x: 13, y: -4.2, mode: 'absolute' } },
+    ]);
+  });
+
+  it('ignore ce qui n’est pas un appel d’outil, sans exploser', () => {
+    expect(toolSequence({ episodeId: 'x', messages: [{ atMs: 0, message: { type: 'phase' } }] })).toEqual([]);
   });
 });

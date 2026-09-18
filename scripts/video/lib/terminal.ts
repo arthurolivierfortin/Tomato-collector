@@ -63,6 +63,11 @@ export interface TerminalCapture {
   readonly outPath: string;
   /** Décalage de la capture par rapport au t = 0 de la vidéo de la prise, en millisecondes. */
   readonly startMs: number;
+  /**
+   * `true` quand ffmpeg s'est arrêté tout seul : fenêtre au titre introuvable, fermée en cours de
+   * route… La prise reste valable, mais elle n'a pas de piste terminal et ne doit pas en annoncer une.
+   */
+  failed(): boolean;
   stop(): Promise<void>;
 }
 
@@ -98,9 +103,17 @@ export function startTerminalCapture(
     if (line !== '') onError(line);
   });
   let stopped = false;
+  let died = false;
+  child.once('exit', () => {
+    if (!stopped) died = true;
+  });
+  child.once('error', () => {
+    died = true;
+  });
   return {
     outPath: options.outPath,
     startMs,
+    failed: () => died,
     async stop() {
       if (stopped) return;
       stopped = true;
