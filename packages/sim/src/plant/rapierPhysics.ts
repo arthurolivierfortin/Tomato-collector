@@ -12,6 +12,15 @@ const FIXED_DT_S = 1 / 120;
 /** Sous-pas maximum par frame : borne le coût quand timeScale est grand. */
 const MAX_SUBSTEPS = 240;
 const WALL_CM = 0.5;
+/** Matériaux : paramètres de rendu physique du contact, pas des limites du contrat. */
+/** Rebond d'une tomate : une tomate mûre rebondit peu. */
+const TOMATO_RESTITUTION = 0.15;
+/** Frottement d'une tomate sur le sol et sur le panier. */
+const TOMATO_FRICTION = 0.7;
+/** Frottement du sol et des parois du panier : assez rugueux pour que le fruit s'y arrête. */
+const SURFACE_FRICTION = 0.8;
+/** Densité du fruit (g/cm³) : proche de l'eau. */
+const TOMATO_DENSITY = 1;
 const FLOOR_THICKNESS_CM = 1;
 const FLOOR_HALF_EXTENT_CM = 200;
 
@@ -34,7 +43,7 @@ function createBasketBody(world: World, pose: BasketPose): RigidBody {
   const hh = pose.depthCm / 2;
   const body = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased());
   const solid = (hx: number, hy: number, hz: number, x: number, y: number, z: number): void => {
-    world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setFriction(0.8), body);
+    world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setFriction(SURFACE_FRICTION), body);
   };
   solid(hw + WALL_CM, FLOOR_THICKNESS_CM / 2, hd + WALL_CM, 0, -FLOOR_THICKNESS_CM / 2, 0);
   solid(WALL_CM / 2, hh, hd + WALL_CM, hw + WALL_CM / 2, hh, 0);
@@ -59,7 +68,7 @@ export async function createRapierPhysics(): Promise<PlantPhysics> {
   const world: World = new RAPIER.World({ x: 0, y: -GRAVITY_CM_S2, z: 0 });
   world.timestep = FIXED_DT_S;
   world.createCollider(
-    RAPIER.ColliderDesc.cuboid(FLOOR_HALF_EXTENT_CM, 1, FLOOR_HALF_EXTENT_CM).setTranslation(0, -1, 0).setFriction(0.8),
+    RAPIER.ColliderDesc.cuboid(FLOOR_HALF_EXTENT_CM, 1, FLOOR_HALF_EXTENT_CM).setTranslation(0, -1, 0).setFriction(SURFACE_FRICTION),
   );
 
   const tomatoes = new Map<number, TomatoBody>();
@@ -75,7 +84,7 @@ export async function createRapierPhysics(): Promise<PlantPhysics> {
         RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(p.x, p.y, p.z).setCcdEnabled(true),
       );
       const collider = world.createCollider(
-        RAPIER.ColliderDesc.ball(radiusCm).setRestitution(0.15).setFriction(0.7).setDensity(1),
+        RAPIER.ColliderDesc.ball(radiusCm).setRestitution(TOMATO_RESTITUTION).setFriction(TOMATO_FRICTION).setDensity(TOMATO_DENSITY),
         body,
       );
       tomatoes.set(id, { body, collider });
