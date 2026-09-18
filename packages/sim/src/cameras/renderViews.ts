@@ -17,6 +17,17 @@ const DATA_URL_PREFIX = 'data:image/png;base64,';
 
 export type RenderViews = (cameras: CameraId[]) => Promise<ViewsResult>;
 
+let currentEdgeFilter: EdgeFilter = sobelEdges;
+
+/** Remplace le filtre de contours du pipeline (M4 : Canny + CLAHE une fois OpenCV.js chargé). */
+export function setEdgeFilter(filter: EdgeFilter): void {
+  currentEdgeFilter = filter;
+}
+
+export function getEdgeFilter(): EdgeFilter {
+  return currentEdgeFilter;
+}
+
 type Measured = Map<number, Partial<Record<CameraId, number>>>;
 
 function withVisibility(t: Tomato, m: Partial<Record<CameraId, number>> | undefined): Tomato {
@@ -27,7 +38,7 @@ function withVisibility(t: Tomato, m: Partial<Record<CameraId, number>> | undefi
  * Pipeline des vues : passe d'identifiants → visibleIn dans le store → payload JSON → pour chaque caméra,
  * rendu → assombrissement → contours → annotations → PNG base64. Tout est synchrone (une seule frame).
  */
-export function createViewRenderer(ctx: SimContext, scene: SceneHandle, cams: AgentCameras, edgeFilter: EdgeFilter = sobelEdges): RenderViews {
+export function createViewRenderer(ctx: SimContext, scene: SceneHandle, cams: AgentCameras): RenderViews {
   const canvas = document.createElement('canvas');
   canvas.width = VIEW_SIZE_PX;
   canvas.height = VIEW_SIZE_PX;
@@ -59,7 +70,7 @@ export function createViewRenderer(ctx: SimContext, scene: SceneHandle, cams: Ag
       const images: ViewImage[] = requested.map((id) => {
         const pose = payload.cameras[id];
         const base = renderToImageData(renderer, threeScene, cams[id]);
-        ctx2d.putImageData(compose(darken(base, DARKEN_FACTOR), edgeFilter(base)), 0, 0);
+        ctx2d.putImageData(compose(darken(base, DARKEN_FACTOR), getEdgeFilter()(base)), 0, 0);
         drawCommands(ctx2d, buildOverlay(id, pose, payload, chooseSpacing(pxPerCmOf(pose))));
         const url = canvas.toDataURL('image/png');
         const pngBase64 = url.startsWith(DATA_URL_PREFIX) ? url.slice(DATA_URL_PREFIX.length) : url;

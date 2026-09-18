@@ -1,6 +1,7 @@
-import type { CameraId, ViewsResult, WorldState } from '@tomato/shared';
+import { CAMERA_IDS, type CameraId, type ViewsResult, type WorldState } from '@tomato/shared';
 import type { SimModule } from '../core/module';
-import { createAgentCameras, poseAllCameras, type AgentCameras } from './agentCameras';
+import type { SceneHandle } from '../three/createScene';
+import { createAgentCameras, poseAllCameras, renderToImageData, type AgentCameras } from './agentCameras';
 import { moveCamera } from './cameraState';
 import { createViewRenderer } from './renderViews';
 
@@ -8,12 +9,26 @@ export type RenderViewsFn = (cameras: CameraId[]) => Promise<ViewsResult>;
 
 let renderViewsFn: RenderViewsFn | null = null;
 let cams: AgentCameras | null = null;
+/** Caméras par scène : la page peut monter deux scènes (StrictMode) ; chaque runtime capture la sienne. */
+const camerasByScene = new WeakMap<SceneHandle, AgentCameras>();
 let lastPoses: WorldState['cameras'] | null = null;
 const viewListeners = new Set<(result: ViewsResult) => void>();
 
 /** La fonction `renderViews` du module, disponible après `init` avec une scène ; null en Node. */
 export function getRenderViews(): RenderViewsFn | null {
   return renderViewsFn;
+}
+
+/** M4 : image brute (sRGB, 800×800) d'une caméra de la scène donnée, helpers masqués, sans annotation ; null sans scène. */
+export function renderCameraImage(scene: SceneHandle, camId: CameraId): ImageData | null {
+  const owned = camerasByScene.get(scene);
+  if (!owned) return null;
+  for (const id of CAMERA_IDS) owned[id].helper.visible = false;
+  try {
+    return renderToImageData(scene.renderer, scene.scene, owned[camId]);
+  } finally {
+    for (const id of CAMERA_IDS) owned[id].helper.visible = true;
+  }
 }
 
 /** Abonne un composant aux résultats de chaque `renderViews` (AgentViews). */
@@ -29,6 +44,7 @@ export const cameraModule: SimModule = {
     if (!ctx.scene) return;
     const created = createAgentCameras(ctx.scene.scene);
     cams = created;
+    camerasByScene.set(ctx.scene, created);
     lastPoses = ctx.store.get().cameras;
     poseAllCameras(created, lastPoses);
     const render = createViewRenderer(ctx, ctx.scene, created);
