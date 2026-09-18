@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { TraceEntry, TraceKind } from './dashboardTypes';
 import { JsonBlock } from './JsonBlock';
 import { formatClock, formatDuration } from './traceFormat';
@@ -31,12 +32,17 @@ interface Props {
   nowMs: number;
 }
 
-export function TraceRow({ entry, expanded, onToggle, nowMs }: Props) {
+/**
+ * Une ligne de trace. `memo` : la trace peut compter 200 lignes et se redessine à chaque message ou
+ * battement d'horloge ; seules les lignes dont les props changent sont recalculées. Le JSON n'est mis
+ * en forme que si la ligne est dépliée (un résultat de `get_views` pèse plusieurs milliers de lignes).
+ */
+export const TraceRow = memo(function TraceRow({ entry, expanded, onToggle, nowMs }: Props) {
   const error = entry.ok === false;
   const pending = isPending(entry);
   const foldable = entry.tool !== undefined;
-  const argsJson = entry.args === undefined ? '' : formatToolArgs(entry.args);
-  const resultJson = formatToolResult(entry.result);
+  const argsJson = !expanded || entry.args === undefined ? '' : formatToolArgs(entry.args);
+  const resultJson = expanded ? formatToolResult(entry.result) : '';
 
   return (
     <li
@@ -82,4 +88,4 @@ export function TraceRow({ entry, expanded, onToggle, nowMs }: Props) {
       )}
     </li>
   );
-}
+});
