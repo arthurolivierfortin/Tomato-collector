@@ -106,7 +106,7 @@ s'allume : ici on voit la décision elle-même.
     tomato.
   - **Agrandissement** — `first_ripe_box` + 0,6 s, **4,5 s** : « The first ripe box appears, with
     its confidence ». *Input:* the same frame, with tomato 1 now red · *Done by:* model YOLOv8n ONNX
-    640 · *Output:* ripe 0.76 on tomato 1. The gate starts counting: 1 frame of 5.
+    640 · *Output:* ripe 0.87 on tomato 1. The gate is already counting: 2 frames of 5.
 - **Segment 2** : `first_ripe_box` + 0,6 s → `gate_5` − 0,2 s. Sous-titre : « One frame is not
   enough: the gate wants five in a row, on the same tomato ».
   - **Agrandissement** — `gate_5` − 0,2 s, **4,5 s** : « Five consecutive frames: the gate is full
