@@ -46,7 +46,8 @@ export type ServerToDashboard =
   | { type: 'episode_end'; episodeId: string; outcome: 'harvested' | 'missed' | 'aborted'; note: string; toolCalls: number; costUsd: number; durationMs: number }
   | { type: 'agent_text'; episodeId: string; text: string }
   | { type: 'tool_call_start'; episodeId: string; callId: string; tool: string; args: Record<string, unknown> }
-  | { type: 'tool_call_result'; episodeId: string; callId: string; ok: boolean; summary: string; durationMs: number }
+  /** `result` : résultat structuré sans image (issue #22) ; absent des journaux antérieurs. */
+  | { type: 'tool_call_result'; episodeId: string; callId: string; ok: boolean; summary: string; durationMs: number; result?: unknown }
   | { type: 'views'; episodeId: string | null; result: ViewsResult }
   | { type: 'sim_event'; event: SimEvent }
   | { type: 'block_activity'; from: BlockId; to: BlockId; label: string }

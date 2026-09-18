@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { MAX_TOOL_CALLS_PER_EPISODE, type ToolName } from '@tomato/shared';
 import { silentLogger, type Logger } from '../log';
-import { text } from './format';
+import { resultPayload, text } from './format';
 import { createToolHandlers, type ToolDeps, type ToolOutcome } from './handlers';
 
 export type ToolRunner = (tool: ToolName, rawArgs: unknown) => Promise<ToolOutcome>;
@@ -64,7 +64,10 @@ export function createToolRunner(deps: ToolDeps, opts: ToolRunnerOptions = {}): 
       await wait(pacingMs - durationMs);
       durationMs = now() - startedMs;
     }
-    deps.hub.broadcast({ type: 'tool_call_result', episodeId, callId, ok: outcome.ok, summary: outcome.summary, durationMs });
+    deps.hub.broadcast({
+      type: 'tool_call_result', episodeId, callId, ok: outcome.ok, summary: outcome.summary,
+      durationMs, result: resultPayload(outcome.content),
+    });
     deps.hub.broadcast({ type: 'block_activity', from: 'server', to: 'agent', label: outcome.summary });
     outcome.after?.();
     return outcome;
