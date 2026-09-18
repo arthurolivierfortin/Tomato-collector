@@ -21,7 +21,10 @@ test('dashboard replays a scripted episode and is captured at 1920×1080 in both
 
   const trace = page.getByTestId('trace');
   await expect(trace).toContainText('Épisode terminé : récoltée', { timeout: 20_000 });
-  await expect(trace.locator('li').first()).toContainText('Épisode terminé'); // plus récent en haut
+  // Le scénario se termine par le retour en phase repos, 1 s après `episode_end` : on attend qu'il soit joué
+  // en entier, sinon l'entrée de tête dépend de la vitesse de la page (M4 charge OpenCV en parallèle).
+  await expect(trace.locator('li').first()).toContainText('Phase repos', { timeout: 15_000 }); // plus récent en haut
+  await expect(trace.locator('li').nth(1)).toContainText('Épisode terminé : récoltée');
   await expect(trace.locator('li[data-ok="false"]').first()).toContainText('Ciseaux → X 8, Y −2, Z 41'); // erreur surlignée
   await expect(page.getByTestId('count-harvested')).toHaveText('1');
   await expect(page.getByTestId('cost')).toHaveText('0,0421 $');
