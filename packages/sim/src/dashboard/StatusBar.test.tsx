@@ -38,10 +38,15 @@ describe('StatusBar', () => {
   // Issue #23 : le spectateur doit voir la tomate mûrir avant que la perception ne la détecte.
   it('shows the ripening tomato, from the local sim when there is one, else from the snapshot', () => {
     const state = { ...initialDashboardState(), ripening: { tomatoId: 2, ripeness: 0.4 } };
+    // Prop absente = pas de sim locale (page en lecture seule) : on retombe sur le dernier snapshot.
     const { rerender } = render(<StatusBar state={state} clock={null} detector="HSV/Sobel" />);
     expect(screen.getByTestId('ripening').textContent).toBe('tomate 2 : mûrit 40 %');
     rerender(<StatusBar state={state} clock={null} detector="HSV/Sobel" ripening={{ tomatoId: 3, ripeness: 0.62 }} />);
     expect(screen.getByTestId('ripening').textContent).toBe('tomate 3 : mûrit 62 %');
+    // Revue PR #28 : `null` = la sim locale dit que rien ne mûrit. Retomber sur le snapshot afficherait
+    // une valeur figée (une tomate déjà récoltée) après une reconnexion.
+    rerender(<StatusBar state={state} clock={null} detector="HSV/Sobel" ripening={null} />);
+    expect(screen.getByTestId('ripening').textContent).toBe('—');
     rerender(<StatusBar state={initialDashboardState()} clock={null} detector="HSV/Sobel" />);
     expect(screen.getByTestId('ripening').textContent).toBe('—');
   });

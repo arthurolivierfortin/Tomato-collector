@@ -35,15 +35,17 @@ interface Props {
   clock: SimClock | null;
   detector: string;
   /**
-   * Tomate en cours de mûrissement lue dans la sim locale ; null en lecture seule (on affiche alors
-   * celle du dernier snapshot). Le spectateur doit la voir monter AVANT la détection (issue #23).
+   * Tomate en cours de mûrissement lue dans la sim locale (issue #23) : le spectateur doit la voir
+   * monter AVANT la détection. Absente quand il n'y a pas de sim locale (page en lecture seule) : on
+   * affiche alors celle du dernier snapshot. `null` = la sim locale répond « rien ne mûrit », et ça
+   * gagne sur le snapshot, dont la valeur serait figée depuis la connexion.
    */
-  ripening?: Ripening | null;
+  ripening?: Ripening | null | undefined;
 }
 
 export function StatusBar({ state, clock, detector, ripening }: Props) {
   const sim = clock ?? state.sim;
-  const ripe = ripening ?? state.ripening;
+  const ripe = ripening === undefined ? state.ripening : ripening;
   return (
     <header data-testid="status-bar" className="flex h-11 shrink-0 items-center gap-4 border-b border-line bg-panel-2 px-4 text-[13px]">
       <div className="flex items-center gap-2" data-testid="connection">

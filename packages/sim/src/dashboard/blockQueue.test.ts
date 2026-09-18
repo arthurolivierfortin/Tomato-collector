@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCK_MIN_MS, BLOCK_QUEUE_MAX, advanceQueue, emptyQueue, enqueueFlow, queueDueMs } from './blockQueue';
+import { BLOCK_MIN_MS, BLOCK_QUEUE_MAX, advanceQueue, advanceTimerMs, emptyQueue, enqueueFlow, queueDueMs } from './blockQueue';
 import type { BlockFlow } from './dashboardTypes';
 
 const T0 = 1_700_000_000_000;
@@ -39,6 +39,20 @@ describe('blockQueue — file des activités du schéma bloc (issue #23)', () =>
     expect(queueDueMs(q, T0)).toBe(BLOCK_MIN_MS);
     expect(queueDueMs(q, T0 + 400)).toBe(BLOCK_MIN_MS - 400);
     expect(queueDueMs(q, T0 + 5_000)).toBe(0);
+  });
+
+  // Le minuteur du composant doit réveiller la file APRÈS la durée minimale : réarmé pile dessus, il
+  // retomberait sur un no-op (< BLOCK_MIN_MS) et la flèche resterait figée jusqu'au message suivant.
+  it('gives a timer delay that always makes the queue move', () => {
+    expect(advanceTimerMs(emptyQueue(), T0)).toBeNull();
+    const lit = enqueueFlow(emptyQueue(), detect, T0);
+    // Rien derrière : le minuteur sert à éteindre la flèche.
+    expect(advanceTimerMs(lit, T0)).toBe(BLOCK_MIN_MS + 1);
+    const queued = enqueueFlow(lit, wake, T0 + 10);
+    for (const [q, now] of [[lit, T0], [queued, T0], [queued, T0 + 900], [queued, T0 + 5_000]] as const) {
+      const delay = advanceTimerMs(q, now)!;
+      expect(advanceQueue(q, now + delay)).not.toBe(q);
+    }
   });
 
   it('caps the pending list so a burst of messages never grows without bound', () => {

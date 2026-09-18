@@ -9,15 +9,19 @@ const noop = (): void => {};
  * `snapshot` qu'à la connexion : sans cette lecture directe, la barre resterait figée et le
  * spectateur ne verrait pas la tomate mûrir. Comme `useWorldClock`, le snapshot est une chaîne,
  * donc le rendu ne se refait qu'au pour cent près, pas à chaque frame.
+ *
+ * Trois réponses distinctes : `undefined` = pas de sim locale, au bandeau de retomber sur le
+ * snapshot ; `null` = la sim locale dit que rien ne mûrit ; sinon la tomate et sa maturité.
  */
-export function useRipening(runtime: SimRuntime | null): Ripening | null {
+export function useRipening(runtime: SimRuntime | null): Ripening | null | undefined {
   const subscribe = useCallback((onChange: () => void) => (runtime ? runtime.ctx.store.subscribe(onChange) : noop), [runtime]);
   const key = useSyncExternalStore(subscribe, () => {
     if (!runtime) return null;
     const r = ripeningOf(runtime.ctx.store.get());
     return r === null ? '' : `${r.tomatoId}|${Math.round(r.ripeness * 100)}`;
   });
-  if (key === null || key === '') return null;
+  if (key === null) return undefined;
+  if (key === '') return null;
   const [id, pct] = key.split('|');
   return { tomatoId: Number(id), ripeness: Number(pct) / 100 };
 }
