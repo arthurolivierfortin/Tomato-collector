@@ -2,8 +2,12 @@ import type { TomatoState } from '@tomato/shared';
 
 /** Durée de la rampe vert → rouge avant l'instant de maturité, en secondes sim. */
 export const RIPEN_DURATION_S = 15;
-/** Le rayon du fruit passe de ×1.0 (vert) à ×(1 + RADIUS_GROWTH) (mûr). */
-export const RADIUS_GROWTH = 0.3;
+/**
+ * Le rayon du fruit passe de ×1.0 (vert) à ×(1 + RADIUS_GROWTH) (mûr).
+ * ×1,2 et non ×1,3 : avec un pédoncule de 7 à 9 cm, la surface du fruit mûr laisse au moins
+ * 2,5 cm de pédoncule libre, assez pour que les ciseaux de M2 l'atteignent sans heurter le fruit.
+ */
+export const RADIUS_GROWTH = 0.2;
 
 const TURNING_AT = 0.35;
 const RIPE_AT = 0.9;

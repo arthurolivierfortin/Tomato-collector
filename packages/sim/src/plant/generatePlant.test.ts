@@ -19,14 +19,14 @@ describe('generatePlant', () => {
     expect(spec.branches.length).toBeLessThanOrEqual(5);
   });
 
-  it('hangs 4-8 tomatoes on short pedicels tilted 0-60° from vertical', () => {
+  it('hangs 4-8 tomatoes on 7-9 cm pedicels tilted 0-60° from vertical', () => {
     expect(spec.tomatoes.length).toBeGreaterThanOrEqual(4);
     expect(spec.tomatoes.length).toBeLessThanOrEqual(8);
     for (const t of spec.tomatoes) {
       const d = vsub(t.centerCm, t.anchorCm);
       const len = vlen(d);
-      expect(len).toBeGreaterThanOrEqual(4);
-      expect(len).toBeLessThanOrEqual(6);
+      expect(len).toBeGreaterThanOrEqual(7);
+      expect(len).toBeLessThanOrEqual(9);
       const tiltDeg = (Math.acos(-d[2] / len) * 180) / Math.PI;
       expect(tiltDeg).toBeGreaterThanOrEqual(0);
       expect(tiltDeg).toBeLessThanOrEqual(60.001);

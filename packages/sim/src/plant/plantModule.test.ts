@@ -52,12 +52,13 @@ describe('plantModule init', () => {
     const s0 = spec.tomatoes[0]!;
     expect(t0.positionCm).toEqual(s0.centerCm);
     expect(t0.stem.fromCm).toEqual(s0.anchorCm);
-    expect(Math.hypot(...t0.stem.toCm.map((v, i) => v - s0.centerCm[i]!))).toBeCloseTo(s0.radiusCm);
+    // Point d'attache sur la surface du fruit au rayon COURANT (la rampe de maturité a déjà commencé à t = 0).
+    expect(Math.hypot(...t0.stem.toCm.map((v, i) => v - s0.centerCm[i]!))).toBeCloseTo(t0.radiusCm);
   });
 });
 
 describe('plantModule ripening', () => {
-  it('ripens tomatoes with sim time: turning halfway, ripe with radius ×1.3 at ripenAtS', async () => {
+  it('ripens tomatoes with sim time: turning halfway, ripe with radius ×1.2 at ripenAtS', async () => {
     const { ctx, mod } = await setup();
     const spec = generatePlant(SEED);
     const first = [...spec.tomatoes].sort((a, b) => a.ripenAtS - b.ripenAtS)[0]!;
@@ -70,7 +71,7 @@ describe('plantModule ripening', () => {
     mod.update!(0.01, ctx);
     t = ctx.store.get().tomatoes.find((x) => x.id === first.id)!;
     expect(t.state).toBe('ripe');
-    expect(t.radiusCm).toBeCloseTo(first.radiusCm * 1.3);
+    expect(t.radiusCm).toBeCloseTo(first.radiusCm * 1.2);
   });
 
   it('does nothing while paused (dt = 0) and preserves visibleIn written by another module', async () => {

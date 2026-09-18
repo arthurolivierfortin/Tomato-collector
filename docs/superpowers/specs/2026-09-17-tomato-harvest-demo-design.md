@@ -79,8 +79,8 @@ docs/        specs, plans, README de dev
 ### 4.1 Scène et plant
 
 - Sol de serre, fond neutre, éclairage directionnel avec ombres douces, lumière d'environnement, antialiasing.
-- Plant procédural paramétré par une graine : tige principale segmentée, 3 à 5 branches, feuilles en plans double face à texture alpha (occultantes), 4 à 8 tomates sur des pédoncules courts orientés aléatoirement (inclinaison 0 à 60° par rapport à la verticale). Bouton « nouveau plant » régénère avec une autre graine.
-- Mûrissement : chaque tomate a un instant de maturité ; couleur (vert → orange → rouge) et rayon (×1.0 → ×1.3) interpolés sur le temps sim. État `unripe`, `turning`, `ripe`.
+- Plant procédural paramétré par une graine : tige principale segmentée, 3 à 5 branches, feuilles en plans double face à texture alpha (occultantes), 4 à 8 tomates sur des pédoncules de 7 à 9 cm orientés aléatoirement (inclinaison 0 à 60° par rapport à la verticale). Bouton « nouveau plant » régénère avec une autre graine.
+- Mûrissement : chaque tomate a un instant de maturité ; couleur (vert → orange → rouge) et rayon (×1,0 → ×1,2) interpolés sur le temps sim. État `unripe`, `turning`, `ripe`.
 - Physique Rapier : chaque tomate est un corps rigide fixé à son pédoncule par une contrainte ; `cut` retire la contrainte ; le panier est un composé de colliders avec un capteur volumique ; le sol est un collider. Un contact tomate-sol hors capteur donne `missed`.
 
 ### 4.2 Bras, ciseaux, panier
