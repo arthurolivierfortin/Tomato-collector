@@ -3,10 +3,13 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { clipDurationS, type Clip } from './cuts';
 import {
+  captionBackdropFilter,
+  captionBandRect,
   captionFilters,
   chain,
   highlightFilter,
   pipComplex,
+  CAPTION_BACKDROP_OPACITY,
   CAPTION_MAX_LINES,
   escapeFilterPath,
   normalizeFilters,
@@ -16,6 +19,7 @@ import {
   type TextStyle,
 } from './ffmpegFilters';
 import { lineCount, wrapText } from './text';
+import { zoomChain, zoomLayout, zoomLines, zoomWrapChars, type ZoomBlock, type ZoomSpec } from './zoom';
 import { terminalOffsetS } from './terminal';
 import { encoderArgs, ffmpeg } from './ffmpegRun';
 
@@ -75,21 +79,30 @@ function wrapWidth(style: TextStyle, width: number): number {
   return Math.max(12, Math.floor((width - 4 * style.bandPadding) / (style.captionSize * 0.44)));
 }
 
-/** Cadre de mise en évidence puis bandeau : le cadre passe dessous, le texte reste lisible. */
+/**
+ * Bande pleine puis cadre de mise en évidence puis sous-titre. La bande passe **sous** le cadre :
+ * sur l'écran plein format, le cadre bleu d'une tuile de la rangée du bas descend jusque dans le
+ * bandeau, et on doit continuer à voir son arête inférieure.
+ */
 async function overlayChain(ctx: RenderContext, i: number, clip: Extract<Clip, { kind: 'video' | 'freeze' }>): Promise<string[]> {
   const frame = clip.highlight === undefined ? [] : [highlightFilter(clip.highlight, ctx.style)];
   const caption = clip.caption;
   if (caption === undefined) return frame;
+  const full = clip.captionFullWidth === true;
   const style: TextStyle = {
     ...ctx.style,
     ...(clip.captionWidth === undefined ? {} : { captionWidth: clip.captionWidth }),
     ...(clip.captionBottom === undefined ? {} : { captionBottom: clip.captionBottom }),
+    // La bande pleine remplace la boîte qui épouse le texte : sans quoi les deux fonds se cumulent
+    // et le sous-titre apparaît dans un rectangle plus sombre au milieu du bandeau.
+    ...(full ? { bandOpacity: 0 } : {}),
   };
   const wrapped = wrapText(caption, wrapWidth(style, style.captionWidth));
   const lines = lineCount(wrapped);
   if (lines > CAPTION_MAX_LINES) ctx.warn(`sous-titre sur ${lines} lignes, raccourcir : « ${caption} »`);
   const path = await textFile(ctx, `cap-${pad(i)}`, wrapped);
-  return [...frame, ...captionFilters(path, style, lines, clipDurationS(clip))];
+  const backdrop = full ? [captionBackdropFilter(captionBandRect(style, lines, ctx.format), CAPTION_BACKDROP_OPACITY)] : [];
+  return [...backdrop, ...frame, ...captionFilters(path, style, lines, clipDurationS(clip))];
 }
 
 /**
@@ -141,9 +154,54 @@ async function renderVideo(ctx: RenderContext, i: number, clip: Extract<Clip, { 
   ]);
 }
 
+/**
+ * Les quatre textes d'un agrandissement : le titre de l'étape, puis ce qui entre, qui fait le
+ * travail, ce qui sort. « Done by » porte la couleur des cadres : c'est la ligne qui répond à la
+ * question que le propriétaire pose devant chaque tuile, « qui a fait ça, le modèle ou la sim ? ».
+ */
+const ZOOM_HEADING = { size: 36, color: 'white' } as const;
+const ZOOM_ELEMENT = { size: 32, color: 'white' } as const;
+const ZOOM_BY = { size: 32, color: '0x7DD3FC' } as const;
+
+async function zoomBlocks(ctx: RenderContext, i: number, caption: string, zoom: ZoomSpec, textWidth: number): Promise<ZoomBlock[]> {
+  const styles = [ZOOM_ELEMENT, ZOOM_BY, ZOOM_ELEMENT];
+  const texts = [{ text: caption, ...ZOOM_HEADING }, ...zoomLines(zoom).map((text, k) => ({ text, ...(styles[k] ?? ZOOM_ELEMENT) }))];
+  const blocks: ZoomBlock[] = [];
+  for (const [k, t] of texts.entries()) {
+    const wrapped = wrapText(t.text, zoomWrapChars(textWidth, t.size));
+    const file = await textFile(ctx, `zoom-${pad(i)}-${k}`, wrapped);
+    blocks.push({ file, lines: lineCount(wrapped), size: t.size, color: t.color });
+  }
+  return blocks;
+}
+
+/** Arrêt sur image agrandi : la tuile remplit le cadre, les trois éléments s'écrivent à côté. */
+async function renderZoom(ctx: RenderContext, i: number, clip: Extract<Clip, { kind: 'freeze' }>, zoom: ZoomSpec, still: string, out: string): Promise<void> {
+  const layout = zoomLayout(zoom.source, ctx.format);
+  const blocks = await zoomBlocks(ctx, i, clip.caption, zoom, layout.textWidth);
+  await ffmpeg([
+    '-loop',
+    '1',
+    '-framerate',
+    String(ctx.format.fps),
+    '-t',
+    String(clip.durationS),
+    '-i',
+    still,
+    '-vf',
+    zoomChain(layout, blocks, ctx.style, ctx.format, TITLE_BACKGROUND, clip.durationS),
+    ...encoderArgs(ctx.encoder, ctx.format.fps),
+    out,
+  ]);
+}
+
 async function renderFreeze(ctx: RenderContext, i: number, clip: Extract<Clip, { kind: 'freeze' }>, out: string): Promise<void> {
   const still = join(ctx.workDir, `still-${pad(i)}.png`);
   await ffmpeg(['-ss', clip.atS.toFixed(3), '-i', sourceOf(ctx, clip.take), '-frames:v', '1', still]);
+  if (clip.zoom !== undefined) {
+    await renderZoom(ctx, i, clip, clip.zoom, still, out);
+    return;
+  }
   const pip = pipSource(ctx, clip);
   if (pip !== null && clip.pip !== undefined) {
     const pipStill = join(ctx.workDir, `term-${pad(i)}.png`);

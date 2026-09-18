@@ -46,8 +46,8 @@ describe('StatusBar', () => {
     // Revue PR #28 : `null` = la sim locale dit que rien ne mûrit. Retomber sur le snapshot afficherait
     // une valeur figée (une tomate déjà récoltée) après une reconnexion.
     rerender(<StatusBar state={state} clock={null} detector="HSV/Sobel" ripening={null} />);
-    expect(screen.getByTestId('ripening').textContent).toBe('—');
+    expect(screen.getByTestId('ripening').textContent).toBe('aucun');
     rerender(<StatusBar state={initialDashboardState()} clock={null} detector="HSV/Sobel" />);
-    expect(screen.getByTestId('ripening').textContent).toBe('—');
+    expect(screen.getByTestId('ripening').textContent).toBe('aucun');
   });
 });

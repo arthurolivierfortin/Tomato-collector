@@ -58,7 +58,7 @@ export const PerceptionPanel = memo(function PerceptionPanel({ state, open, live
         className="flex h-7 shrink-0 items-center gap-2 px-3 text-[12px] text-ink-dim hover:text-ink"
       >
         <span aria-hidden="true">{open ? '▾' : '▸'}</span>
-        <span className="truncate">Perception (p){live ? '' : ' — sim locale, pas l’épisode rejoué'}</span>
+        <span className="truncate">Perception (p){live ? '' : ' : sim locale, pas l’épisode rejoué'}</span>
         <span className="ml-auto shrink-0 font-mono text-[11px] text-ink" data-testid="perception-detector">
           {activeDetectorName(state)}
         </span>

@@ -5,6 +5,7 @@
  */
 import type { PipSpec, Rect } from './ffmpegFilters';
 import { markerS, type TakeMarkers } from './markers';
+import type { ZoomSpec } from './zoom';
 
 /** Un instant du plan : des secondes, un marqueur (avec décalage), ou la fin de la prise. */
 export type TimeRef = number | 'end' | { readonly marker: string; readonly offsetS?: number };
@@ -19,8 +20,16 @@ export interface FreezeSpec {
   readonly captionWidth?: number;
   /** Hauteur du bandeau au-dessus du bas de l'image ; hérite de celle du segment quand absente. */
   readonly captionBottom?: number;
+  /** Bandeau pleine largeur ; hérite de celui du segment quand il est absent. */
+  readonly captionFullWidth?: boolean;
   /** Zone où incruster la capture du terminal ; hérite de celle du segment quand elle est absente. */
   readonly pip?: PipSpec;
+  /**
+   * Agrandit une zone de l'image au lieu de montrer l'écran entier : le sous-titre du segment
+   * devient le titre de l'agrandissement, et les trois éléments (entrée, qui fait le travail,
+   * sortie) sont écrits à côté de la zone agrandie.
+   */
+  readonly zoom?: ZoomSpec;
 }
 
 export interface TitleSpec {
@@ -48,6 +57,12 @@ export interface SegmentSpec {
    * donc sur la dernière ligne de texte des tuiles du bas, la seule bande redondante de cet écran.
    */
   readonly captionBottom?: number;
+  /**
+   * Pose le sous-titre sur une bande pleine largeur au lieu d'une boîte qui épouse le texte. Sur un
+   * écran plein format, la boîte laissait dépasser, à sa droite, un fragment de la rangée de
+   * légendes de l'application.
+   */
+  readonly captionFullWidth?: boolean;
   /**
    * Incruste la capture du terminal de la prise dans cette zone (issue #35). Sans capture de
    * terminal, le segment est monté tel quel : le montage prévient, il n'échoue pas.
@@ -89,7 +104,9 @@ export interface ResolvedFreeze {
   readonly highlight?: Rect;
   readonly captionWidth?: number;
   readonly captionBottom?: number;
+  readonly captionFullWidth?: boolean;
   readonly pip?: PipSpec;
+  readonly zoom?: ZoomSpec;
 }
 
 export interface ResolvedSegment {
@@ -102,6 +119,7 @@ export interface ResolvedSegment {
   readonly highlight?: Rect;
   readonly captionWidth?: number;
   readonly captionBottom?: number;
+  readonly captionFullWidth?: boolean;
   readonly pip?: PipSpec;
   readonly freezes: readonly ResolvedFreeze[];
 }
@@ -123,6 +141,7 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
       const zone = f.highlight ?? spec.highlight;
       const width = f.captionWidth ?? spec.captionWidth;
       const bottom = f.captionBottom ?? spec.captionBottom;
+      const full = f.captionFullWidth ?? spec.captionFullWidth;
       const pip = f.pip ?? spec.pip;
       return {
         atS: resolveTime(f.at, take),
@@ -131,7 +150,9 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
         ...(zone === undefined ? {} : { highlight: zone }),
         ...(width === undefined ? {} : { captionWidth: width }),
         ...(bottom === undefined ? {} : { captionBottom: bottom }),
+        ...(full === undefined ? {} : { captionFullWidth: full }),
         ...(pip === undefined ? {} : { pip }),
+        ...(f.zoom === undefined ? {} : { zoom: f.zoom }),
       };
     })
     .sort((a, b) => a.atS - b.atS);
@@ -149,6 +170,7 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
     ...(spec.highlight === undefined ? {} : { highlight: spec.highlight }),
     ...(spec.captionWidth === undefined ? {} : { captionWidth: spec.captionWidth }),
     ...(spec.captionBottom === undefined ? {} : { captionBottom: spec.captionBottom }),
+    ...(spec.captionFullWidth === undefined ? {} : { captionFullWidth: spec.captionFullWidth }),
     ...(spec.pip === undefined ? {} : { pip: spec.pip }),
     ...(spec.title === undefined ? {} : { title: spec.title }),
     ...(spec.caption === undefined ? {} : { caption: spec.caption }),
@@ -186,3 +208,4 @@ export function resolvePlan(
 }
 
 export { isMontagePlan } from './planGuard';
+export { zoomLines, type ZoomSpec } from './zoom';

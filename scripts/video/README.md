@@ -1,11 +1,13 @@
 # Pipeline vidéo de la démo
 
-Trois prises, un montage. Rien n'est manuel : la page est pilotée par Playwright, la fenêtre de
-terminal est filmée par ffmpeg, et ffmpeg assemble le résultat.
+Quatre prises, un montage. Rien n'est manuel : la page est pilotée par Playwright, la fenêtre de
+terminal est filmée par ffmpeg, et ffmpeg assemble le résultat. Deux des quatre prises ne coûtent
+rien : elles tournent contre un serveur `TOMATO_AGENT=off`.
 
-    npm run video:record -- --scenario concepts --mode live --take concepts --terminal page
-    npm run video:record -- --scenario cycle    --mode live --take cycle    --terminal page
-    npm run video:record -- --scenario pipeline --mode live   --take pipeline   # serveur TOMATO_AGENT=off
+    npm run video:record -- --scenario concepts  --mode live --take concepts --terminal page
+    npm run video:record -- --scenario cycle     --mode live --take cycle    --terminal page
+    npm run video:record -- --scenario pipeline  --mode live --take pipeline   # serveur TOMATO_AGENT=off
+    npm run video:record -- --scenario detection --mode live --take detection  # serveur TOMATO_AGENT=off
     npm run video:montage -- --episode latest
 
     npm run video:all        # concepts, cycle, montage
@@ -33,13 +35,14 @@ qui fait foi.
 
 `data/video/` est dans `.gitignore` : rien de tout ça n'est versionné.
 
-## Les trois prises
+## Les quatre prises
 
 | Prise | Mode | Coût | Ce qu'elle montre |
 |---|---|---|---|
-| `concepts` | `live` | un épisode | la partie 1 : mûrissement, détection, réveil, vues, outils, coupe |
+| `concepts` | `live` | un épisode | la partie 1 : mûrissement, réveil, vues, outils, vérification, coupe |
 | `cycle` | `live` | un épisode | la partie 2 : le même cycle, sans une seule coupure |
 | `pipeline` | `live`, agent coupé | rien | le traitement des vues, une tuile par étape (issue #36) |
+| `detection` | `live`, agent coupé | rien | ce que le modèle voit avant, pendant et après le mûrissement |
 
 **La partie 1 est filmée en direct, avec l'agent réel.** La première version la fabriquait avec
 l'épisode scripté de la page (`buildDemoScript`) : la scène 3D ne bougeait pas pendant que la trace
@@ -47,6 +50,15 @@ annonçait la chute, et le faux journal contredisait les règles du monde (un `s
 la règle en demande moins de 45). Le scénario `concepts` attend maintenant des états réels de la
 page — une phase, une ligne de la trace, une flèche du schéma bloc — et appuie sur les touches de
 tournage à ces moments-là.
+
+**Pourquoi `detection` est une prise à part, elle aussi.** Le panneau « Perception » (touche `p`)
+doit être ouvert **avant** que la tomate commence à rougir, et rester ouvert jusqu'au réveil : on y
+lit « 0 ripe · 8 unripe », puis la première boîte `ripe` avec sa confiance, puis la porte de réveil
+qui se remplit, 1/5, 3/5, 5/5. Dans `concepts`, cette fenêtre-là est prise par le mûrissement vu de
+la scène 3D, et l'ouvrir en plus obligerait à couper ailleurs. Filmée seule avec l'agent coupé, la
+séquence ne coûte rien : la détection ouvre un épisode mis en scène, sans appeler le SDK, et le
+réveil s'allume quand même dans le schéma bloc. Le film s'arrête là et reprend sur `concepts` pour
+le réveil et la session de l'agent, qui, eux, sont réels.
 
 **Pourquoi `pipeline` est une prise à part.** L'écran de traitement des vues (touche `x`) ne montre
 que de l'image : il n'a besoin ni de l'agent ni du serveur. On la filme quand même en `live`, contre
@@ -89,6 +101,30 @@ en posant un marqueur à chaque étape.
 
 > La sim doit tourner en mode développement (`npm run dev:sim`) : le pont simulé utilisé pour les
 > replays n'est exposé par Vite qu'en `import.meta.env.DEV`. Un `vite preview` ne marche pas.
+
+### Les deux prises gratuites, en pratique
+
+`pipeline` et `detection` ne coûtent rien, mais elles ont besoin d'un serveur **à elles** : l'agent
+coupé laisse un épisode ouvert que personne ne clôt, et il ne faut pas que ce soit celui du serveur
+de production. Un serveur neuf sur des ports d'essai, une sim pointée dessus, et c'est tout :
+
+    TOMATO_AGENT=off TOMATO_LOG_STREAM=on TOMATO_LOG_FILE=data/video/server-detection.log \
+    TOMATO_MCP_PORT=7511 TOMATO_WS_PORT=7512 \
+    npx tsx packages/server/src/index.ts
+
+    printf 'VITE_TOMATO_WS_URL=ws://localhost:7512\nVITE_TOMATO_API_URL=http://localhost:7511\n' \
+      > packages/sim/.env.local
+    npx vite --port 5322 --strictPort packages/sim
+
+    npx tsx scripts/video/record.ts --scenario detection --mode live --take detection \
+      --page http://localhost:5322 --api http://localhost:7511 \
+      --terminal page --terminal-log data/video/server-detection.log
+
+**Effacer `packages/sim/.env.local` ensuite**, sinon la prochaine prise en direct filmera une page
+branchée sur un serveur d'essai éteint. Et **lancer la prise sur un Vite déjà chaud** : sur un
+démarrage à froid, Vite optimise ses dépendances et recharge la page, ce qui détruit le contexte
+d'exécution du pilote (« Execution context was destroyed »). La première tentative échoue, la
+seconde passe ; c'est sans conséquence, la prise ratée est simplement réenregistrée.
 
 ### Queue de prise : sept secondes, pas plus
 
@@ -170,9 +206,12 @@ dashboard. La vidéo filme donc, en parallèle de la page, **la sortie réelle d
    n'importe quelle session, y compris sans écran.
 
 4. **Le montage l'incruste.** Un segment qui porte `pip` met le terminal par-dessus la prise :
-   vignette de 610×180 en bas à droite pendant toute la partie 2 dès le réveil, et moitié droite de
+   vignette de 610×168 en bas à droite pendant toute la partie 2 dès le réveil, et moitié droite de
    l'écran en partie 1, sur le segment « The agent is a real Claude Code session », avec un arrêt
-   sur image sur le premier `tool_use` de la session.
+   sur image sur le premier `tool_use` de la session. La vignette faisait 180 px de haut jusqu'à la
+   v2 : elle descendait à y 940 et effleurait les étiquettes « top … » et « side … » des vignettes
+   de vues, qui commencent à y 932. Ces étiquettes sont maintenant déclarées dans `PROTECTED`, et
+   c'est le test de géométrie qui le voit, plus une relecture d'image.
 
    La vignette occupe la rangée de vignettes de vues, la seule bande de l'écran dont l'information
    est redondante, et elle est **rognée par le bas** plutôt que réduite : on lit les dernières
@@ -247,9 +286,11 @@ comptent pas dans les marqueurs prévus, et les segments du plan qui les citent 
   zone à lui, et l'arrêt sur image du segment `p` l'encadre ;
 - l'écran `x` est plein format : le bandeau de sous-titre du dashboard, calé à 145 px du bas, y
   tomberait au milieu des tuiles de la seconde rangée. Les segments du pipeline le descendent à
-  14 px du bas (`captionBottom`, nouveau champ de segment) et l'élargissent à 1100 px, pour qu'il ne
-  recouvre que la dernière ligne de texte des tuiles du bas — la seule bande redondante de cet
-  écran, puisqu'elle redit en français ce que le sous-titre dit en anglais.
+  29 px du bas (`captionBottom`) et lui font prendre **toute la largeur** (`captionFullWidth`).
+  La boîte qui épouse le texte, parfaite sur le dashboard, laissait dépasser à sa droite un fragment
+  de la rangée de légendes françaises des tuiles : une bande pleine, d'un bord à l'autre et jusqu'au
+  bas de l'image, ne laisse plus rien dépasser. Le cadre bleu est dessiné **après** la bande, pour
+  que l'arête inférieure des tuiles de la rangée du bas reste visible.
 
 ## Répétition sans coût
 
@@ -357,11 +398,24 @@ image, produit un fichier par sous-plan puis les concatène :
   masqués (`h`, pressée au début de chaque scénario) ;
 - **mise en évidence** : quand un arrêt sur image montre un élément précis, le sous-titre ne bouge
   pas ; un cadre bleu clair entoure la zone visée, dont les coordonnées viennent du plan
-  (`ZONE` dans `plans/demo.ts`) ;
+  (`ZONE` dans `plans/zones.ts`) ;
+- **agrandissement** : quand le cadre ne suffit pas — une tuile du traitement des vues fait 368 × 496
+  dans une image de 1920 × 1080, son texte quatre pixels de haut — l'arrêt sur image porte un `zoom`.
+  La zone est recadrée, mise à 85 % de la hauteur en `lanczos`, posée sur le fond des cartons, ceinte
+  du même liseré bleu, et ses trois éléments s'écrivent dans la colonne de droite, jamais dessus :
+  `Input:`, `Done by:` (en bleu, c'est la ligne qui répond à « le modèle ou la simulation ? ») et
+  `Output:`. La géométrie et les filtres sont dans `lib/zoom.ts`, purs et testés ;
+- **bandeau pleine largeur** : `captionFullWidth` remplace la boîte qui épouse le texte par une bande
+  opaque d'un bord à l'autre, pour les écrans plein format où tout ce qui reste à côté du sous-titre
+  se lit encore à moitié ;
 - **incrustation du terminal** : `pipComplex` met la prise au fond, le terminal dans sa zone avec un
   liseré bleu, puis les sous-titres par-dessus ;
 - **durée minimale d'un sous-titre** : 2,5 s. Un segment plus court est fusionné avec le suivant de
   la même prise et les deux légendes deviennent une phrase — « Cut, then the fall into the basket » ;
+- **aucune seconde deux fois** : les segments d'une même prise se relaient dans l'ordre et bout à
+  bout. `plans/demo.test.ts` résout le plan contre les marqueurs réels des quatre prises et refuse
+  le moindre chevauchement. La v2 rejouait 3,8 s de `concepts` — le panneau « Perception », puis le
+  segment du réveil reparti du même marqueur ; c'est ce test qui l'aurait vu tout de suite ;
 - **cartons de fin** : résultat, nombre d'appels d'outils, durée et coût **lus dans le journal de
   l'épisode** (`--episode`). Rien n'est inventé : quand le journal ne porte pas de coût, le carton
   n'en annonce pas ; quand il n'est pas clos (`outcome: null`), le montage refuse de partir ;
@@ -399,9 +453,10 @@ sous-titre dépasse deux lignes.
     terminal.ps1           ouvre et dimensionne la fenêtre de terminal filmée
     storyboard.md          le découpage, en français
     plans/demo.ts          le même découpage, exécutable : assemblage et cartons de fin
-    plans/part1.ts         partie 1, plans/part2.ts partie 2, plans/pipeline.ts le traitement des vues
+    plans/part1.ts         partie 1, plans/part2.ts partie 2
+    plans/pipeline.ts      le traitement des vues, plans/detection.ts ce que le modèle voit
     plans/zones.ts         géographie de l'écran : zones encadrables, zones protégées, incrustations
-    scenarios/             concepts.ts, cycle.ts, pipeline.ts — ce que le pilote fait sur la page
+    scenarios/             concepts.ts, cycle.ts, pipeline.ts, detection.ts — ce que le pilote fait
     lib/browser.ts         ouverture de Chromium, mesures GPU et cadence
     lib/health.ts          GET /health, serveur neuf et aucune autre sim
     lib/recorder.ts        déroulé d'une prise, écriture vidéo + marqueurs
@@ -418,6 +473,7 @@ sous-titre dépasse deux lignes.
     lib/cuts.ts            découpe d'un segment en sous-plans
     lib/style.ts           rectangles, format de sortie, style des textes gravés
     lib/ffmpegFilters.ts   construction des filtres ffmpeg (pur, testé)
+    lib/zoom.ts            géométrie et filtres d'un agrandissement (pur, testé)
     lib/ffmpegRun.ts       lancement de ffmpeg et ffprobe
     lib/render.ts          fabrication des sous-plans
     lib/renderOutput.ts    dossier de travail, concaténation, images extraites
