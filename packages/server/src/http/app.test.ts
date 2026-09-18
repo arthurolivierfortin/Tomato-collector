@@ -63,4 +63,20 @@ describe('HTTP app', () => {
     expect(await (await fetch(`${base}/episodes/ep-x`)).json()).toMatchObject({ episodeId: 'ep-x', toolCalls: 3 });
     expect((await fetch(`${base}/episodes/nope`)).status).toBe(404);
   });
+
+  // Issue #27 : la page Vite (autre origine) doit pouvoir lire ces routes depuis le navigateur.
+  it('allows cross-origin GET on /health, /episodes and /episodes/:id, and answers OPTIONS preflights', async () => {
+    for (const path of ['/health', '/episodes', '/episodes/ep-x']) {
+      const res = await fetch(`${base}${path}`, { headers: { origin: 'http://localhost:5173' } });
+      expect(res.headers.get('access-control-allow-origin'), path).toBe('*');
+    }
+    const preflight = await fetch(`${base}/episodes`, {
+      method: 'OPTIONS',
+      headers: { origin: 'http://localhost:5173', 'access-control-request-method': 'GET' },
+    });
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('*');
+    expect(preflight.headers.get('access-control-allow-methods')).toMatch(/GET/);
+    expect(preflight.headers.get('access-control-allow-methods')).toMatch(/OPTIONS/);
+  });
 });

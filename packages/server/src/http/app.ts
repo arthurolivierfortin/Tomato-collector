@@ -19,8 +19,28 @@ export interface AppDeps {
 
 const JSON_BODY_LIMIT = '1mb';
 
+/** Routes annexes lues par la page Vite, donc depuis une autre origine (issue #27). */
+const BROWSER_ROUTES = ['/health', '/episodes'];
+
 function methodNotAllowed(_req: Request, res: Response): void {
   res.status(405).json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed.' }, id: null });
+}
+
+/**
+ * CORS des routes annexes (issue #27) : la page Vite tourne sur un autre port que le serveur, donc le
+ * navigateur refuse `GET /health` et `GET /episodes` sans ces en-têtes. Lecture seule, démo locale :
+ * l'origine `*` suffit. Les pré-requêtes `OPTIONS` sont closes ici, avant tout routage.
+ */
+function allowCrossOrigin(req: Request, res: Response, next: () => void): void {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+  next();
 }
 
 /**
@@ -32,6 +52,7 @@ export function createApp(deps: AppDeps): Express {
   const log = deps.log ?? silentLogger;
   const app = express();
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
+  app.use(BROWSER_ROUTES, allowCrossOrigin);
 
   app.post('/mcp', async (req: Request, res: Response) => {
     const server = deps.createServer();
