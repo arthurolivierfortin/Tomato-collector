@@ -20,12 +20,16 @@ test('spectator scene renders the plant module and is captured', async ({ page }
   expect(tomatoCount).toBeGreaterThanOrEqual(4);
   const ripen = await page.evaluate(() => window.__tomato!.runtime.apply({ type: 'ripen_next' }));
   expect(ripen.ok).toBe(true);
-  // `ripen_next` rend rouge une tomate ; on accélère le temps sim jusqu'à ce que la SUIVANTE entre
-  // dans sa rampe, puis on gèle la sim DANS LA MÊME FRAME que la détection. Attendre l'état plutôt
-  // qu'un délai fixe rend la capture reproductible : sans le gel, la seconde que prend
-  // page.screenshot avançait de 20 à 40 s sim et tout finissait rouge.
+  // Issue #23 : un seul fruit mûrit à la fois. `ripen_next` rend rouge le fruit en cours et le
+  // suivant ne démarre sa rampe que 4 s sim APRÈS sa coupe : on coupe donc le fruit rouge, puis
+  // on accélère le temps sim jusqu'à ce que le suivant entre dans sa rampe, et on gèle la sim DANS
+  // LA MÊME FRAME que la détection. Attendre l'état plutôt qu'un délai fixe rend la capture
+  // reproductible : sans le gel, la seconde que prend page.screenshot avançait de 20 à 40 s sim
+  // et tout finissait rouge.
   const states = await page.evaluate(async () => {
     const rt = window.__tomato!.runtime;
+    const ripe = rt.ctx.store.get().tomatoes.find((t) => t.state === 'ripe');
+    if (ripe) rt.ctx.signals.emit({ type: 'tomato_cut', tomatoId: ripe.id });
     rt.apply({ type: 'set_time_scale', scale: 20 });
     const deadline = performance.now() + 30_000;
     const freeze = (): void => {
@@ -46,7 +50,8 @@ test('spectator scene renders the plant module and is captured', async ({ page }
     const s = rt.ctx.store.get();
     return { states: s.tomatoes.map((t) => t.state), paused: s.paused, timeScale: s.timeScale };
   });
-  // État gelé et déterministe : exactement une tomate rouge (celle de ripen_next), une en transition, le reste vert.
+  // État gelé et déterministe : la tomate de `ripen_next` est rouge (coupée, elle garde sa couleur
+  // en tombant), exactement une autre est en transition, le reste est vert.
   expect(states.paused).toBe(true);
   expect(states.timeScale).toBe(1);
   expect(states.states.filter((s) => s === 'ripe')).toHaveLength(1);
