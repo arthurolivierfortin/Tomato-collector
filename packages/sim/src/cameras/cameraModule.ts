@@ -91,9 +91,12 @@ export const cameraModule: SimModule = {
     lastPoses = poses;
     poseAllCameras(cams, poses);
   },
-  handle(action, ctx, opts) {
+  handle(action, ctx) {
     if (action.type !== 'move_camera') return null;
-    const spec = { compute: (s: WorldState) => moveCamera(s, action), motion: cameraMotion(action.camera) };
-    return opts?.instant === true ? motions.now(ctx, spec) : motions.start(ctx, lanes[action.camera], spec);
+    return motions.now(ctx, { compute: (s: WorldState) => moveCamera(s, action), motion: cameraMotion(action.camera) });
+  },
+  handleAnimated(action, ctx) {
+    if (action.type !== 'move_camera') return null;
+    return motions.start(ctx, lanes[action.camera], { compute: (s: WorldState) => moveCamera(s, action), motion: cameraMotion(action.camera) });
   },
 };

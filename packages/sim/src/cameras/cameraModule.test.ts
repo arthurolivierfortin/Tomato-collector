@@ -27,13 +27,13 @@ async function advance(c: SimContext, dtS: number, steps: number): Promise<void>
   await settle();
 }
 
-const animated = (r: ActionResult | Promise<ActionResult> | null): Promise<ActionResult> => {
-  if (r === null || !(r instanceof Promise)) throw new Error('attendu : une action animée');
+const animated = (r: Promise<ActionResult> | null): Promise<ActionResult> => {
+  if (r === null) throw new Error('attendu : une action animée');
   return r;
 };
 
-const now = (r: ActionResult | Promise<ActionResult> | null): ActionResult => {
-  if (r === null || r instanceof Promise) throw new Error('attendu : un résultat immédiat');
+const now = (r: ActionResult | null): ActionResult => {
+  if (r === null) throw new Error('attendu : un résultat immédiat');
   return r;
 };
 
@@ -42,11 +42,11 @@ describe('cameraModule (without a scene)', () => {
     const c = ctx();
     await cameraModule.init(c);
     expect(getRenderViews()).toBeNull();
-    const r = now(cameraModule.handle!({ type: 'move_camera', camera: 'front', dy: 20 }, c, { instant: true }));
+    const r = now(cameraModule.handle!({ type: 'move_camera', camera: 'front', dy: 20 }, c));
     expect(r.ok).toBe(true);
     expect(c.store.get().cameras.front.positionCm).toEqual([0, -80, 45]);
-    expect(cameraModule.handle!({ type: 'cut' }, c, { instant: true })).toBeNull();
-    const bad = now(cameraModule.handle!({ type: 'move_camera', camera: 'front', dy: 200 }, c, { instant: true }));
+    expect(cameraModule.handle!({ type: 'cut' }, c)).toBeNull();
+    const bad = now(cameraModule.handle!({ type: 'move_camera', camera: 'front', dy: 200 }, c));
     expect(bad.ok).toBe(false);
     expect(c.store.get().cameras.front.positionCm).toEqual([0, -80, 45]);
   });
@@ -61,7 +61,7 @@ describe('cameraModule (mouvements animés)', () => {
   it('slides a camera at CAMERA_SPEED_CM_S and answers at the end of the travel', async () => {
     const c = ctx();
     await cameraModule.init(c);
-    const p = animated(cameraModule.handle!({ type: 'move_camera', camera: 'front', dy: 20 }, c)); // 20 cm à 20 cm/s = 1 s
+    const p = animated(cameraModule.handleAnimated!({ type: 'move_camera', camera: 'front', dy: 20 }, c)); // 20 cm à 20 cm/s = 1 s
     await advance(c, 0.25, 2);
     expect(c.store.get().cameras.front.positionCm[1]).toBeCloseTo(-90, 6);
     await advance(c, 0.25, 3);
@@ -73,7 +73,7 @@ describe('cameraModule (mouvements animés)', () => {
   it('pivots at CAMERA_PIVOT_SPEED_DEG_S and keeps pxPerCm consistent while zooming', async () => {
     const c = ctx();
     await cameraModule.init(c);
-    const p = animated(cameraModule.handle!({ type: 'move_camera', camera: 'top', yaw: 20, zoom: 2 }, c));
+    const p = animated(cameraModule.handleAnimated!({ type: 'move_camera', camera: 'top', yaw: 20, zoom: 2 }, c));
     await advance(c, 0.25, 1);
     const mid = c.store.get().cameras.top;
     expect(mid.yawDeg).toBeGreaterThan(0);
@@ -91,7 +91,7 @@ describe('cameraModule (mouvements animés)', () => {
     const c = ctx();
     await cameraModule.init(c);
     const before = c.store.get().cameras.side;
-    const r = await animated(cameraModule.handle!({ type: 'move_camera', camera: 'side', dx: 200 }, c));
+    const r = await animated(cameraModule.handleAnimated!({ type: 'move_camera', camera: 'side', dx: 200 }, c));
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error('unreachable');
     expect(r.error).toBe('out_of_rail');
@@ -101,9 +101,9 @@ describe('cameraModule (mouvements animés)', () => {
   it('queues two moves of the same camera and moves another one in parallel', async () => {
     const c = ctx();
     await cameraModule.init(c);
-    const first = animated(cameraModule.handle!({ type: 'move_camera', camera: 'front', dy: 20 }, c));
-    const second = animated(cameraModule.handle!({ type: 'move_camera', camera: 'front', dz: 20 }, c));
-    const other = animated(cameraModule.handle!({ type: 'move_camera', camera: 'top', dx: 20 }, c));
+    const first = animated(cameraModule.handleAnimated!({ type: 'move_camera', camera: 'front', dy: 20 }, c));
+    const second = animated(cameraModule.handleAnimated!({ type: 'move_camera', camera: 'front', dz: 20 }, c));
+    const other = animated(cameraModule.handleAnimated!({ type: 'move_camera', camera: 'top', dx: 20 }, c));
     await advance(c, 0.25, 4);
     expect((await first).ok).toBe(true);
     expect((await other).ok).toBe(true); // la caméra top a fini en même temps : file séparée

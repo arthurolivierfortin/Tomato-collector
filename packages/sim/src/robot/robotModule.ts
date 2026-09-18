@@ -1,6 +1,6 @@
-import type { ActionResult, WorldState } from '@tomato/shared';
+import type { SimAction, WorldState } from '@tomato/shared';
 import { createMotionRunner, type Motion, type MotionSpec } from '../core/animate';
-import { createAngleTween, createLane, createTimedTween, createTween } from '../core/animation';
+import { createAngleTween, createLane, createTimedTween, createTween, type Lane } from '../core/animation';
 import type { SimContext, SimModule } from '../core/module';
 import { BASKET_SPEED_CM_S, BLADES_DURATION_S, SCISSORS_ROTATION_SPEED_DEG_S, SCISSORS_SPEED_CM_S } from '../core/speeds';
 import { buildArmMesh } from './buildArmMesh';
@@ -76,8 +76,46 @@ export function createRobotModule(): SimModule {
     basket.pose(s.basket);
   };
 
-  const run = (ctx: SimContext, instant: boolean, lane: ReturnType<typeof createLane>, spec: MotionSpec): ActionResult | Promise<ActionResult> =>
-    instant ? motions.now(ctx, spec) : motions.start(ctx, lane, spec);
+  /** Ce que l'action demande : son réducteur, son interpolation et la file de son outil. */
+  const plan = (action: SimAction, ctx: SimContext): { lane: Lane; spec: MotionSpec } | null => {
+    switch (action.type) {
+      case 'move_scissors':
+        return {
+          lane: scissorsLane,
+          spec: { compute: (s) => moveScissors(s, action.x, action.y, action.z, action.mode, obstacles(ctx)), motion: scissorsMotion },
+        };
+      case 'rotate_scissors':
+        return {
+          lane: scissorsLane,
+          spec: { compute: (s) => rotateScissors(s, action.yaw, action.pitch, action.roll, action.mode), motion: scissorsMotion },
+        };
+      case 'open_scissors':
+        return { lane: scissorsLane, spec: { compute: openScissors, motion: scissorsMotion } };
+      case 'cut': {
+        // La règle de coupe est évaluée sur la pose de départ (seules les lames bougent pendant la
+        // fermeture, donc le verdict est le même) ; le signal n'est émis qu'à lames fermées.
+        let cutTomatoId: number | null = null;
+        return {
+          lane: scissorsLane,
+          spec: {
+            compute: (s) => {
+              const c = closeAndCut(s, ctx.registry.plantSpec?.leaves ?? []);
+              cutTomatoId = c.cutTomatoId;
+              return c.result;
+            },
+            motion: scissorsMotion,
+            onArrival: (c) => {
+              if (cutTomatoId !== null) c.signals.emit({ type: 'tomato_cut', tomatoId: cutTomatoId });
+            },
+          },
+        };
+      }
+      case 'move_basket':
+        return { lane: basketLane, spec: { compute: (s) => moveBasket(s, action.x, action.y, action.mode), motion: basketMotion } };
+      default:
+        return null;
+    }
+  };
 
   return {
     name: 'robot',
@@ -93,45 +131,13 @@ export function createRobotModule(): SimModule {
       motions.update(dtSimS, ctx);
       sync(ctx.store.get());
     },
-    handle(action, ctx, opts) {
-      const instant = opts?.instant === true;
-      switch (action.type) {
-        case 'move_scissors':
-          return run(ctx, instant, scissorsLane, {
-            compute: (s) => moveScissors(s, action.x, action.y, action.z, action.mode, obstacles(ctx)),
-            motion: scissorsMotion,
-          });
-        case 'rotate_scissors':
-          return run(ctx, instant, scissorsLane, {
-            compute: (s) => rotateScissors(s, action.yaw, action.pitch, action.roll, action.mode),
-            motion: scissorsMotion,
-          });
-        case 'open_scissors':
-          return run(ctx, instant, scissorsLane, { compute: openScissors, motion: scissorsMotion });
-        case 'cut': {
-          // La règle de coupe est évaluée sur la pose de départ (seules les lames bougent pendant la
-          // fermeture, donc le verdict est le même) ; le signal n'est émis qu'à lames fermées.
-          let cutTomatoId: number | null = null;
-          return run(ctx, instant, scissorsLane, {
-            compute: (s) => {
-              const c = closeAndCut(s, ctx.registry.plantSpec?.leaves ?? []);
-              cutTomatoId = c.cutTomatoId;
-              return c.result;
-            },
-            motion: scissorsMotion,
-            onArrival: (c) => {
-              if (cutTomatoId !== null) c.signals.emit({ type: 'tomato_cut', tomatoId: cutTomatoId });
-            },
-          });
-        }
-        case 'move_basket':
-          return run(ctx, instant, basketLane, {
-            compute: (s) => moveBasket(s, action.x, action.y, action.mode),
-            motion: basketMotion,
-          });
-        default:
-          return null;
-      }
+    handle(action, ctx) {
+      const p = plan(action, ctx);
+      return p === null ? null : motions.now(ctx, p.spec);
+    },
+    handleAnimated(action, ctx) {
+      const p = plan(action, ctx);
+      return p === null ? null : motions.start(ctx, p.lane, p.spec);
     },
   };
 }

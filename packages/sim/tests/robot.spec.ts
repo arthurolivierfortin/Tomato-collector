@@ -12,14 +12,17 @@ test('robot arm follows the scissors and the basket slides on its rail', async (
   await page.waitForFunction(() => window.__tomato !== undefined);
 
   // Coordonnées choisies hors du feuillage du plant de graine 20260917 (tomates en +X, tige en |x|,|y| < 2).
-  const results = await page.evaluate(() => {
+  // Issue #21 : les actions des outils sont animées et ne répondent qu'à la fin du mouvement ; on attend
+  // donc les promesses. Les ciseaux s'exécutent dans l'ordre (une file par outil), le panier en parallèle.
+  const results = await page.evaluate(async () => {
     const rt = window.__tomato!.runtime;
-    return [
+    const done = await Promise.all([
       rt.apply({ type: 'open_scissors' }),
       rt.apply({ type: 'move_scissors', x: 30, y: -8, z: 58, mode: 'absolute' }),
       rt.apply({ type: 'rotate_scissors', yaw: 20, mode: 'relative' }),
       rt.apply({ type: 'move_basket', x: 19, y: -8, mode: 'absolute' }),
-    ].map((r) => ({ ok: r.ok, message: r.message }));
+    ]);
+    return done.map((r) => ({ ok: r.ok, message: r.message }));
   });
   for (const r of results) expect(r.ok, r.message).toBe(true);
 
