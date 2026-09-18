@@ -34,6 +34,6 @@ Périmètre des fichiers : `packages/server/src/agent/**`, `packages/server/prom
 ## Gates
 - [x] [GATE-1] npm run lint — exit 0
 - [x] [GATE-2] npm run typecheck — exit 0 (shared, server, sim)
-- [x] [GATE-3] npm test — exit 0, 70 fichiers / 369 tests après rebase sur M5 (dont 42 tests M6 sur 9 fichiers `src/agent/*.test.ts`)
+- [x] [GATE-3] npm test — exit 0, 79 fichiers / 412 tests après rebase sur M5 + M7 (dont 42 tests M6 sur 9 fichiers `src/agent/*.test.ts`)
 - [x] [GATE-4] npm run build — exit 0
 - [x] [GATE-5] Vérification manuelle réelle (plan Task 10), après rebase sur M5 : `npm run dev:server` (MCP 7331, WS 7332, réveil 7333) + sim `vite --port 5173` ouverte dans Chromium headless, `/health` `simConnected:true`, `ripen_next` sur la tomate #3, `npm run wake -w @tomato/server -- 3`. Serveur : `robot MCP connected auth none`. Épisode `2026-09-18T01-44-11-275Z-t3` : **harvested**, 10 appels d'outils, 0 erreur d'outil, $0,355, 61 s. Transcript `data/episodes/wake-3-2026-09-18T01-45-00-286Z.log`, journal `data/episodes/2026-09-18T01-44-11-275Z-t3.json` (episode_start, tool_call_*, agent_text, episode_end). Second réveil (tomate #4) : `(resumed session)` avec le même `session_id` c6751ff5. (Les deux fichiers sont hors dépôt : `data/episodes/` est dans .gitignore.)
