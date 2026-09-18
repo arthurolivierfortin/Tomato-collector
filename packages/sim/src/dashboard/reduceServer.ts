@@ -82,4 +82,6 @@ export function reduceServer(state: DashboardState, m: ServerToDashboard, nowMs:
     case 'block_activity':
       return { ...state, blocks: { active: m.to, flow: { from: m.from, to: m.to, label: m.label }, atMs: nowMs } };
   }
+  // Messages que ce réducteur ne traite pas encore (agent_raw, agent_wake de l'issue #23, partie C).
+  return state;
 }

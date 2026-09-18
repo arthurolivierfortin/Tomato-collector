@@ -32,6 +32,12 @@ export type ServerToSim =
 
 export type BlockId = 'simulation' | 'perception' | 'server' | 'agent' | 'dashboard';
 
+/** Nature d'une ligne du flux brut de la session agent (`agent_raw`, issue #23). */
+export type AgentRawKind = 'init' | 'text' | 'tool_use' | 'tool_result' | 'result' | 'stderr';
+
+/** Origine d'un réveil : un détecteur de la perception, ou la main (`npm run wake`). */
+export type WakeDetector = DetectorKind | 'manual';
+
 /** Serveur → dashboard (et vers la page sim, qui est aussi le dashboard). */
 export type ServerToDashboard =
   | { type: 'snapshot'; state: WorldState; phase: Phase; episodeId: string | null }
@@ -43,7 +49,10 @@ export type ServerToDashboard =
   | { type: 'tool_call_result'; episodeId: string; callId: string; ok: boolean; summary: string; durationMs: number }
   | { type: 'views'; episodeId: string | null; result: ViewsResult }
   | { type: 'sim_event'; event: SimEvent }
-  | { type: 'block_activity'; from: BlockId; to: BlockId; label: string };
+  | { type: 'block_activity'; from: BlockId; to: BlockId; label: string }
+  // Ajouts de l'issue #23, en FIN d'union : flux brut de la session agent et réveil explicite.
+  | { type: 'agent_raw'; episodeId: string; kind: AgentRawKind; line: string }
+  | { type: 'agent_wake'; episodeId: string; tomatoId: number; detector: WakeDetector; confidence: number };
 
 export type AnyMessage = SimToServer | ServerToSim | ServerToDashboard;
 
