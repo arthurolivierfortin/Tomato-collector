@@ -10,7 +10,7 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc -p scripts/video/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "build": "npm run build --workspaces --if-present",
@@ -18,13 +18,19 @@
     "dev:server": "npm run dev -w @tomato/server",
     "shot": "npm run shot -w @tomato/sim",
     "demo": "concurrently -n server,sim -c blue,green --kill-others \"npm run start -w @tomato/server\" \"npm run dev -w @tomato/sim\"",
-    "demo:noagent": "concurrently -n server,sim -c blue,green --kill-others \"cross-env TOMATO_AGENT=off npm run start -w @tomato/server\" \"npm run dev -w @tomato/sim\""
+    "demo:noagent": "concurrently -n server,sim -c blue,green --kill-others \"cross-env TOMATO_AGENT=off npm run start -w @tomato/server\" \"npm run dev -w @tomato/sim\"",
+    "video:record": "tsx scripts/video/record.ts",
+    "video:montage": "tsx scripts/video/montage.ts",
+    "video:all": "npm run video:record -- --scenario concepts --mode replay --take concepts && npm run video:record -- --scenario cycle --mode live --take cycle && npm run video:montage"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@types/node": "^26.6.1",
     "concurrently": "^10.0.5",
     "cross-env": "^10.1.0",
     "eslint": "^9.0.0",
+    "playwright": "1.63.0",
+    "tsx": "4.23.13",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.0.0",
     "vitest": "^3.2.0"
