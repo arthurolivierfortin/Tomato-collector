@@ -27,11 +27,11 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
   scene.background = new Color('#0f1214');
 
   const camera = new PerspectiveCamera(40, 1, 1, 2000);
-  camera.position.copy(worldToThree([110, -130, 85]));
-  camera.lookAt(worldToThree([0, 0, 45]));
+  camera.position.copy(worldToThree([150, -170, 95]));
+  camera.lookAt(worldToThree([15, -10, 35]));
 
   const controls = new OrbitControls(camera, canvas);
-  controls.target.copy(worldToThree([0, 0, 45]));
+  controls.target.copy(worldToThree([15, -10, 35]));
   controls.enableDamping = true;
 
   scene.add(new HemisphereLight('#dfe9f3', '#2a2a2a', 0.9));
