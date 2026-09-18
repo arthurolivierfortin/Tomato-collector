@@ -1,7 +1,7 @@
 import type { Hub } from './hub/hub';
 import { silentLogger, type Logger } from './log';
 import type { SimBridge } from './sim/simBridge';
-import type { Session, WakeEvent } from './state/session';
+import { detectionLabel, type Session, type WakeEvent } from './state/session';
 
 /** Contrat du runner d'agent (implémenté par M6 dans `src/agent/`). */
 export interface AgentRunner {
@@ -25,10 +25,58 @@ export type CreateAgentRunner = (deps: AgentRunnerDeps) => AgentRunner;
 /** Module M6 attendu : `packages/server/src/agent/index.ts` exportant `createAgentRunner`. */
 export const AGENT_MODULE: string = './agent/index.js';
 
-/** Runner inerte : TOMATO_AGENT=off ou M6 absent (pilotage à la main depuis Claude Code). */
-export function createNoopRunner(log: Logger = silentLogger): AgentRunner {
+/** De quoi mettre un réveil en scène sans agent : ouvrir l'épisode et l'annoncer au dashboard (issue #29). */
+export interface NoopRunnerDeps {
+  hub: Hub;
+  session: Session;
+}
+
+/**
+ * Runner inerte : TOMATO_AGENT=off ou M6 absent (pilotage à la main depuis Claude Code).
+ * Avec `deps`, un réveil (détection ou `POST /wake/<id>`) joue la mise en scène de la détection —
+ * bloc perception → serveur, épisode ouvert et journalisé, phase `detected`, bloc serveur → agent,
+ * `agent_wake` — et s'arrête là : aucune requête au SDK n'est lancée.
+ */
+export function createNoopRunner(log: Logger = silentLogger, deps?: NoopRunnerDeps): AgentRunner {
+  // `startEpisode` prévient ses abonnés `onWake`, branchés sur ce runner par `index.ts` : une seule mise en scène.
+  let staging = false;
+
+  function stage(d: NoopRunnerDeps, event: WakeEvent): void {
+    const open = d.session.get();
+    if (open.episodeId !== null && open.targetTomatoId !== event.tomatoId) {
+      log(`agent: désactivé, réveil de la tomate ${event.tomatoId} ignoré (épisode en cours pour la tomate ${String(open.targetTomatoId)})`);
+      return;
+    }
+    if (open.episodeId === null) {
+      d.hub.broadcast({ type: 'block_activity', from: 'perception', to: 'server', label: detectionLabel(event.tomatoId, event) });
+      d.session.startEpisode(event.tomatoId, event);
+    }
+    const episodeId = d.session.get().episodeId ?? 'manual';
+    d.hub.broadcast({
+      type: 'agent_wake',
+      episodeId,
+      tomatoId: event.tomatoId,
+      detector: event.detector,
+      confidence: event.confidence,
+      sessionResumed: false,
+    });
+    log(`agent: désactivé, réveil mis en scène (tomate ${event.tomatoId}, épisode ${episodeId}) ; aucune requête au SDK`);
+  }
+
   return {
-    wake: (event) => log(`agent: désactivé, réveil ignoré (tomate ${event.tomatoId})`),
+    wake(event) {
+      if (deps === undefined) {
+        log(`agent: désactivé, réveil ignoré (tomate ${event.tomatoId})`);
+        return;
+      }
+      if (staging) return;
+      staging = true;
+      try {
+        stage(deps, event);
+      } finally {
+        staging = false;
+      }
+    },
     busy: () => false,
     stop: () => undefined,
   };
