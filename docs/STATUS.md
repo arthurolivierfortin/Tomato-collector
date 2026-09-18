@@ -1,6 +1,6 @@
 # STATUS
 
-**Étape courante :** S:4 — Intégration et tournage
+**Étape courante :** S:4 — Intégration et tournage, vidéo v2.1 livrée, en attente des retours du propriétaire ; issue ouverte restante : #35 étiquettes.
 **Repo :** arthurolivierfortin/Tomato-collector
 
 ## Étapes
@@ -10,7 +10,7 @@
 | S:1 Fondations | monorepo, shared, scène minimale, plant v1, README, cycle, issues | terminée 2026-09-17 |
 | S:2 Sim | M1 plant (PR #10), M2 bras (PR #8), M3 vues (PR #9) | terminée 2026-09-17 |
 | S:3 Perception, serveur, agent, dashboard | M4 (PR #13), M5 (PR #17), M6 (PR #16), M7 (PR #15) | terminée 2026-09-18 |
-| S:4 Intégration et tournage | premiers épisodes réels, ajustements, prises vidéo | en cours |
+| S:4 Intégration et tournage | premiers épisodes réels, ajustements, prises vidéo | vidéo v2.1 livrée, en attente des retours du propriétaire |
 
 ## Conditions de passage
 
@@ -39,3 +39,4 @@
 - 2026-09-18 : PR #37 mergée : vidéo en anglais sans tiret long, partie 1 tournée en direct (scénario piloté par les états réels), sous-titres redessinés, terminal filmé depuis la sortie réelle du serveur (`TOMATO_LOG_STREAM`/`TOMATO_LOG_FILE`, page terminal headless), carton honnête, segment pipeline conditionnel (touche x, PR #38). 715 tests.
 - 2026-09-18 : PR #38 mergée (#36 perception honnête) : garde de vérité terrain retirée du chemin de réveil, modèle YOLOv8n fine-tuné sur 400 rendus (jeux train/eval/contrôle disjoints ; contrôle 60 plants jamais vus : ripe précision 0,963 / rappel 1,000, mAP50 0,989 ; HSV 0,743 / 0,816), modèle seul décideur, inférence wasm SIMD multithread dans un Web Worker (COOP/COEP), latence mûre → détectée 2,5–6 s, panneau Perception (p), mode Pipeline de traitement (x), `docs/perception-model.md`. 777 tests.
 - 2026-09-19 : PR #39 mergée (recalage du plan vidéo). Vidéo v2 `data/video/tomato-demo-v2.mp4` (6 min 09 s, anglais) : partie 1 en direct (épisode `2026-09-18T20-14-09-255Z-t1`, 0,38 $) avec panneau Perception, segment pipeline de 76 s, terminal en demi-écran ; partie 2 cycle complet (épisode `2026-09-18T20-16-54-341Z-t1`, récoltée, 12 appels, 61 s, 0,30 $) avec terminal en vignette. Montage v2.1 en cours (tuiles du pipeline agrandies).
+- 2026-09-19 : PR #40 mergée : montage v2.1 `data/video/tomato-demo-v2.1.mp4` (6 min 17 s, anglais, sans tiret long) : détection filmée avant/pendant/après avec panneau Perception agrandi (prise gratuite), tuiles du pipeline agrandies avec Input / Done by / Output, vérification des vues par l'agent avant la coupe, terminal en demi-écran puis vignette, aucune seconde répétée ; test `visibleLabels.test.ts` interdisant les tirets longs dans les libellés visibles. 806 tests. Vidéo livrée au propriétaire ; coût total des épisodes de la session ≈ 3,9 $.
