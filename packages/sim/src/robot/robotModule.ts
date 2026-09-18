@@ -1,5 +1,8 @@
 import type { ActionResult, WorldState } from '@tomato/shared';
+import { createMotionRunner, type Motion, type MotionSpec } from '../core/animate';
+import { createAngleTween, createLane, createTimedTween, createTween } from '../core/animation';
 import type { SimContext, SimModule } from '../core/module';
+import { BASKET_SPEED_CM_S, BLADES_DURATION_S, SCISSORS_ROTATION_SPEED_DEG_S, SCISSORS_SPEED_CM_S } from '../core/speeds';
 import { buildArmMesh } from './buildArmMesh';
 import type { ArmMesh } from './buildArmMesh';
 import { buildBasketMesh } from './buildBasketMesh';
@@ -7,7 +10,7 @@ import type { BasketMesh } from './buildBasketMesh';
 import { solveIk } from './ik';
 import { closeAndCut, moveBasket, moveScissors, openScissors, rotateScissors } from './robotState';
 import type { PlantObstacles } from './robotState';
-import { scissorsPoints } from './scissorsGeometry';
+import { poseFromAngles, scissorsPoints } from './scissorsGeometry';
 
 /** Rayon de la tige principale tant que M1 n'a pas publié de PlantSpec (même valeur que generatePlant). */
 const DEFAULT_STEM_RADIUS_CM = 1.1;
@@ -24,16 +27,44 @@ function obstacles(ctx: SimContext): PlantObstacles {
   };
 }
 
-function commit(ctx: SimContext, r: ActionResult): ActionResult {
-  if (r.ok) ctx.store.set(r.state);
-  return r;
+/** Ciseaux : translation à 15 cm/s, rotations à 45°/s, lames en 0,5 s ; la pose finale est posée telle quelle. */
+function scissorsMotion(from: WorldState, to: WorldState): Motion {
+  const a = from.scissors;
+  const b = to.scissors;
+  const cut = createTween(a.cutPointCm, b.cutPointCm, SCISSORS_SPEED_CM_S);
+  const yaw = createAngleTween(a.yawDeg, b.yawDeg, SCISSORS_ROTATION_SPEED_DEG_S);
+  const pitch = createAngleTween(a.pitchDeg, b.pitchDeg, SCISSORS_ROTATION_SPEED_DEG_S);
+  const roll = createAngleTween(a.rollDeg, b.rollDeg, SCISSORS_ROTATION_SPEED_DEG_S);
+  const opening = createTimedTween(a.openingDeg, b.openingDeg, a.openingDeg === b.openingDeg ? 0 : BLADES_DURATION_S);
+  return {
+    step(dtSimS, current) {
+      const pose = poseFromAngles(cut.step(dtSimS), yaw.step(dtSimS), pitch.step(dtSimS), roll.step(dtSimS), opening.step(dtSimS));
+      const done = cut.done && yaw.done && pitch.done && roll.done && opening.done;
+      return { state: { ...current, scissors: done ? b : pose }, done };
+    },
+  };
 }
 
-/** Fabrique : un module par runtime, avec ses maillages. */
+/** Panier : glissement sur le rail à 15 cm/s. */
+function basketMotion(from: WorldState, to: WorldState): Motion {
+  const center = createTween(from.basket.centerCm, to.basket.centerCm, BASKET_SPEED_CM_S);
+  return {
+    step(dtSimS, current) {
+      const next = center.step(dtSimS);
+      return { state: { ...current, basket: center.done ? to.basket : { ...current.basket, centerCm: next } }, done: center.done };
+    },
+  };
+}
+
+/** Fabrique : un module par runtime, avec ses maillages et ses files de mouvement. */
 export function createRobotModule(): SimModule {
   let arm: ArmMesh | null = null;
   let basket: BasketMesh | null = null;
   let shown: WorldState | null = null;
+  const motions = createMotionRunner();
+  /** Une file par outil : une action animée attend la fin de la précédente sur le même outil. */
+  const scissorsLane = createLane();
+  const basketLane = createLane();
 
   const sync = (s: WorldState): void => {
     if (arm === null || basket === null) return;
@@ -45,6 +76,9 @@ export function createRobotModule(): SimModule {
     basket.pose(s.basket);
   };
 
+  const run = (ctx: SimContext, instant: boolean, lane: ReturnType<typeof createLane>, spec: MotionSpec): ActionResult | Promise<ActionResult> =>
+    instant ? motions.now(ctx, spec) : motions.start(ctx, lane, spec);
+
   return {
     name: 'robot',
     init(ctx) {
@@ -55,26 +89,46 @@ export function createRobotModule(): SimModule {
       ctx.scene.addObject(basket.group);
       sync(ctx.store.get());
     },
-    update(_dtSimS, ctx) {
+    update(dtSimS, ctx) {
+      motions.update(dtSimS, ctx);
       sync(ctx.store.get());
     },
-    handle(action, ctx) {
-      const s = ctx.store.get();
+    handle(action, ctx, opts) {
+      const instant = opts?.instant === true;
       switch (action.type) {
         case 'move_scissors':
-          return commit(ctx, moveScissors(s, action.x, action.y, action.z, action.mode, obstacles(ctx)));
+          return run(ctx, instant, scissorsLane, {
+            compute: (s) => moveScissors(s, action.x, action.y, action.z, action.mode, obstacles(ctx)),
+            motion: scissorsMotion,
+          });
         case 'rotate_scissors':
-          return commit(ctx, rotateScissors(s, action.yaw, action.pitch, action.roll, action.mode));
+          return run(ctx, instant, scissorsLane, {
+            compute: (s) => rotateScissors(s, action.yaw, action.pitch, action.roll, action.mode),
+            motion: scissorsMotion,
+          });
         case 'open_scissors':
-          return commit(ctx, openScissors(s));
+          return run(ctx, instant, scissorsLane, { compute: openScissors, motion: scissorsMotion });
         case 'cut': {
-          const { result, cutTomatoId } = closeAndCut(s, ctx.registry.plantSpec?.leaves ?? []);
-          commit(ctx, result);
-          if (cutTomatoId !== null) ctx.signals.emit({ type: 'tomato_cut', tomatoId: cutTomatoId });
-          return result;
+          // La règle de coupe est évaluée sur la pose de départ (seules les lames bougent pendant la
+          // fermeture, donc le verdict est le même) ; le signal n'est émis qu'à lames fermées.
+          let cutTomatoId: number | null = null;
+          return run(ctx, instant, scissorsLane, {
+            compute: (s) => {
+              const c = closeAndCut(s, ctx.registry.plantSpec?.leaves ?? []);
+              cutTomatoId = c.cutTomatoId;
+              return c.result;
+            },
+            motion: scissorsMotion,
+            onArrival: (c) => {
+              if (cutTomatoId !== null) c.signals.emit({ type: 'tomato_cut', tomatoId: cutTomatoId });
+            },
+          });
         }
         case 'move_basket':
-          return commit(ctx, moveBasket(s, action.x, action.y, action.mode));
+          return run(ctx, instant, basketLane, {
+            compute: (s) => moveBasket(s, action.x, action.y, action.mode),
+            motion: basketMotion,
+          });
         default:
           return null;
       }
