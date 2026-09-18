@@ -151,6 +151,47 @@ describe('perception module (runtime pur)', () => {
     expect(calls).toHaveLength(2);
   });
 
+  it('wakes once per tomato when they ripen one after the other (issue #23)', async () => {
+    const SECOND_POS: Vec3 = [-14, 0, 40];
+    const { ctx, events } = makeCtx([testTomato(1, TOMATO_POS, 'ripe'), testTomato(2, SECOND_POS, 'unripe')]);
+    // Le détecteur voit les DEUX fruits à chaque image : seule la vérité terrain les distingue.
+    const both: RipeDetector = (img) => {
+      const project = frontProjector(createDefaultWorld(1), img.width);
+      return [TOMATO_POS, SECOND_POS].map((pos) => {
+        const [px, py] = project(pos);
+        return { bbox: [px - 20, py - 20, 40, 40], score: 0.8, label: 'ripe' } as Detection;
+      });
+    };
+    const mod = createPerceptionModule({
+      captureFront: () => makeRgba(DETECTOR_INPUT_PX, DETECTOR_INPUT_PX),
+      hsv: both,
+      loadYolo: async () => null,
+      loadEdgeFilter: noEdges,
+      setEdgeFilter: () => undefined,
+      options: { consecutiveFrames: 3 },
+    });
+    mod.init(ctx);
+    await mod.loaded();
+    await run(mod, ctx, 12);
+    expect(events).toEqual([{ type: 'ripe_detected', tomatoId: 1, detector: 'hsv', confidence: 0.8 }]);
+
+    // La première est coupée et la seconde mûrit à son tour : la porte doit repartir sur elle,
+    // sans jamais réarmer sur la première, qui reste visible et mûre dans l'image.
+    ctx.store.update((w) => ({
+      ...w,
+      tomatoes: w.tomatoes.map((t) => (t.id === 2 ? { ...t, state: 'ripe' as const, ripeness: 1 } : t)),
+    }));
+    await run(mod, ctx, 4);
+    expect(events).toHaveLength(1);
+    await run(mod, ctx, 4);
+    expect(events).toEqual([
+      { type: 'ripe_detected', tomatoId: 1, detector: 'hsv', confidence: 0.8 },
+      { type: 'ripe_detected', tomatoId: 2, detector: 'hsv', confidence: 0.8 },
+    ]);
+    await run(mod, ctx, 20);
+    expect(events).toHaveLength(2);
+  });
+
   it('notifies subscribers on every state change', async () => {
     const { deps: d, ctx } = deps({});
     const mod = createPerceptionModule(d);
