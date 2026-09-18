@@ -9,6 +9,7 @@ import {
   DEFAULT_STYLE,
   bandHeight,
   highlightFilter,
+  pipComplex,
   pickFontFile,
   FONT_CANDIDATES,
   CAPTION_MAX_LINES,
@@ -53,32 +54,49 @@ describe('normalizeFilters', () => {
 });
 
 describe('captionFilters', () => {
-  it('pose le bandeau dans le bas de la colonne spectateur, pas sur le bandeau de statuts ni sur le schéma bloc', () => {
-    const [box, text] = captionFilters('work/cap-01.txt', DEFAULT_STYLE);
-    // Bandeau de 76 px dont le bas est à 145 px du bas de l'image : y 859 → 935 en 1080.
-    // ih et non h : dans drawbox, h désigne la hauteur de la boîte, pas celle de l'image.
-    expect(box).toBe('drawbox=x=0:y=ih-221:w=800:h=76:color=black@0.78:t=fill');
+  it('pose le sous-titre dans le bas de la colonne spectateur, ni sur le bandeau de statuts ni sur le schéma bloc', () => {
+    const [text, ...rest] = captionFilters('work/cap-01.txt', DEFAULT_STYLE, 1, 4);
+    // Un seul filtre : le fond du sous-titre est celui de drawtext (box=1), pas un bandeau séparé.
+    expect(rest).toEqual([]);
     expect(text).toContain("textfile='work/cap-01.txt'");
     expect(text).toContain("fontfile='C\\:/Windows/Fonts/segoeui.ttf'");
     // Aligné à gauche avec marge, pas centré sur l'image.
-    expect(text).toContain('x=32');
+    expect(text).toContain('x=24');
     expect(text).not.toContain('(w-text_w)/2');
     expect(text).toContain('text_align=L');
     // h et non ih : ih n'est pas une variable de drawtext, et ffmpeg 9 segfault dessus.
-    expect(text).toContain('y=h-205');
+    expect(text).toContain('y=h-208');
     expect(text).not.toContain('ih');
-    expect(text).toContain('fontsize=34');
+    expect(text).toContain('fontsize=31');
     // Sans expansion=none, drawtext refuse « mûrit 62 % » (« Stray % near … »).
     expect(text).toContain('expansion=none');
   });
 
-  it('hausse le bandeau quand le sous-titre fait deux lignes, sinon le texte déborde dessous', () => {
-    expect(bandHeight(DEFAULT_STYLE, 1)).toBe(76);
-    expect(bandHeight(DEFAULT_STYLE, 2)).toBe(120);
-    const [box, text] = captionFilters('work/cap-01.txt', DEFAULT_STYLE, 2);
-    expect(box).toContain('h=120');
-    expect(box).toContain('y=ih-265');
-    expect(text).toContain('y=h-249');
+  it('dessine un fond discret qui épouse le texte, avec une ombre portée', () => {
+    const [text] = captionFilters('work/cap-01.txt', DEFAULT_STYLE, 1, 4);
+    expect(text).toContain('box=1');
+    expect(text).toContain('boxcolor=black@0.7');
+    expect(text).toContain('boxborderw=18');
+    expect(text).toContain('shadowcolor=black@0.85');
+    expect(text).toContain('shadowx=2');
+  });
+
+  it('fait entrer et sortir le sous-titre en fondu, sans virgule qui casserait la chaîne', () => {
+    const [text = ''] = captionFilters('work/cap-01.txt', DEFAULT_STYLE, 1, 4);
+    const alpha = /alpha='([^']+)'/.exec(text);
+    expect(alpha).not.toBeNull();
+    expect(alpha?.[1]).toContain('lt(t,0.3)');
+    expect(alpha?.[1]).toContain('gt(t,3.70)');
+  });
+
+  it('n’anime rien sur un sous-plan plus court que deux fondus : il serait invisible', () => {
+    expect(captionFilters('work/cap-01.txt', DEFAULT_STYLE, 1, 0.4)[0]).not.toContain('alpha=');
+  });
+
+  it('hausse le sous-titre quand il fait deux lignes, sinon le texte déborde dessous', () => {
+    expect(bandHeight(DEFAULT_STYLE, 1)).toBe(81);
+    expect(bandHeight(DEFAULT_STYLE, 2)).toBe(126);
+    expect(captionFilters('work/cap-01.txt', DEFAULT_STYLE, 2, 4)[0]).toContain('y=h-253');
   });
 
   it('reste au-dessus du schéma bloc et sous le bandeau de statuts en 1080', () => {
@@ -87,6 +105,28 @@ describe('captionFilters', () => {
     expect(top).toBeGreaterThan(84); // bas du bandeau de statuts et de la pastille de perception
     expect(1080 - DEFAULT_STYLE.captionBottom).toBeLessThan(960); // haut du schéma bloc
     expect(DEFAULT_STYLE.captionX + DEFAULT_STYLE.captionWidth).toBeLessThanOrEqual(800); // colonne spectateur
+  });
+});
+
+describe('pipComplex', () => {
+  const format = { width: 1920, height: 1080, fps: 30 };
+  const rect = { x: 1432, y: 620, w: 472, h: 300 };
+
+  it('met la prise au fond, le terminal dans sa zone, et les sous-titres par-dessus', () => {
+    const graph = pipComplex(format, rect, DEFAULT_STYLE, ['drawtext=x=1']);
+    const steps = graph.split(';');
+    expect(steps[0]).toContain('[0:v]scale=1920:1080');
+    expect(steps[0]?.endsWith('[bg]')).toBe(true);
+    expect(steps[1]).toContain('[1:v]scale=464:292');
+    expect(steps[2]).toBe('[bg][pip]overlay=1432:620[framed]');
+    expect(steps[3]).toBe('[framed]drawtext=x=1[out]');
+  });
+
+  it('encadre l’incrustation d’un liseré plein, de la couleur des cadres de mise en évidence', () => {
+    const graph = pipComplex(format, rect, DEFAULT_STYLE, []);
+    expect(graph).toContain('pad=472:300:4:4:color=0x38BDF8');
+    // Sans sous-titre, la chaîne reste valide : `null` est le filtre neutre de ffmpeg.
+    expect(graph).toContain('[framed]null[out]');
   });
 });
 
