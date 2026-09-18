@@ -51,6 +51,32 @@ export function maskAndSummarize(value: unknown): unknown {
   return Object.fromEntries(Object.entries(source).map(([k, v]) => [k, k === 'pngBase64' ? IMAGE_PLACEHOLDER : maskAndSummarize(v)]));
 }
 
+export type JsonTokenKind = 'key' | 'string' | 'number' | 'atom' | 'plain';
+export interface JsonToken {
+  text: string;
+  kind: JsonTokenKind;
+}
+
+const TOKEN_RE = /("(?:[^"\\]|\\.)*")(\s*:)|("(?:[^"\\]|\\.)*")|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|\b(true|false|null)\b/g;
+
+/** Découpe un JSON déjà formaté en jetons colorables (clés, chaînes, nombres, littéraux) sans rien perdre. */
+export function jsonTokens(json: string): JsonToken[] {
+  const tokens: JsonToken[] = [];
+  let last = 0;
+  for (const m of json.matchAll(TOKEN_RE)) {
+    const start = m.index;
+    if (start > last) tokens.push({ text: json.slice(last, start), kind: 'plain' });
+    if (m[1] !== undefined) {
+      tokens.push({ text: m[1], kind: 'key' }, { text: m[2] ?? '', kind: 'plain' });
+    } else if (m[3] !== undefined) tokens.push({ text: m[3], kind: 'string' });
+    else if (m[4] !== undefined) tokens.push({ text: m[4], kind: 'number' });
+    else if (m[5] !== undefined) tokens.push({ text: m[5], kind: 'atom' });
+    last = start + m[0].length;
+  }
+  if (last < json.length) tokens.push({ text: json.slice(last), kind: 'plain' });
+  return tokens;
+}
+
 /** Arguments d'un appel d'outil, en JSON indenté. */
 export function formatToolArgs(args: Record<string, unknown>): string {
   return JSON.stringify(maskAndSummarize(args), null, JSON_INDENT);

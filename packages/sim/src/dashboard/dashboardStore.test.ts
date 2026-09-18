@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createDefaultWorld, type ServerToDashboard, type ViewsResult } from '@tomato/shared';
 import { TRACE_MAX, createDashboardStore, initialDashboardState, reduce } from './dashboardStore';
 import type { DashboardState } from './dashboardTypes';
+import { ZOOM_MAX, ZOOM_MIN } from './lightbox';
+import { isTraceExpanded } from './traceExpand';
 
 const world = createDefaultWorld(1);
 const T0 = 1_700_000_000_000;
@@ -78,8 +80,50 @@ describe('reduce — messages serveur', () => {
     expect(s.views.front?.pngBase64).toBe('iVBOR');
     expect(s.views.top).toBeNull();
     expect(s.lastViewsAt).toBe(T0);
+    expect(s.viewsAt.front).toBe(T0);
+    expect(s.viewsAt.top).toBeNull();
     expect(s.sim.simTimeS).toBe(3.5);
     expect(s.trace[0]?.title).toBe('Vues rendues : front');
+  });
+
+  // Issue #22 : move_camera ne diffuse qu'une caméra ; les deux autres doivent garder leur dernière image.
+  it('a partial views message never clears the cameras it does not carry', () => {
+    const all: ViewsResult = { ...views, images: (['top', 'front', 'side'] as const).map((camera) => ({ camera, pngBase64: `all-${camera}`, widthPx: 800, heightPx: 800 })) };
+    const s = run([
+      { type: 'views', episodeId: 'e1', result: all },
+      { type: 'views', episodeId: 'e1', result: { ...views, images: [{ camera: 'side', pngBase64: 'side-2', widthPx: 800, heightPx: 800 }] } },
+    ]);
+    expect(s.views.top?.pngBase64).toBe('all-top');
+    expect(s.views.front?.pngBase64).toBe('all-front');
+    expect(s.views.side?.pngBase64).toBe('side-2');
+    expect(s.viewsAt.side).toBe(T0 + 100);
+    expect(s.viewsAt.top).toBe(T0);
+  });
+
+  it('features the camera the agent asked for last, and falls back to front', () => {
+    expect(initialDashboardState().featured).toBe('front');
+    const s = run([
+      { type: 'tool_call_start', episodeId: 'e1', callId: 'c1', tool: 'get_views', args: { cameras: ['top'] } },
+    ]);
+    expect(s.featured).toBe('top');
+    const s2 = run([{ type: 'tool_call_start', episodeId: 'e1', callId: 'c2', tool: 'move_camera', args: { camera: 'side', dz: 5 } }], s);
+    expect(s2.featured).toBe('side');
+    // Une demande des trois vues ne privilégie aucune caméra : la mise en avant ne bouge pas.
+    const s3 = run([{ type: 'tool_call_start', episodeId: 'e1', callId: 'c3', tool: 'get_views', args: {} }], s2);
+    expect(s3.featured).toBe('side');
+    // Un message `views` d'une seule caméra (move_camera d'un journal ancien) met aussi en avant.
+    const s4 = run([{ type: 'views', episodeId: 'e1', result: views }], s3);
+    expect(s4.featured).toBe('front');
+  });
+
+  it('keeps the arguments and the structured result of a tool call for the JSON trace', () => {
+    const s = run([
+      { type: 'tool_call_start', episodeId: 'e1', callId: 'c1', tool: 'move_basket', args: { x: 17.3, y: -19.5, mode: 'absolute' } },
+      { type: 'tool_call_result', episodeId: 'e1', callId: 'c1', ok: true, summary: 'panier en X 17,3', durationMs: 90, result: { ok: true, basket: { centerCm: [17.3, -19.5] } } },
+    ]);
+    expect(s.trace).toHaveLength(1);
+    expect(s.trace[0]).toMatchObject({ kind: 'tool', tool: 'move_basket', args: { x: 17.3, y: -19.5, mode: 'absolute' }, ok: true });
+    expect(s.trace[0]?.result).toEqual({ ok: true, basket: { centerCm: [17.3, -19.5] } });
   });
 
   it('sim_event logs an event; tomato_landed carries ok = inBasket', () => {
@@ -109,23 +153,57 @@ describe('reduce — messages serveur', () => {
 });
 
 describe('reduce — messages locaux', () => {
-  it('toggles the interface flags and the enlarged view', () => {
+  it('toggles the interface flags and features a camera on click', () => {
     let s = initialDashboardState();
     s = reduce(s, { type: 'local_toggle_controls' });
     s = reduce(s, { type: 'local_toggle_agent_view' });
     s = reduce(s, { type: 'local_toggle_diagram' });
-    s = reduce(s, { type: 'local_enlarge', camera: 'side' });
-    expect(s.ui).toEqual({ controlsHidden: true, agentView: true, diagramOpen: false, enlarged: 'side' });
+    s = reduce(s, { type: 'local_feature', camera: 'side' });
+    expect(s.ui).toEqual({ controlsHidden: true, agentView: true, diagramOpen: false, lightbox: null, traceOverrides: {} });
+    expect(s.featured).toBe('side');
   });
 
-  it('local_reset clears the episode data but keeps ui, model and connection', () => {
+  it('opens, moves and closes the lightbox with a bounded zoom', () => {
+    let s = reduce(initialDashboardState(), { type: 'local_lightbox_open', camera: 'top' });
+    expect(s.ui.lightbox).toEqual({ camera: 'top', zoom: 1, panXPx: 0, panYPx: 0 });
+    s = reduce(s, { type: 'local_lightbox_view', zoom: 2.5, panXPx: -40, panYPx: 12 });
+    expect(s.ui.lightbox).toEqual({ camera: 'top', zoom: 2.5, panXPx: -40, panYPx: 12 });
+    s = reduce(s, { type: 'local_lightbox_view', zoom: 99, panXPx: 0, panYPx: 0 });
+    expect(s.ui.lightbox?.zoom).toBe(ZOOM_MAX);
+    s = reduce(s, { type: 'local_lightbox_view', zoom: 0.1, panXPx: 5, panYPx: 5 });
+    expect(s.ui.lightbox).toEqual({ camera: 'top', zoom: ZOOM_MIN, panXPx: 0, panYPx: 0 }); // ×1 : recadré
+    // Changer de caméra sans fermer remet le zoom à plat et met la caméra en avant.
+    s = reduce(s, { type: 'local_lightbox_view', zoom: 3, panXPx: 20, panYPx: 0 });
+    s = reduce(s, { type: 'local_lightbox_camera', camera: 'side' });
+    expect(s.ui.lightbox).toEqual({ camera: 'side', zoom: 1, panXPx: 0, panYPx: 0 });
+    expect(s.featured).toBe('side');
+    s = reduce(s, { type: 'local_lightbox_close' });
+    expect(s.ui.lightbox).toBeNull();
+    // Fermer deux fois ne change rien (le store ne notifie pas).
+    expect(reduce(s, { type: 'local_lightbox_close' })).toBe(s);
+  });
+
+  it('folds and unfolds a trace entry around its default state', () => {
+    const s = run([
+      { type: 'tool_call_start', episodeId: 'e', callId: 'c1', tool: 'cut', args: {} },
+      { type: 'tool_call_result', episodeId: 'e', callId: 'c1', ok: true, summary: 'coupe', durationMs: 10 },
+    ]);
+    const id = s.trace[0]!.id;
+    expect(isTraceExpanded(s, id)).toBe(true); // parmi les 3 derniers appels
+    const folded = reduce(s, { type: 'local_toggle_trace', id });
+    expect(isTraceExpanded(folded, id)).toBe(false);
+    expect(isTraceExpanded(reduce(folded, { type: 'local_toggle_trace', id }), id)).toBe(true);
+  });
+
+  it('local_reset clears the episode data but keeps the views, ui, model and connection', () => {
     let s = run([{ type: 'agent_text', episodeId: 'e', text: 'x' }, { type: 'views', episodeId: 'e', result: views }]);
     s = reduce(s, { type: 'local_connection', connection: 'replay' });
     s = reduce(s, { type: 'local_model', model: 'claude-test' });
     s = reduce(s, { type: 'local_toggle_agent_view' });
     s = reduce(s, { type: 'local_reset' });
     expect(s.trace).toEqual([]);
-    expect(s.views.front).toBeNull();
+    // Issue #22 : une remise à zéro ne vide jamais les vignettes, elles seraient grises jusqu'au premier get_views.
+    expect(s.views.front?.pngBase64).toBe('iVBOR');
     expect(s.connection).toBe('replay');
     expect(s.model).toBe('claude-test');
     expect(s.ui.agentView).toBe(true);

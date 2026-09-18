@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultWorld, type ViewsPayload } from '@tomato/shared';
-import { IMAGE_PLACEHOLDER, formatToolArgs, formatToolResult, maskAndSummarize } from './traceJson';
+import { IMAGE_PLACEHOLDER, formatToolArgs, formatToolResult, jsonTokens, maskAndSummarize } from './traceJson';
 
 const world = createDefaultWorld(1);
 const PNG = `iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ${'A'.repeat(400)}=`;
@@ -44,5 +44,14 @@ describe('formatToolResult', () => {
     expect(formatToolResult({ a: 1.23456789 })).toContain('1.23');
     expect(formatToolResult(undefined)).toBe('');
     expect(formatToolResult('ok : moved')).toBe('"ok : moved"');
+  });
+});
+
+describe('jsonTokens', () => {
+  it('splits a JSON text into keys, strings, numbers and literals for a discreet colouring', () => {
+    const tokens = jsonTokens('{\n  "x": 8,\n  "mode": "absolute",\n  "ok": true\n}');
+    expect(tokens.map((t) => t.kind).filter((k) => k !== 'plain')).toEqual(['key', 'number', 'key', 'string', 'key', 'atom']);
+    expect(tokens.map((t) => t.text).join('')).toBe('{\n  "x": 8,\n  "mode": "absolute",\n  "ok": true\n}');
+    expect(tokens.find((t) => t.kind === 'key')?.text).toBe('"x"');
   });
 });

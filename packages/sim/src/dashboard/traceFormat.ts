@@ -45,6 +45,15 @@ export function formatCost(usd: number): string {
   return `${formatNum(usd, 4)} $`;
 }
 
+/** Âge d'une image reçue : « à l'instant », « il y a 3 s », « il y a 2 min » ; « en attente » si jamais reçue. */
+export function formatAge(atMs: number | null, nowMs: number): string {
+  if (atMs === null) return 'en attente';
+  const ms = Math.max(0, nowMs - atMs);
+  if (ms < 1000) return "à l'instant";
+  if (ms < 60_000) return `il y a ${Math.floor(ms / 1000)} s`;
+  return `il y a ${Math.floor(ms / 60_000)} min`;
+}
+
 /** Heure locale HH:MM:SS d'un horodatage en ms. */
 export function formatClock(atMs: number): string {
   const d = new Date(atMs);

@@ -1,5 +1,7 @@
 import type { DashboardState, LocalMessage } from './dashboardTypes';
 import { initialDashboardState } from './initialState';
+import { closedLightbox, normalizeView } from './lightbox';
+import { isTraceExpanded } from './traceExpand';
 
 /** Réducteur pur des messages locaux (connexion, replay, interface). */
 export function reduceLocal(state: DashboardState, m: LocalMessage): DashboardState {
@@ -7,8 +9,16 @@ export function reduceLocal(state: DashboardState, m: LocalMessage): DashboardSt
     case 'local_connection':
       return state.connection === m.connection ? state : { ...state, connection: m.connection };
     case 'local_reset':
-      // Début d'un replay : on repart d'une trace vide en gardant l'interface, le modèle et la connexion.
-      return { ...initialDashboardState(state.model), connection: state.connection, ui: state.ui };
+      // Début d'un replay : trace vide, mais les vignettes gardent leur dernière image (issue #22 :
+      // les remettre à null les rendait grises jusqu'au premier get_views du replay).
+      return {
+        ...initialDashboardState(state.model),
+        connection: state.connection,
+        ui: state.ui,
+        views: state.views,
+        viewsAt: state.viewsAt,
+        featured: state.featured,
+      };
     case 'local_model':
       return state.model === m.model ? state : { ...state, model: m.model };
     case 'local_toggle_controls':
@@ -17,7 +27,22 @@ export function reduceLocal(state: DashboardState, m: LocalMessage): DashboardSt
       return { ...state, ui: { ...state.ui, agentView: !state.ui.agentView } };
     case 'local_toggle_diagram':
       return { ...state, ui: { ...state.ui, diagramOpen: !state.ui.diagramOpen } };
-    case 'local_enlarge':
-      return state.ui.enlarged === m.camera ? state : { ...state, ui: { ...state.ui, enlarged: m.camera } };
+    case 'local_feature':
+      return state.featured === m.camera ? state : { ...state, featured: m.camera };
+    case 'local_lightbox_open':
+      return { ...state, featured: m.camera, ui: { ...state.ui, lightbox: closedLightbox(m.camera) } };
+    case 'local_lightbox_close':
+      return state.ui.lightbox === null ? state : { ...state, ui: { ...state.ui, lightbox: null } };
+    case 'local_lightbox_camera':
+      return state.ui.lightbox === null ? state : { ...state, featured: m.camera, ui: { ...state.ui, lightbox: closedLightbox(m.camera) } };
+    case 'local_lightbox_view': {
+      const open = state.ui.lightbox;
+      if (open === null) return state;
+      const next = normalizeView({ camera: open.camera, zoom: m.zoom, panXPx: m.panXPx, panYPx: m.panYPx });
+      const same = next.zoom === open.zoom && next.panXPx === open.panXPx && next.panYPx === open.panYPx;
+      return same ? state : { ...state, ui: { ...state.ui, lightbox: next } };
+    }
+    case 'local_toggle_trace':
+      return { ...state, ui: { ...state.ui, traceOverrides: { ...state.ui.traceOverrides, [m.id]: !isTraceExpanded(state, m.id) } } };
   }
 }

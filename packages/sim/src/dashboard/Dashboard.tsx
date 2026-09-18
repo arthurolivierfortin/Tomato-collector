@@ -12,8 +12,10 @@ import type { DashboardStore } from './dashboardStore';
 import { detectorLabel, loadPerceptionState, type PerceptionReader } from './perceptionInfo';
 import { ReplayPanel } from './ReplayPanel';
 import { StatusBar } from './StatusBar';
+import { isTraceExpanded } from './traceExpand';
 import { TracePanel } from './TracePanel';
 import { useWorldClock } from './useWorldClock';
+import { ViewLightbox } from './ViewLightbox';
 import { ViewsPanel } from './ViewsPanel';
 
 /** Période de relecture de `perceptionState()` (M4) pour le bandeau. */
@@ -48,8 +50,11 @@ interface Props {
 }
 
 /**
- * Mise en page de la spec (section 6) : bandeau haut, gauche 55 % vue spectateur (30 % en mode « ce que voit l'agent »),
- * droite vues puis trace, bandeau bas repliable. Touches : h contrôles, v mode agent, b schéma, c gizmos de caméra.
+ * Mise en page (spec section 6, revue par l'issue #22) : bandeau haut, puis trois colonnes — vue
+ * spectateur, trace de l'agent, et à droite la colonne des vues (celle demandée en dernier par l'agent
+ * en grand, les deux autres en vignettes dessous). En mode « ce que voit l'agent » (`v`) la trace
+ * s'efface et les trois vues passent en grand. Touches : h contrôles, v mode agent, b schéma,
+ * c gizmos de caméra, z loupe plein écran sur la vue mise en avant.
  */
 export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
   const state = useSyncExternalStore(store.subscribe, store.get);
@@ -60,6 +65,20 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
   const toggleCameraGizmos = useCallback(() => setGizmosVisible((v) => !v), []);
   useEffect(() => setCameraGizmosVisible(gizmosVisible), [gizmosVisible]);
 
+  const feature = useCallback((camera: CameraId) => store.dispatch({ type: 'local_feature', camera }), [store]);
+  const openLightbox = useCallback((camera: CameraId) => store.dispatch({ type: 'local_lightbox_open', camera }), [store]);
+  const closeLightbox = useCallback(() => store.dispatch({ type: 'local_lightbox_close' }), [store]);
+  const lightboxCamera = useCallback((camera: CameraId) => store.dispatch({ type: 'local_lightbox_camera', camera }), [store]);
+  const lightboxView = useCallback(
+    (view: { zoom: number; panXPx: number; panYPx: number }) => store.dispatch({ type: 'local_lightbox_view', zoom: view.zoom, panXPx: view.panXPx, panYPx: view.panYPx }),
+    [store],
+  );
+  const toggleTrace = useCallback((id: number) => store.dispatch({ type: 'local_toggle_trace', id }), [store]);
+  const expanded = useCallback((id: number) => isTraceExpanded(store.get(), id), [store]);
+
+  const { ui } = state;
+  const lightboxOpen = ui.lightbox !== null;
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (isEditable(e.target) || e.altKey || e.ctrlKey || e.metaKey) return;
@@ -67,13 +86,12 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
       else if (e.key === 'v') store.dispatch({ type: 'local_toggle_agent_view' });
       else if (e.key === 'b') store.dispatch({ type: 'local_toggle_diagram' });
       else if (e.key === 'c') toggleCameraGizmos();
+      else if (e.key === 'z') store.dispatch(lightboxOpen ? { type: 'local_lightbox_close' } : { type: 'local_lightbox_open', camera: store.get().featured });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [store, toggleCameraGizmos]);
+  }, [store, toggleCameraGizmos, lightboxOpen]);
 
-  const enlarge = useCallback((camera: CameraId | null) => store.dispatch({ type: 'local_enlarge', camera }), [store]);
-  const { ui } = state;
   const sim = clock ?? state.sim;
 
   return (
@@ -85,7 +103,7 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
           <PerceptionBadge />
         </div>
       </div>
-      <div className={`grid min-h-0 ${ui.agentView ? 'grid-cols-[30fr_70fr]' : 'grid-cols-[55fr_45fr]'}`}>
+      <div className={`grid min-h-0 ${ui.agentView ? 'grid-cols-[22rem_minmax(0,1fr)]' : 'grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)_40rem]'}`}>
         <section aria-label="Vue spectateur" className="relative min-h-0">
           <SpectatorView onReady={onSceneReady} />
           <div className="absolute left-3 top-3 text-[12px] text-ink-dim">Vue spectateur</div>
@@ -100,18 +118,28 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
                 onToggleControls={() => store.dispatch({ type: 'local_toggle_controls' })}
                 onToggleAgentView={() => store.dispatch({ type: 'local_toggle_agent_view' })}
                 onToggleCameraGizmos={toggleCameraGizmos}
+                onOpenLightbox={() => openLightbox(state.featured)}
               >
                 <ReplayPanel slot={slot} />
               </Controls>
             </div>
           )}
         </section>
-        <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border-l border-line">
-          <ViewsPanel views={state.views} lastViewsAt={state.lastViewsAt} enlarged={ui.enlarged} onEnlarge={enlarge} />
-          <TracePanel trace={state.trace} />
-        </aside>
+        {!ui.agentView && <TracePanel trace={state.trace} isExpanded={expanded} onToggle={toggleTrace} />}
+        <ViewsPanel
+          views={state.views}
+          viewsAt={state.viewsAt}
+          featured={state.featured}
+          lastViewsAt={state.lastViewsAt}
+          agentView={ui.agentView}
+          onFeature={feature}
+          onOpen={openLightbox}
+        />
       </div>
       <BlockDiagram flow={state.blocks.flow} atMs={state.blocks.atMs} open={ui.diagramOpen} onToggle={() => store.dispatch({ type: 'local_toggle_diagram' })} />
+      {ui.lightbox && (
+        <ViewLightbox view={ui.lightbox} views={state.views} onClose={closeLightbox} onCamera={lightboxCamera} onView={lightboxView} />
+      )}
     </main>
   );
 }
