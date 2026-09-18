@@ -50,17 +50,17 @@ const TAKES = new Map<string, TakeMarkers>([
   ],
   [
     'detection',
-    markersOf('detection', 'detection.webm', 26_494, {
-      start: 2815, ripening_20: 7439, ripening_60: 13_553, first_ripe_box: 17_216,
-      gate_3: 18_784, gate_5: 19_873, wake: 22_264, end: 25_270,
+    markersOf('detection', 'detection.webm', 27_605, {
+      start: 3952, ripening_20: 8453, ripening_60: 14_535, first_ripe_box: 18_367,
+      gate_3: 19_944, gate_5: 20_934, wake: 23_412, end: 26_414,
     }),
   ],
   [
     'pipeline',
-    markersOf('pipeline', 'pipeline.webm', 58_343, {
-      start: 2735, pipeline_1: 31_806, pipeline_2: 34_308, pipeline_3: 36_825, pipeline_4: 39_334,
-      pipeline_5: 41_837, pipeline_6: 44_344, pipeline_7: 46_846, pipeline_8: 49_352,
-      pipeline_9: 51_854, pipeline_10: 54_361, end: 58_076,
+    markersOf('pipeline', 'pipeline.webm', 58_006, {
+      start: 2844, pipeline_1: 31_455, pipeline_2: 33_960, pipeline_3: 36_465, pipeline_4: 38_981,
+      pipeline_5: 41_484, pipeline_6: 44_001, pipeline_7: 46_508, pipeline_8: 49_016,
+      pipeline_9: 51_518, pipeline_10: 54_020, end: 57_813,
     }),
   ],
 ]);

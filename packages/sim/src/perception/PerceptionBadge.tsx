@@ -15,8 +15,9 @@ export function PerceptionBadge() {
   return (
     <div data-testid="perception-badge" className="mb-3 flex flex-wrap gap-2 font-mono text-xs">
       <span className="rounded bg-neutral-800 px-2 py-1 text-neutral-200">{edgesLabel(state)}</span>
+      {/* Deux-points, pas un tiret cadratin : cette pastille est filmée, et « — » se lit mal à l'image. */}
       <span className="rounded bg-neutral-800 px-2 py-1 text-neutral-200">
-        {activeDetectorName(state)} — {modelStatusLabel(state)}
+        {activeDetectorName(state)} : {modelStatusLabel(state)}
       </span>
       <span className={`rounded px-2 py-1 ${state.lastDetector === 'yolo' ? 'bg-fuchsia-900 text-fuchsia-100' : 'bg-neutral-800 text-neutral-300'}`}>{last}</span>
     </div>

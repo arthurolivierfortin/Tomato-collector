@@ -51,7 +51,7 @@ export const detectionSegments: PlanEntry[] = [
           source: PERCEPTION_ZOOM,
           input: 'the same frame, with tomato 1 now red',
           by: 'model YOLOv8n ONNX 640',
-          output: 'ripe 0.76 on tomato 1. The gate starts counting: 1 frame of 5.',
+          output: 'ripe 0.87 on tomato 1. The gate is already counting: 2 frames of 5.',
         },
       },
     ],
