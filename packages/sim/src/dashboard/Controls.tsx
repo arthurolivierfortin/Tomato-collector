@@ -22,11 +22,12 @@ interface Props {
   children?: ReactNode;
 }
 
-/** Contrôles de tournage : agissent sur la sim locale via `runtime.apply` (aucun passage par le serveur). */
+/** Contrôles de tournage : agissent sur la sim locale via `runtime.applyNow` (immédiat, aucun passage par le serveur). */
 export function Controls({ runtime, paused, timeScale, agentView, cameraGizmosVisible, onToggleControls, onToggleAgentView, onToggleCameraGizmos, onOpenLightbox, children }: Props) {
   const off = runtime === null;
+  // Contrôles de tournage : effet immédiat attendu (pause, vitesse, plant) — jamais l'animation de `apply`.
   const apply = (action: SimAction): void => {
-    runtime?.apply(action);
+    runtime?.applyNow(action);
   };
   return (
     <div data-testid="controls" role="toolbar" aria-label="Contrôles de tournage" className="flex flex-wrap items-center gap-2 rounded-sm border border-line bg-panel-2/90 p-2">
