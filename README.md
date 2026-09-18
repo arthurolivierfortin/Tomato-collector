@@ -82,6 +82,8 @@ appels d'outils, résultat, coût). Coût observé pour un épisode complet men�
 
 ## Dépannage
 
+- `'concurrently' is not recognized` (ou tout binaire manquant) : les dépendances ont changé depuis ton dernier `npm install`. Refaire `npm install` à la racine après chaque `git pull`.
+
 - Port occupé (`EADDRINUSE`) : un serveur ou une sim précédente tourne encore. Identifier et arrêter le
   processus (Windows : `netstat -ano | findstr :7331` puis `taskkill /PID <pid> /F` ; répéter pour 7332,
   7333, 5173).
