@@ -1,5 +1,8 @@
-import { CAMERA_IDS, type CameraId, type ViewsResult, type WorldState } from '@tomato/shared';
+import { CAMERA_IDS, VIEW_SIZE_PX, type CameraId, type ViewsResult, type WorldState } from '@tomato/shared';
+import { createMotionRunner, type Motion } from '../core/animate';
+import { createAngleTween, createLane, createTimedTween, createTween, type Lane } from '../core/animation';
 import type { SimModule } from '../core/module';
+import { CAMERA_PIVOT_SPEED_DEG_S, CAMERA_SPEED_CM_S, CAMERA_ZOOM_DURATION_S } from '../core/speeds';
 import type { SceneHandle } from '../three/createScene';
 import { createAgentCameras, poseAllCameras, renderToImageData, setGizmoVisible, type AgentCameras } from './agentCameras';
 import { moveCamera } from './cameraState';
@@ -13,6 +16,32 @@ let cams: AgentCameras | null = null;
 const camerasByScene = new WeakMap<SceneHandle, AgentCameras>();
 let lastPoses: WorldState['cameras'] | null = null;
 const viewListeners = new Set<(result: ViewsResult) => void>();
+const motions = createMotionRunner();
+/** Une file par caméra : un `move_camera` attend la fin du précédent sur la MÊME caméra. */
+const lanes: Record<CameraId, Lane> = { top: createLane(), front: createLane(), side: createLane() };
+
+/** Caméra : translation à 20 cm/s, pivot à 45°/s, changement de champ en 0,5 s. */
+function cameraMotion(id: CameraId): (from: WorldState, to: WorldState) => Motion {
+  return (from, to) => {
+    const a = from.cameras[id];
+    const b = to.cameras[id];
+    const position = createTween(a.positionCm, b.positionCm, CAMERA_SPEED_CM_S);
+    const yaw = createAngleTween(a.yawDeg, b.yawDeg, CAMERA_PIVOT_SPEED_DEG_S);
+    const tilt = createAngleTween(a.tiltDeg, b.tiltDeg, CAMERA_PIVOT_SPEED_DEG_S);
+    const width = createTimedTween(a.widthCm, b.widthCm, a.widthCm === b.widthCm ? 0 : CAMERA_ZOOM_DURATION_S);
+    return {
+      step(dtSimS, current) {
+        const positionCm = position.step(dtSimS);
+        const yawDeg = yaw.step(dtSimS);
+        const tiltDeg = tilt.step(dtSimS);
+        const widthCm = width.step(dtSimS);
+        const done = position.done && yaw.done && tilt.done && width.done;
+        const pose = done ? b : { positionCm, yawDeg, tiltDeg, widthCm, pxPerCm: VIEW_SIZE_PX / widthCm };
+        return { state: { ...current, cameras: { ...current.cameras, [id]: pose } }, done };
+      },
+    };
+  };
+}
 
 /** La fonction `renderViews` du module, disponible après `init` avec une scène ; null en Node. */
 export function getRenderViews(): RenderViewsFn | null {
@@ -54,17 +83,17 @@ export const cameraModule: SimModule = {
       return result;
     };
   },
-  update(_dtSimS, ctx) {
+  update(dtSimS, ctx) {
+    motions.update(dtSimS, ctx);
     if (!cams) return;
     const poses = ctx.store.get().cameras;
     if (poses === lastPoses) return;
     lastPoses = poses;
     poseAllCameras(cams, poses);
   },
-  handle(action, ctx) {
+  handle(action, ctx, opts) {
     if (action.type !== 'move_camera') return null;
-    const result = moveCamera(ctx.store.get(), action);
-    if (result.ok) ctx.store.set(result.state);
-    return result;
+    const spec = { compute: (s: WorldState) => moveCamera(s, action), motion: cameraMotion(action.camera) };
+    return opts?.instant === true ? motions.now(ctx, spec) : motions.start(ctx, lanes[action.camera], spec);
   },
 };
