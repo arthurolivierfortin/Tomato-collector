@@ -45,9 +45,15 @@ de session et le statut du MCP robot, `tool_use`, `tool_result`, `text`, `result
 événement de réveil explicite (`agent_wake` : tomate, détecteur, confiance). `npm run wake` les écrit
 dans son transcript ; le panneau « Session agent (brut) » du dashboard viendra les afficher.
 
-Réveil manuel, sans attendre la détection (utile aussi avec `TOMATO_AGENT=off`) :
+Réveil manuel, sans attendre la détection (le serveur de réveil écoute sur `TOMATO_WAKE_PORT` dans
+les deux modes) :
 
     npm run wake -w @tomato/server -- <tomatoId>
+
+Avec `TOMATO_AGENT=off`, le réveil est *mis en scène* et rien n'est demandé au SDK : le serveur ouvre
+l'épisode (phase `detected`, journal, blocs perception → serveur → agent, `agent_wake` avec le détecteur
+`manual`) puis rend la main. Le robot reste à piloter à la main, outil par outil, depuis Claude Code —
+utile pour répéter la mise en scène sans dépenser.
 
 Variables d'environnement du serveur (`TOMATO_*`, valeurs par défaut) :
 
@@ -57,7 +63,7 @@ Variables d'environnement du serveur (`TOMATO_*`, valeurs par défaut) :
 | `TOMATO_WS_PORT` | `7332` | port WebSocket (hub sim + dashboards) |
 | `TOMATO_WAKE_PORT` | `7333` | port du serveur de réveil manuel (`npm run wake`) |
 | `TOMATO_MODEL` | `claude-opus-5` | modèle de l'agent |
-| `TOMATO_AGENT` | `on` | `off` désactive le runner (pilotage à la main uniquement) |
+| `TOMATO_AGENT` | `on` | `off` désactive le runner (pilotage à la main) ; le réveil manuel reste servi, mis en scène sans SDK |
 | `TOMATO_EPISODES_DIR` | `data/episodes` | dossier des journaux d'épisodes |
 | `TOMATO_TOOL_PACING_MS` | `1500` | durée minimale d'un appel d'outil, pour qu'il reste lisible à l'écran (`0` = aucun rythme ; `report` n'est jamais retardé) |
 
@@ -135,7 +141,12 @@ appels d'outils, résultat, coût). Coût observé pour un épisode complet men�
 - `simConnected:false` dans `GET /health`, ou vue spectateur vide : la page http://localhost:5173 n'est
   pas ouverte ou n'a pas encore établi le WebSocket ; ouvrir ou recharger la page.
 - L'agent ne se réveille jamais : vérifier `TOMATO_AGENT` (doit être `on` ou absent), que Claude Code CLI
-  est connecté, et la ligne « prêt » du log serveur (elle indique `agent on/off` et le modèle).
+  est connecté, et la ligne « prêt » du log serveur (elle indique `agent on/off`, le modèle et l'URL de
+  réveil manuel). Avec `TOMATO_AGENT=off`, c'est normal : `npm run wake` ouvre bien l'épisode et émet
+  `agent_wake`, mais aucune requête n'est envoyée au SDK — c'est à toi de piloter le robot par les outils MCP.
+- `npm run wake` répond « fetch failed » : le serveur n'est pas démarré, ou son `TOMATO_WAKE_PORT` diffère
+  de celui du réveil. La trace en direct de l'épisode demande en plus le même `TOMATO_WS_PORT` que le serveur
+  (sans elle, le réveil part quand même et la commande le signale).
 - Modèle ONNX absent (`packages/sim/public/models/tomato-ripe.onnx`) : la démo fonctionne sans, la
   perception retombe sur la détection par contours HSV. Pour l'exporter : `python scripts/export-yolo.py`
   (dépendances et licence détaillées en en-tête du script).
