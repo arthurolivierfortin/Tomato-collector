@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { CAMERA_IDS, type CameraId, type ViewImage } from '@tomato/shared';
 import { ZOOM_MIN, clampView, zoomAtCursor, type LightboxView } from './lightbox';
+import { formatNum } from './traceFormat';
 
 /** Un cran de molette multiplie ou divise le zoom par ce facteur. */
 const WHEEL_STEP = 1.2;
@@ -112,7 +113,7 @@ export function ViewLightbox({ view, views, onClose, onCamera, onView }: Props) 
             {id}
           </button>
         ))}
-        <span className="ml-2 font-mono text-[11px] tabular-nums text-ink-dim">×{view.zoom.toFixed(1)}</span>
+        <span className="ml-2 font-mono text-[11px] tabular-nums text-ink-dim">×{formatNum(view.zoom, 1)}</span>
         <span className="ml-2 text-[11px] text-ink-dim">molette : zoom · glisser : déplacer · Échap : fermer</span>
       </div>
     </div>

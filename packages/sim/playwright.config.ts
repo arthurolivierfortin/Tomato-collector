@@ -3,6 +3,9 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './tests',
   timeout: 60_000,
+  // Chaque test ouvre une page WebGL rendue en logiciel (SwiftShader) : au-delà de deux en parallèle,
+  // elles s'affament mutuellement et dépassent le délai de chargement sur une machine déjà chargée.
+  workers: 2,
   use: {
     baseURL: 'http://localhost:5173',
     viewport: { width: 1920, height: 1080 },

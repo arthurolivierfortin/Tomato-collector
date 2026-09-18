@@ -72,7 +72,16 @@ Pour positionner une variable ponctuellement : bash `TOMATO_MODEL=claude-sonnet-
 PowerShell `$env:TOMATO_MODEL = "claude-sonnet-5"; npm run demo`.
 
 Touches du dashboard : `h` masque/affiche les contrôles, `v` bascule la vue « ce que voit l'agent »,
-`b` ouvre/ferme le schéma bloc (flux agent ↔ serveur ↔ sim), `c` affiche/masque les gizmos des trois caméras dans la vue 3D.
+`b` ouvre/ferme le schéma bloc (flux agent ↔ serveur ↔ sim), `c` affiche/masque les gizmos des trois caméras dans la vue 3D,
+`z` ouvre la loupe plein écran sur la vue mise en avant.
+
+Panneau des vues : la vue demandée en dernier par l'agent (`get_views` sur une seule caméra, ou `move_camera`)
+est affichée en grand à droite, les deux autres en vignettes dessous ; un clic sur une vignette la met en avant.
+Chaque vue garde sa dernière image et indique son âge (« il y a 3 s »).
+
+Trace : chaque appel d'outil montre ses arguments et son résultat en JSON (les images y sont remplacées par
+`<image 800×800>`). Les trois derniers appels sont dépliés, le bouton `−` / `+` replie ou déplie les autres ;
+un appel sans résultat reste surligné avec un chrono qui tourne.
 
 Replay : le panneau « Épisodes », à côté des contrôles, liste les journaux de `data/episodes/` ;
 choisir un épisode et une vitesse puis « Rejouer » le repasse via un pont simulé, sans serveur ni agent.
@@ -87,6 +96,8 @@ appels d'outils, résultat, coût). Coût observé pour un épisode complet men�
 - `h` : masque les contrôles pour un cadrage propre.
 - `b` : ouvre le schéma bloc en bandeau bas, utile pour montrer le flux agent ↔ serveur ↔ sim.
 - `c` : affiche les gizmos des trois caméras (masqués par défaut), utile pour expliquer d'où viennent les vues.
+- `z` : loupe plein écran sur la vue mise en avant (ou clic sur la grande vue) — molette pour zoomer de ×1 à ×4
+  autour du curseur, glisser pour se déplacer, boutons `top` / `front` / `side` pour changer de caméra, Échap pour fermer.
 - Vitesse ×1 pendant l'épisode : les vitesses ×2/×5/×10 accélèrent la simulation mais brouillent la prise.
 - Les mouvements sont animés : l'outil ne répond qu'une fois le bras arrivé. Vitesses en temps sim (donc
   multipliées par le facteur ×2/×5/×10) : ciseaux et panier 15 cm/s, rotations 45°/s, caméras 20 cm/s et
