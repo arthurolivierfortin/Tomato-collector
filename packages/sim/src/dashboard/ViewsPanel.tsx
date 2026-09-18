@@ -16,6 +16,8 @@ interface TileProps {
   image: ViewImage | null;
   age: string;
   big: boolean;
+  /** Tuile carrée comme l'image : la hauteur commande, aucune bande noire au-dessus ni en dessous. */
+  square?: boolean;
   onClick: () => void;
 }
 
@@ -23,7 +25,8 @@ interface TileProps {
  * Une vue : l'image telle que reçue par l'agent, son nom, ses axes et l'âge de l'image.
  * Sans image (tout premier chargement de cette caméra seulement), la tuile dit « en attente ».
  */
-function Tile({ camera, image, age, big, onClick }: TileProps) {
+function Tile({ camera, image, age, big, square, onClick }: TileProps) {
+  const shape = big && square !== true ? '' : 'aspect-square self-center';
   return (
     <figure
       data-testid={big ? 'view-featured' : `view-thumb-${camera}`}
@@ -34,7 +37,7 @@ function Tile({ camera, image, age, big, onClick }: TileProps) {
         type="button"
         aria-label={big ? `Ouvrir la vue ${camera} en plein écran` : `Mettre la vue ${camera} en avant`}
         onClick={onClick}
-        className={`relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-sm border border-line bg-black focus-visible:outline focus-visible:outline-stem ${big ? '' : 'aspect-square self-center hover:border-stem'}`}
+        className={`relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-sm border border-line bg-black focus-visible:outline focus-visible:outline-stem ${shape} ${big ? '' : 'hover:border-stem'}`}
       >
         {image ? (
           <img alt={`vue ${camera}`} src={src(image)} className="h-full w-full object-contain" />
@@ -82,7 +85,7 @@ export function ViewsPanel({ views, viewsAt, featured, lastViewsAt, agentView, o
       data-testid="views"
       data-flash={flash ? 'true' : undefined}
       aria-label="Ce que voit l'agent"
-      className={`flex h-full min-h-0 min-w-0 flex-col gap-1.5 overflow-hidden border-l border-line px-3 pb-2 pt-1.5 ${flash ? 'views-flash' : ''}`}
+      className={`flex h-full min-h-0 min-w-0 flex-col gap-1 overflow-hidden border-l border-line px-3 pb-1 pt-1 ${flash ? 'views-flash' : ''}`}
     >
       {/* Le titre reste toujours affiché ; seul le rendu local (page seule) ajoute son bouton. */}
       <div className="flex min-h-5 shrink-0 items-center justify-between gap-2">
@@ -94,10 +97,18 @@ export function ViewsPanel({ views, viewsAt, featured, lastViewsAt, agentView, o
         )}
       </div>
       {agentView ? (
-        <div className="grid min-h-0 flex-1 grid-cols-3 gap-3">
-          {CAMERA_IDS.map((id) => (
-            <Tile key={id} camera={id} image={views[id]} age={formatAge(viewsAt[id], now)} big onClick={() => onOpen(id)} />
-          ))}
+        // Issue #31 : trois carrés côte à côte ne tiennent pas en largeur et laissent 155 px de bandes
+        // noires. La vue demandée en dernier prend donc toute la hauteur, les deux autres s'empilent
+        // à sa droite : tuiles carrées, aucune bande, et la grande passe de 505 à ~800 px.
+        <div className="flex min-h-0 flex-1 items-stretch justify-center gap-3">
+          <div className="flex min-h-0 flex-[2] flex-col">
+            <Tile camera={featured} image={views[featured]} age={formatAge(viewsAt[featured], now)} big square onClick={() => onOpen(featured)} />
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            {others.map((id) => (
+              <Tile key={id} camera={id} image={views[id]} age={formatAge(viewsAt[id], now)} big square onClick={() => onOpen(id)} />
+            ))}
+          </div>
         </div>
       ) : (
         <>

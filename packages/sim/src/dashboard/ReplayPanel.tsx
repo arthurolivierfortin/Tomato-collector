@@ -65,11 +65,11 @@ export function ReplayPanel({ slot }: { slot: BridgeSlot }) {
   }, [slot]);
 
   return (
-    <div role="group" aria-label="Replay" className="flex items-center gap-1.5 border-l border-line pl-2">
+    <div role="group" aria-label="Replay" className="flex min-w-0 flex-wrap items-center gap-1.5 border-l border-line pl-2">
       <button type="button" className={BTN} onClick={() => void refresh()} disabled={status.kind === 'loading'}>
         Épisodes
       </button>
-      <select aria-label="Épisode à rejouer" className={SELECT} value={selected} onChange={(e) => setSelected(e.target.value)} disabled={episodes.length === 0}>
+      <select aria-label="Épisode à rejouer" className={`${SELECT} min-w-0 max-w-[10rem]`} value={selected} onChange={(e) => setSelected(e.target.value)} disabled={episodes.length === 0}>
         {episodes.length === 0 && <option value="">aucun</option>}
         {episodes.map((e) => (
           <option key={e.episodeId} value={e.episodeId}>

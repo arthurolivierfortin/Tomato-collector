@@ -110,7 +110,7 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
           <PerceptionBadge />
         </div>
       </div>
-      <div className={`grid min-h-0 ${ui.agentView ? 'grid-cols-[22rem_minmax(0,1fr)]' : 'grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)_40rem]'}`}>
+      <div className={`grid min-h-0 ${ui.agentView ? 'grid-cols-[28rem_minmax(0,1fr)]' : 'grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)_40rem]'}`}>
         <section aria-label="Vue spectateur" className="relative min-h-0">
           <SpectatorView onReady={onSceneReady} />
           <div className="absolute left-3 top-3 text-[12px] text-ink-dim">Vue spectateur</div>

@@ -132,14 +132,10 @@ export function createBridge(opts: BridgeOptions): Bridge {
     );
   };
 
-  /**
-   * Issue #31 : la phase de session appartient au serveur, mais c'est la sim qui grave le bandeau des
-   * vues (`layerHeader` lit `state.phase`). Le pont la recopie donc dans le store monde dès qu'elle
-   * change — action locale immédiate, aucun champ ajouté au contrat `shared`.
-   */
+  /** Issue #31 : la phase appartient au serveur, mais c'est la sim qui grave le bandeau des vues
+   * (`layerHeader` lit `state.phase`) ; le pont la recopie donc dans le store monde. */
   const applyPhase = (phase: Phase): void => {
-    if (store.get().phase === phase) return;
-    store.update((s) => ({ ...s, phase }));
+    if (store.get().phase !== phase) store.update((s) => ({ ...s, phase }));
   };
 
   const onMessage = (raw: unknown): void => {

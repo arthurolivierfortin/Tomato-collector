@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="tomate">
+  <circle cx="16" cy="19" r="11" fill="#e0402f" />
+  <path d="M16 10V4" stroke="#3f8f3a" stroke-width="2" stroke-linecap="round" fill="none" />
+  <path d="M16 10 7 6l3 6zM16 10l9-4-3 6zM16 10l-4-5h8z" fill="#4ca63f" />
+</svg>
