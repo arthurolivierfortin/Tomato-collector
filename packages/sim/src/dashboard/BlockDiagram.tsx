@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { BlockId } from '@tomato/shared';
 import { BLOCKS, BLOCK_H, BLOCK_W, BLOCK_Y, BUS_Y, DIAGRAM_H, DIAGRAM_W, blockCenterX, blockX, busSegment } from './blockLayout';
-import { queueDueMs, type BlockQueue } from './blockQueue';
+import { advanceTimerMs, type BlockQueue } from './blockQueue';
 
 interface Props {
   queue: BlockQueue;
@@ -22,7 +22,7 @@ interface Props {
 export function BlockDiagram({ queue, episodeActive, open, onToggle, onAdvance }: Props) {
   const lit = queue.current;
   useEffect(() => {
-    const due = queueDueMs(queue, Date.now());
+    const due = advanceTimerMs(queue, Date.now());
     if (due === null) return;
     const timer = setTimeout(onAdvance, due);
     return () => clearTimeout(timer);

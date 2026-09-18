@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { RAW_KIND_COLOR, RAW_KIND_LABEL, formatRawTime, rawBaseMs, type RawLine } from './rawLines';
 
 interface Props {
@@ -13,8 +13,12 @@ interface Props {
  * Panneau « Session agent (brut) » (issue #23) : le flux `agent_raw` tel quel, façon terminal, sous la
  * trace. Le spectateur voit l'agent travailler, pas seulement le résumé. Plus ancien en haut, défilement
  * automatique tant qu'on est en bas, plafonné par le store (`RAW_MAX`). Touche `t` pour replier.
+ *
+ * `memo` : le dashboard se redessine à chaque battement d'horloge et à chaque pour cent de maturité,
+ * alors que ce panneau ne change qu'à l'arrivée d'une ligne. Ses props sont stables (tableau du store,
+ * primitives, rappel mémoïsé), donc la comparaison superficielle suffit.
  */
-export function AgentSessionPanel({ raw, sinceMs, open, onToggle }: Props) {
+export const AgentSessionPanel = memo(function AgentSessionPanel({ raw, sinceMs, open, onToggle }: Props) {
   const list = useRef<HTMLOListElement>(null);
   const last = raw[raw.length - 1]?.id ?? 0;
   useEffect(() => {
@@ -27,7 +31,12 @@ export function AgentSessionPanel({ raw, sinceMs, open, onToggle }: Props) {
 
   const base = rawBaseMs(sinceMs, raw);
   return (
-    <section aria-label="Session agent (brut)" className="flex shrink-0 flex-col border-t border-line bg-black/50">
+    // Ouvert, le panneau prend la hauteur que la trace lui laisse (jamais moins de 20 rem) : à 11 px
+    // sur 13 rem, la revue de tournage ne lisait que huit lignes. Replié, il ne garde que son en-tête.
+    <section
+      aria-label="Session agent (brut)"
+      className={`flex flex-col border-t border-line bg-black/50 ${open ? 'min-h-[20rem] flex-1' : 'shrink-0'}`}
+    >
       <button
         type="button"
         onClick={onToggle}
@@ -40,7 +49,7 @@ export function AgentSessionPanel({ raw, sinceMs, open, onToggle }: Props) {
         <span className="ml-auto font-mono text-[11px]">{raw.length} lignes</span>
       </button>
       {open && (
-        <ol id="agent-session-lines" data-testid="agent-session" ref={list} className="h-[13rem] overflow-y-auto px-3 pb-2 font-mono text-[11px] leading-[1.45]">
+        <ol id="agent-session-lines" data-testid="agent-session" ref={list} className="min-h-0 flex-1 overflow-y-auto px-3 pb-2 font-mono text-[12.5px] leading-[1.5]">
           {raw.length === 0 && <li className="py-2 text-ink-dim">En attente du flux de la session agent.</li>}
           {raw.map((line) => (
             <li key={line.id} data-kind={line.kind} className="flex gap-2">
@@ -53,4 +62,4 @@ export function AgentSessionPanel({ raw, sinceMs, open, onToggle }: Props) {
       )}
     </section>
   );
-}
+});

@@ -121,10 +121,17 @@ test('dashboard replays a scripted episode and is captured at 1920×1080 in both
   await expect(session).toContainText('get_views');
   // Le bloc Agent reste allumé tant que l'épisode court, indépendamment de la flèche en cours.
   await expect(page.locator('[data-block="agent"][data-active="true"]')).toHaveCount(1);
-  // La vue mise en avant n'a rien perdu : le panneau brut vit dans la colonne de la trace.
+  // La vue mise en avant n'a rien perdu : le panneau brut vit dans la colonne de la trace, et le
+  // bandeau de réveil est en surimpression. 613 px, comme avant l'issue #23 (revue de la PR #28).
   if (hasViews) {
     const big = await page.getByTestId('view-featured').locator('img').boundingBox();
-    expect(big!.height).toBeGreaterThanOrEqual(600);
+    console.log(`vue mise en avant : ${big!.width} × ${big!.height} px`);
+    expect(big!.height).toBeGreaterThanOrEqual(613);
+    expect(big!.width).toBeGreaterThanOrEqual(613);
+    // Le panneau brut lit confortablement : au moins 20 rem de haut (revue de tournage).
+    const panel = await session.boundingBox();
+    console.log(`panneau brut : ${panel!.height} px`);
+    expect(panel!.height).toBeGreaterThanOrEqual(320);
   }
   await page.screenshot({ path: resolve(shotsDir, 'dashboard-agent-session.png') });
 

@@ -37,7 +37,7 @@ export function pushRawLine(lines: readonly RawLine[], line: RawLine, max: numbe
   return [...lines, line].slice(-max);
 }
 
-/** Origine des horodatages relatifs : l'instant du réveil, sinon la première ligre reçue. */
+/** Origine des horodatages relatifs : l'instant du réveil, sinon la première ligne reçue. */
 export function rawBaseMs(wakeAtMs: number | null, lines: readonly RawLine[]): number | null {
   return wakeAtMs ?? lines[0]?.atMs ?? null;
 }

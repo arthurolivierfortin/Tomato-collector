@@ -59,3 +59,15 @@ export function queueDueMs(q: BlockQueue, nowMs: number): number | null {
   if (q.current === null) return q.pending.length === 0 ? null : 0;
   return Math.max(0, BLOCK_MIN_MS - (nowMs - q.current.atMs));
 }
+
+/**
+ * Délai à donner au minuteur du composant : l'échéance PLUS UNE milliseconde.
+ *
+ * `advanceQueue` n'avance qu'au-delà de `BLOCK_MIN_MS` (comparaison stricte) ; un minuteur armé pile
+ * sur l'échéance retombe, à 1 ms près, sur un no-op — qui ne change pas l'état, donc ne relance pas
+ * l'effet : la flèche resterait allumée jusqu'au prochain `block_activity`.
+ */
+export function advanceTimerMs(q: BlockQueue, nowMs: number): number | null {
+  const due = queueDueMs(q, nowMs);
+  return due === null ? null : due + 1;
+}
