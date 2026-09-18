@@ -10,7 +10,7 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "typecheck": "npm run typecheck --workspaces --if-present && tsc -p scripts/video/tsconfig.json --noEmit",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc -p scripts/video/tsconfig.json --noEmit && tsc -p scripts/perception/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "build": "npm run build --workspaces --if-present",

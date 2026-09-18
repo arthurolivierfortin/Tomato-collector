@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { createDefaultWorld } from '@tomato/shared';
+import { createDefaultWorld, type CameraId } from '@tomato/shared';
 import { createBridge, type Bridge } from './bridge/bridge';
 import { createFakeBridge } from './bridge/fakeBridge';
 import { emptyViews } from './bridge/viewsFallback';
@@ -12,6 +12,7 @@ import { Dashboard } from './dashboard/Dashboard';
 import { createDashboardStore } from './dashboard/dashboardStore';
 import { buildDemoScript } from './dashboard/demoScript';
 import { fetchServerModel } from './dashboard/episodesApi';
+import { captureSample, type DatasetSample } from './perception/datasetSample';
 import { perceptionModule } from './perception/perceptionModule';
 import { plantModule } from './plant/plantModule';
 import { atRest } from './robot/restPose';
@@ -37,6 +38,8 @@ declare global {
       attachBridge?: (bridge: DashboardBridge) => void;
       stopReplay?: () => void;
       demoScript?: typeof buildDemoScript;
+      /** Jeu d'évaluation du détecteur (issue #36) : image caméra brute + boîtes de vérité terrain. */
+      sample?: (camera: CameraId) => DatasetSample | null;
     };
   }
 }
@@ -57,7 +60,15 @@ export function App() {
       void createRuntime(atRest(createDefaultWorld(SEED)), scene, MODULES).then((rt) => {
         if (disposed) return;
         const renderViews = getRenderViews();
-        const dev = import.meta.env.DEV ? { fakeBridge: createFakeBridge, attachBridge: slot.play, stopReplay: slot.stop, demoScript: buildDemoScript } : {};
+        const dev = import.meta.env.DEV
+          ? {
+              fakeBridge: createFakeBridge,
+              attachBridge: slot.play,
+              stopReplay: slot.stop,
+              demoScript: buildDemoScript,
+              sample: (camera: CameraId) => captureSample(camera, rt.ctx),
+            }
+          : {};
         window.__tomato = { runtime: rt, ...(renderViews ? { renderViews } : {}), ...dev };
         // Le pont lit `renderViews` à chaque demande : présent après le merge de M3, sinon vues sans image.
         live = createBridge({
