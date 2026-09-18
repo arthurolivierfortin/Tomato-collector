@@ -1,4 +1,4 @@
-import type { ActionResult, CameraId, CameraPose, Vec3, ViewImage } from '@tomato/shared';
+import { VIEW_SIZE_PX, type ActionResult, type CameraId, type CameraPose, type Vec3, type ViewImage } from '@tomato/shared';
 
 export interface TextBlock {
   type: 'text';
@@ -25,6 +25,30 @@ export const frVec = (v: Vec3): string => `X ${fr(v[0])}, Y ${fr(v[1])}, Z ${fr(
 /** JSON compact : nombres arrondis à deux décimales. */
 export function compactJson(value: unknown): string {
   return JSON.stringify(value, (_key: string, v: unknown) => (typeof v === 'number' ? Math.round(v * 100) / 100 : v));
+}
+
+/** Remplaçant des images dans le résultat diffusé au dashboard (issue #22 : jamais de base64 dans la trace). */
+export const IMAGE_PLACEHOLDER = `<image ${VIEW_SIZE_PX}×${VIEW_SIZE_PX}>`;
+
+/** Un bloc de texte qui est un objet ou un tableau JSON redevient cette valeur ; sinon il reste du texte. */
+function parsedText(t: string): unknown {
+  const trimmed = t.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return t;
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return t;
+  }
+}
+
+/**
+ * Résultat d'outil diffusé dans `tool_call_result.result` : les blocs texte JSON deviennent des objets,
+ * les images un simple `<image 800×800>` (jamais de base64), un bloc unique n'est pas enveloppé.
+ */
+export function resultPayload(content: ContentBlock[]): unknown {
+  const blocks = content.map((b) => (b.type === 'image' ? IMAGE_PLACEHOLDER : parsedText(b.text)));
+  if (blocks.length === 0) return null;
+  return blocks.length === 1 ? blocks[0] : blocks;
 }
 
 const VIEW_AXES: Record<CameraId, string> = { top: 'X→ Y↑', front: 'X→ Z↑', side: 'Y→ Z↑' };
