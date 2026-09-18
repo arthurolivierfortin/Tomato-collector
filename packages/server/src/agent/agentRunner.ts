@@ -20,6 +20,8 @@ export interface AgentRunnerDeps {
   query?: QueryFn;
   /** Texte d'état joint au message de réveil (résumé de la sim). */
   statusText?: () => string;
+  /** Réveil reconstruit depuis la sim quand M5 a ouvert l'épisode sans passer par la file. */
+  resolveWake?: (tomatoId: number) => WakeEvent | null;
   /** Journal console (texte en continu de l'agent, événements du runner). */
   log?: (line: string) => void;
   /** Fragments de texte en continu (console). */
@@ -93,10 +95,33 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
     currentTomato = null;
   }
 
+  /**
+   * Prochain réveil à jouer. Une seule file décide, celle du runner, mais l'épisode ouvert par M5
+   * a priorité : `endEpisode` de la session rejoue ses détections en attente et ouvre l'épisode
+   * suivant avant que la file du runner ne soit servie. Sans cette priorité, un réveil manuel plus
+   * ancien tournerait sous l'`episodeId` ouvert par M5 pour une autre tomate.
+   */
+  function nextEvent(): WakeEvent | undefined {
+    const open = deps.session.get();
+    if (open.episodeId !== null && open.targetTomatoId !== null) {
+      const i = queue.findIndex((q) => q.tomatoId === open.targetTomatoId);
+      if (i >= 0) {
+        log(`episode ${open.episodeId} already open for tomato #${open.targetTomatoId}: played before the rest of the queue`);
+        return queue.splice(i, 1)[0];
+      }
+      const resolved = deps.resolveWake?.(open.targetTomatoId) ?? null;
+      if (resolved !== null) {
+        log(`episode ${open.episodeId} opened by the session for tomato #${open.targetTomatoId} without a wake: played from the sim state`);
+        return resolved;
+      }
+    }
+    return queue.shift();
+  }
+
   async function drain(): Promise<void> {
     running = true;
     try {
-      for (let next = queue.shift(); next !== undefined && !stopped; next = queue.shift()) {
+      for (let next = nextEvent(); next !== undefined && !stopped; next = nextEvent()) {
         await runEpisode(next);
       }
     } finally {

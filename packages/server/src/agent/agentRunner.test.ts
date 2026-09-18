@@ -24,20 +24,25 @@ function fakeQuery(scripts: Array<AgentMessage[] | Error>, opts: { gate?: () => 
   return { query, calls };
 }
 
-function fakeSession(onStart?: (tomatoId: number) => void) {
+/** Faux `Session` de M5 : `startEpisode` pose la cible et prévient `onWake`, `endEpisode` la libère. */
+function fakeSession(opts: { onStart?: (tomatoId: number) => void; onEnd?: () => void } = {}) {
   let episodeId: string | null = null;
+  let targetTomatoId: number | null = null;
   let n = 0;
   const ended: Array<{ outcome: string; note: string }> = [];
   const listeners: Array<(p: Phase) => void> = [];
   const session: AgentSession = {
-    get: () => ({ phase: episodeId === null ? 'idle' : 'detected', episodeId, targetTomatoId: null }),
+    get: () => ({ phase: episodeId === null ? 'idle' : 'detected', episodeId, targetTomatoId }),
     startEpisode: (tomatoId) => {
       episodeId = `ep-${++n}`;
-      onStart?.(tomatoId);
+      targetTomatoId = tomatoId;
+      opts.onStart?.(tomatoId);
     },
     endEpisode: (outcome, note) => {
       ended.push({ outcome, note });
       episodeId = null;
+      targetTomatoId = null;
+      opts.onEnd?.();
     },
     onPhase: (fn) => listeners.push(fn),
   };
@@ -129,9 +134,15 @@ describe('createAgentRunner', () => {
 
   it('ignores the wake re-emitted synchronously by startEpisode for the same tomato', async () => {
     const out: ServerToDashboard[] = [];
-    const { query, calls } = fakeQuery([[init('s1'), report('harvested'), result('s1')]]);
+    const { query: base, calls } = fakeQuery([[init('s1'), report('harvested'), result('s1')]]);
+    // Garde-fou : si la régression revient, le runner reboucle. On l'arrête au 2e épisode
+    // pour que le test échoue par assertion (`2 to be 1`) plutôt qu'en bloquant le worker.
+    const query: QueryFn = (prompt, options) => {
+      if (calls.length >= 1) runner.stop();
+      return base(prompt, options);
+    };
     // M5 : `session.startEpisode` prévient ses abonnés `onWake`, qui rappellent `runner.wake`.
-    const s = fakeSession((tomatoId) => runner.wake({ tomatoId, positionCm: [1, 2, 3], ripeness: 1 }));
+    const s = fakeSession({ onStart: (tomatoId) => runner.wake({ tomatoId, positionCm: [1, 2, 3], ripeness: 1 }) });
     const runner = createAgentRunner({
       hub: { broadcast: (m) => out.push(m) },
       session: s.session,
@@ -144,6 +155,49 @@ describe('createAgentRunner', () => {
     await runner.whenIdle();
     expect(calls.length).toBe(1);
     expect(out.filter((m) => m.type === 'episode_start').length).toBe(1);
+  });
+
+  it('plays the episode M5 already opened rather than an older queued wake', async () => {
+    const out: ServerToDashboard[] = [];
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    const { query, calls } = fakeQuery(
+      [
+        [init('s1'), report('harvested'), result('s1')],
+        [init('s1'), report('harvested'), result('s1')],
+        [init('s1'), report('harvested'), result('s1')],
+      ],
+      { gate: () => gate },
+    );
+    // M5 : `endEpisode` rejoue une détection en attente (#4) via `startEpisode`, donc via `onWake`.
+    const pending = [4];
+    const s = fakeSession({
+      onStart: (tomatoId) => runner.wake(wake(tomatoId)),
+      onEnd: () => {
+        const next = pending.shift();
+        if (next !== undefined) s.session.startEpisode(next);
+      },
+    });
+    const runner = createAgentRunner({
+      hub: { broadcast: (m) => out.push(m) },
+      session: s.session,
+      mcpUrl: 'http://localhost:7331/mcp',
+      model: 'claude-opus-5',
+      systemPrompt: 'SYS',
+      query,
+    });
+    runner.wake(wake(1));
+    runner.wake(wake(9)); // réveil manuel POST /wake/9 pendant l'épisode de #1
+    release();
+    await runner.whenIdle();
+    expect(calls.length).toBe(3);
+    const starts = out.filter((m) => m.type === 'episode_start');
+    // #4 passe devant #9 : son épisode (ep-2) est déjà ouvert par M5.
+    expect(starts.map((m) => (m.type === 'episode_start' ? [m.episodeId, m.tomatoId] : []))).toEqual([
+      ['ep-1', 1],
+      ['ep-2', 4],
+      ['ep-3', 9],
+    ]);
   });
 
   it('ends the episode as aborted when the agent stops without report', async () => {

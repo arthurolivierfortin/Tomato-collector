@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 import { parseMessage } from '@tomato/shared';
 import type { ServerToDashboard } from '@tomato/shared';
+import { DEFAULT_WS_PORT } from '../config';
 import { DEFAULT_WAKE_PORT } from './wakeServer';
 
 /** `data/episodes/` à la racine du dépôt (ce fichier est dans packages/server/src/agent). */
@@ -42,7 +43,7 @@ export async function runWakeCli(argv: string[], env: NodeJS.ProcessEnv = proces
     console.error('usage: npm run wake -w @tomato/server -- <tomatoId>');
     return 2;
   }
-  const wsUrl = `ws://localhost:${env.TOMATO_WS_PORT ?? '7332'}`;
+  const wsUrl = `ws://localhost:${env.TOMATO_WS_PORT ?? String(DEFAULT_WS_PORT)}`;
   const wakeUrl = `http://127.0.0.1:${env.TOMATO_WAKE_PORT ?? String(DEFAULT_WAKE_PORT)}/wake/${tomatoId}`;
   mkdirSync(EPISODES_DIR, { recursive: true });
   const file = transcriptPath(tomatoId);

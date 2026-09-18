@@ -1,5 +1,6 @@
 import type { Hub } from './hub/hub';
 import { silentLogger, type Logger } from './log';
+import type { SimBridge } from './sim/simBridge';
 import type { Session, WakeEvent } from './state/session';
 
 /** Contrat du runner d'agent (implémenté par M6 dans `src/agent/`). */
@@ -15,6 +16,8 @@ export interface AgentRunnerDeps {
   mcpUrl: string;
   model: string;
   systemPrompt: string;
+  /** Pont sim : résumé d'état joint au réveil et résolution des identifiants de `POST /wake/<id>` (M6). */
+  sim?: SimBridge;
 }
 
 export type CreateAgentRunner = (deps: AgentRunnerDeps) => AgentRunner;
