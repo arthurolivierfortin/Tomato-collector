@@ -20,7 +20,11 @@ export function useDashboardKeys(store: DashboardStore, toggleCameraGizmos: () =
       else if (e.key === 't') store.dispatch({ type: 'local_toggle_session' });
       else if (e.key === 'p') store.dispatch({ type: 'local_toggle_perception' });
       else if (e.key === 'c') toggleCameraGizmos();
-      else if (e.key === 'x') store.dispatch(pipelineOpen ? { type: 'local_pipeline_close' } : { type: 'local_pipeline_open', camera: store.get().featured });
+      else if (e.key === 'x') {
+        // La loupe est au même niveau que le pipeline : on la ferme avant, sinon elle reste dessous.
+        if (lightboxOpen) store.dispatch({ type: 'local_lightbox_close' });
+        store.dispatch(pipelineOpen ? { type: 'local_pipeline_close' } : { type: 'local_pipeline_open', camera: store.get().featured });
+      }
       else if (e.key === 'z') store.dispatch(lightboxOpen ? { type: 'local_lightbox_close' } : { type: 'local_lightbox_open', camera: store.get().featured });
     };
     window.addEventListener('keydown', onKey);

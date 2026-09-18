@@ -2,7 +2,7 @@ import { VIEW_SIZE_PX, type CameraId, type CameraPose, type Tomato } from '@toma
 import { renderCameraImage } from '../cameras/cameraModule';
 import { projectToPixel, pxPerCmOf } from '../cameras/ortho';
 import type { SimContext } from '../core/module';
-import type { DetectionLabel } from './types';
+import type { DetectionLabel } from '../perception/types';
 
 /** Fraction visible minimale pour étiqueter un fruit : en dessous, il est trop occulté pour être appris. */
 export const MIN_LABEL_VISIBILITY = 0.25;

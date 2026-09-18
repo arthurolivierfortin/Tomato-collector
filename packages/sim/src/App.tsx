@@ -12,7 +12,7 @@ import { Dashboard } from './dashboard/Dashboard';
 import { createDashboardStore } from './dashboard/dashboardStore';
 import { buildDemoScript } from './dashboard/demoScript';
 import { fetchServerModel } from './dashboard/episodesApi';
-import { captureSample, type DatasetSample } from './perception/datasetSample';
+import { captureSample, type DatasetSample } from './dev/datasetSample';
 import { perceptionModule } from './perception/perceptionModule';
 import { plantModule } from './plant/plantModule';
 import { atRest } from './robot/restPose';

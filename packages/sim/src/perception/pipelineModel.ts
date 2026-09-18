@@ -1,17 +1,19 @@
 import type { CameraId, DetectorKind } from '@tomato/shared';
 
 /** Provenance d'une étape : d'où sort vraiment ce que la tuile montre (issue #36). */
-export type StageSource = 'camera' | 'opencv' | 'model' | 'logic' | 'calibration' | 'robot' | 'sim' | 'physics' | 'output';
+export type StageSource = 'camera' | 'opencv' | 'model' | 'threshold' | 'logic' | 'calibration' | 'robot' | 'sim' | 'geometry' | 'output';
 
 export const SOURCE_LABEL: Record<StageSource, string> = {
   camera: 'caméra',
   opencv: 'OpenCV',
   model: 'modèle',
+  /** Le repli par seuillage n'est pas un modèle : il ne doit jamais porter la pastille « modèle ». */
+  threshold: 'seuillage',
   logic: 'logique',
   calibration: 'calibration caméra',
   robot: 'état robot',
   sim: 'simulation',
-  physics: 'physique',
+  geometry: 'géométrie (verticale)',
   output: 'sortie',
 };
 
@@ -36,6 +38,12 @@ export interface PipelineInfo {
   canny: boolean;
   inputPx: number;
   viewPx: number;
+  /**
+   * Cible de l'épisode (`set_target`). Sans épisode en cours, les couches « tige » et « chute » n'ont
+   * rien à dessiner : le mode pipeline prend alors comme cible d'affichage la tomate que le détecteur
+   * vient de voir mûre, et le dit. Le chemin réel, lui, ne prend jamais de cible provisoire.
+   */
+  target: 'episode' | 'provisoire' | null;
 }
 
 export interface StageSpec {
@@ -56,8 +64,14 @@ const ms = (v: number | null): string => (v === null ? 'non exécuté' : `${v.to
  * exécutées pour produire la vue d'une caméra, chacune avec sa provenance honnête. Fonction pure.
  */
 export function pipelineStages(info: PipelineInfo): StageSpec[] {
-  const { camera, detector, detections, matched, canny, inputPx, viewPx } = info;
+  const { camera, detector, detections, matched, canny, inputPx, viewPx, target } = info;
   const px = `${viewPx}×${viewPx}`;
+  const targetNote =
+    target === 'episode'
+      ? ''
+      : target === 'provisoire'
+        ? ' Aucun épisode en cours : la cible affichée est la tomate que le détecteur vient de voir mûre.'
+        : ' Aucune cible : elle est posée par `set_target` à l’ouverture de l’épisode, rien n’est tracé ici.';
   return [
     {
       key: 'raw',
@@ -88,7 +102,7 @@ export function pipelineStages(info: PipelineInfo): StageSpec[] {
     {
       key: 'detect',
       title: '4. Détection de maturité',
-      source: 'model',
+      source: detector === 'yolo' ? 'model' : 'threshold',
       sourceLabel: detector === 'yolo' ? `modèle ${detectorName(detector, inputPx)}` : detectorName(detector, inputPx),
       io: `RGBA ${inputPx}×${inputPx} → ${detections} boîte(s) : classe + confiance`,
       caption: `Le détecteur actif tourne sur l’image brute réduite. Inférence : ${ms(info.inferenceMs)}. C’est la seule étape qui décide « mûre ».`,
@@ -99,7 +113,8 @@ export function pipelineStages(info: PipelineInfo): StageSpec[] {
       source: 'logic',
       sourceLabel: SOURCE_LABEL.logic,
       io: `${detections} boîte(s) + centres projetés → ${matched} identifiant(s)`,
-      caption: 'Chaque boîte reçoit l’identifiant de la tomate dont le centre 3D se projette le plus près (rayon 0,75 × côté de la boîte). Aucune maturité de la simulation n’intervient.',
+      caption:
+        'Chaque boîte `ripe` reçoit l’identifiant de la tomate dont le centre 3D se projette le plus près (rayon 0,75 × côté de la boîte) ; les boîtes `unripe` ne sont pas associées, elles n’ont pas d’épisode à ouvrir. Aucune maturité de la simulation n’intervient.',
     },
     {
       key: 'grid',
@@ -123,15 +138,15 @@ export function pipelineStages(info: PipelineInfo): StageSpec[] {
       source: 'sim',
       sourceLabel: SOURCE_LABEL.sim,
       io: 'positions, identifiants et tiges de la sim → repères',
-      caption: 'Ces cercles, ces identifiants et cette ligne de tige viennent de la simulation, pas de l’image : c’est l’aide assumée donnée à l’agent.',
+      caption: `Ces cercles, ces identifiants et cette ligne de tige viennent de la simulation, pas de l’image : c’est l’aide assumée donnée à l’agent.${targetNote}`,
     },
     {
       key: 'fall',
       title: '9. Ligne de chute prévue',
-      source: 'physics',
-      sourceLabel: SOURCE_LABEL.physics,
+      source: 'geometry',
+      sourceLabel: SOURCE_LABEL.geometry,
       io: 'cible + panier → verticale de chute',
-      caption: 'La trajectoire verticale attendue après la coupe, tracée jusqu’au plan du panier.',
+      caption: `La trajectoire verticale attendue après la coupe, tracée jusqu’au plan du panier.${targetNote}`,
     },
     {
       key: 'final',

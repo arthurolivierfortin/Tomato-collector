@@ -47,6 +47,15 @@ export function detectionLabel(d: Detection): string {
   return `${d.label} ${formatNum(d.score, 2)}`;
 }
 
+/**
+ * « 1 ripe · 7 unripe » : dans un cadre de 208 px, étiqueter chaque boîte rendait le panneau illisible.
+ * Seules les `ripe` gardent leur étiquette — ce sont elles qui décident — et ce compte résume le reste.
+ */
+export function boxesSummary(detections: readonly Detection[]): string {
+  const ripe = detections.filter((d) => d.label === 'ripe').length;
+  return `${ripe} ripe · ${detections.length - ripe} unripe`;
+}
+
 /** Boîte en pourcentage de l'image du détecteur : indépendante de la taille d'affichage du panneau. */
 export function boxStyle(d: Detection, widthPx: number, heightPx: number): BoxStyle {
   const pct = (v: number, total: number): string => `${((v / total) * 100).toFixed(3)}%`;

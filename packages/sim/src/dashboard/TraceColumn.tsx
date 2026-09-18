@@ -24,7 +24,7 @@ export function TraceColumn({ state, perception, isExpanded, onToggleTrace, onTo
     <div className="flex min-h-0 flex-col border-l border-line">
       <TracePanel trace={state.trace} isExpanded={isExpanded} onToggle={onToggleTrace} />
       <AgentSessionPanel raw={state.raw} sinceMs={state.rawSinceMs} open={state.ui.sessionOpen} onToggle={onToggleSession} />
-      <PerceptionPanel state={perception} open={state.ui.perceptionOpen} onToggle={onTogglePerception} onOpenPipeline={onOpenPipeline} />
+      <PerceptionPanel state={perception} open={state.ui.perceptionOpen} live={state.connection !== 'replay'} onToggle={onTogglePerception} onOpenPipeline={onOpenPipeline} />
     </div>
   );
 }

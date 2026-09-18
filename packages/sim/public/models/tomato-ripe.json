@@ -7,9 +7,8 @@
   "opset": 12,
   "source": "https://huggingface.co/spaces/iamsuman/ripe-and-unripe-tomatoes-detection/resolve/main/best.pt",
   "finetuned": {
-    "train": "data/perception/train (400 rendus de la sim, graine 2607)",
+    "train": "data/perception/train",
     "epochs": 40,
-    "imgsz": 640,
-    "base": "https://huggingface.co/spaces/iamsuman/ripe-and-unripe-tomatoes-detection/resolve/main/best.pt"
+    "imgsz": 640
   }
 }

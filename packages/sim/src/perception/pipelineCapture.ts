@@ -92,7 +92,13 @@ export async function capturePipeline(camera: CameraId, deps: CaptureDeps): Prom
   const matches = matchDetections(trusted, world.tomatoes, project);
   const projected = new Map<number, Vec2>(world.tomatoes.map((t) => [t.id, project(t.positionCm)]));
 
-  const target = payload.tomatoes.find((t) => t.id === payload.targetTomatoId);
+  // Sans épisode ouvert, `targetTomatoId` est nul et les couches « tige » et « chute » seraient vides :
+  // le mode pipeline prend alors pour cible d'affichage la tomate que le détecteur vient d'associer,
+  // et l'annonce dans les légendes. Le chemin réel n'utilise jamais cette cible provisoire.
+  const episodeTarget = payload.tomatoes.find((t) => t.id === payload.targetTomatoId);
+  const provisional = episodeTarget ?? payload.tomatoes.find((t) => t.id === matches[0]?.tomatoId);
+  const target = provisional;
+  const targetKind = episodeTarget !== undefined ? 'episode' : provisional !== undefined ? 'provisoire' : null;
   const grid = clampCommands([...gridCommands(camera, pose, spacing), ...headerCommands(camera, pose, payload, spacing)], VIEW_SIZE_PX);
   const tools = clampCommands([...scissorsCommands(camera, pose, payload.scissors), ...basketCommands(camera, pose, payload.basket)], VIEW_SIZE_PX);
   const marks = clampCommands([...markerCommands(camera, pose, payload.tomatoes, payload.targetTomatoId), ...stemCommands(camera, pose, target)], VIEW_SIZE_PX);
@@ -120,6 +126,7 @@ export async function capturePipeline(camera: CameraId, deps: CaptureDeps): Prom
     canny: cv !== null,
     inputPx: DETECTOR_INPUT_PX,
     viewPx: VIEW_SIZE_PX,
+    target: targetKind,
   });
   return { camera, atMs: Date.now(), tiles: specs.map((s) => ({ ...s, pngBase64: png[s.key] })) };
 }

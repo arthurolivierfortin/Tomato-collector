@@ -1,10 +1,15 @@
 import { memo, useEffect, useRef } from 'react';
 import type { PerceptionState } from '../perception/types';
-import { activeDetectorName, boxStyle, detectionLabel, edgesLabel, gateLabel, inferenceLabel, modelStatusLabel } from './perceptionView';
+import { activeDetectorName, boxStyle, boxesSummary, detectionLabel, edgesLabel, gateLabel, inferenceLabel, modelStatusLabel } from './perceptionView';
 
 interface Props {
   state: PerceptionState;
   open: boolean;
+  /**
+   * `false` en replay : le panneau montre la perception de la sim locale de la page, pas celle de
+   * l'épisode rejoué — le titre le dit pour qu'on ne lise pas ces boîtes comme celles de l'épisode.
+   */
+  live: boolean;
   onToggle: () => void;
   /** Ouvre le mode « Pipeline de traitement » plein écran sur la vue front (touche `x`). */
   onOpenPipeline: () => void;
@@ -27,7 +32,7 @@ function Line({ label, value, testId }: { label: string; value: string; testId?:
  * détecteur réellement actif, le temps de la dernière inférence et l'avancement de la porte de réveil.
  * Le spectateur voit ainsi ce sur quoi la décision « mûre » est prise, et rien d'autre.
  */
-export const PerceptionPanel = memo(function PerceptionPanel({ state, open, onToggle, onOpenPipeline }: Props) {
+export const PerceptionPanel = memo(function PerceptionPanel({ state, open, live, onToggle, onOpenPipeline }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const image = state.lastImage;
   // `open` est une dépendance : le canevas n'existe pas tant que le panneau est replié, et il faut
@@ -53,8 +58,8 @@ export const PerceptionPanel = memo(function PerceptionPanel({ state, open, onTo
         className="flex h-7 shrink-0 items-center gap-2 px-3 text-[12px] text-ink-dim hover:text-ink"
       >
         <span aria-hidden="true">{open ? '▾' : '▸'}</span>
-        Perception (p)
-        <span className="ml-auto font-mono text-[11px] text-ink" data-testid="perception-detector">
+        <span className="truncate">Perception (p){live ? '' : ' — sim locale, pas l’épisode rejoué'}</span>
+        <span className="ml-auto shrink-0 font-mono text-[11px] text-ink" data-testid="perception-detector">
           {activeDetectorName(state)}
         </span>
       </button>
@@ -64,25 +69,29 @@ export const PerceptionPanel = memo(function PerceptionPanel({ state, open, onTo
           <div className="relative mx-auto aspect-square w-full max-w-[13rem] overflow-hidden rounded-sm border border-line bg-black">
             <canvas ref={canvas} data-testid="perception-frame" className="block aspect-square w-full" />
             {image === null && <p className="absolute inset-0 grid place-items-center text-ink-dim">En attente de la première frame du détecteur.</p>}
+            {/* Seules les boîtes `ripe` sont étiquetées : à 208 px de large, dix étiquettes se recouvraient. */}
             {state.lastDetections.map((d, i) => (
               <div
                 key={`${d.label}-${i}`}
                 data-testid="perception-box"
+                data-label={d.label}
                 className={`pointer-events-none absolute border-2 ${d.label === 'ripe' ? 'border-ripe' : 'border-unripe'}`}
                 style={boxStyle(d, image?.width ?? 1, image?.height ?? 1)}
               >
-                <span className={`absolute -top-[1.1rem] left-0 whitespace-nowrap bg-black/75 px-1 font-mono text-[10.5px] ${d.label === 'ripe' ? 'text-ripe' : 'text-unripe'}`}>
-                  {detectionLabel(d)}
-                </span>
+                {d.label === 'ripe' && (
+                  <span className="absolute -top-[1.1rem] left-0 whitespace-nowrap bg-black/75 px-1 font-mono text-[10.5px] text-ripe">{detectionLabel(d)}</span>
+                )}
               </div>
             ))}
           </div>
           <Line label="détecteur" value={`${activeDetectorName(state)} · ${modelStatusLabel(state)}`} />
+          <Line label="boîtes" value={boxesSummary(state.lastDetections)} testId="perception-boxes" />
           <Line label="inférence" value={inferenceLabel(state)} testId="perception-inference" />
           <Line label="porte" value={gateLabel(state)} testId="perception-gate" />
           <Line label="contours" value={edgesLabel(state)} />
           <p className="text-ink-dim">
-            Image d’entrée du détecteur, sans annotation. La décision « mûre » ne vient que d’ici ; les identifiants sont attribués ensuite par projection.
+            Image d’entrée du détecteur, sans annotation ; seules les boîtes « ripe » sont étiquetées. La décision « mûre » ne vient que d’ici ; les
+            identifiants sont attribués ensuite par projection.
           </p>
           <button type="button" onClick={onOpenPipeline} className="self-start rounded-sm border border-line px-2 py-1 text-[11.5px] text-ink-dim hover:border-axes hover:text-ink">
             Voir tout le pipeline (x)

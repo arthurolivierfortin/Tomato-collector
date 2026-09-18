@@ -69,6 +69,9 @@ describe('HTTP app', () => {
     for (const path of ['/health', '/episodes', '/episodes/ep-x']) {
       const res = await fetch(`${base}${path}`, { headers: { origin: 'http://localhost:5173' } });
       expect(res.headers.get('access-control-allow-origin'), path).toBe('*');
+      // Issue #36 : la page est servie cross-origin isolated (COEP require-corp) pour les threads wasm
+      // du détecteur ; sans CORP elle ne pourrait plus lire ces réponses.
+      expect(res.headers.get('cross-origin-resource-policy'), path).toBe('cross-origin');
     }
     const preflight = await fetch(`${base}/episodes`, {
       method: 'OPTIONS',

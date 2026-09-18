@@ -23,7 +23,7 @@ const state = (over: Partial<PerceptionState> = {}): PerceptionState => ({
 function renderPanel(over: Partial<PerceptionState> = {}, open = true) {
   const onToggle = vi.fn();
   const onOpenPipeline = vi.fn();
-  render(<PerceptionPanel state={state(over)} open={open} onToggle={onToggle} onOpenPipeline={onOpenPipeline} />);
+  render(<PerceptionPanel state={state(over)} open={open} live onToggle={onToggle} onOpenPipeline={onOpenPipeline} />);
   return { onToggle, onOpenPipeline };
 }
 
@@ -36,7 +36,7 @@ describe('PerceptionPanel', () => {
     expect(screen.getByTestId('perception-panel').textContent).toContain('mode dégradé HSV');
   });
 
-  it('draws one box per detection, with its class and confidence, placed in percent of the frame', () => {
+  it('draws one box per detection but only labels the ripe ones, and counts the rest', () => {
     renderPanel();
     const boxes = screen.getAllByTestId('perception-box');
     expect(boxes).toHaveLength(2);
@@ -44,7 +44,18 @@ describe('PerceptionPanel', () => {
     // jsdom normalise « 10.000% » en « 10% » : c'est bien un pourcentage de la frame du détecteur.
     expect(boxes[0]?.style.left).toBe('10%');
     expect(boxes[0]?.style.width).toBe('5%');
-    expect(boxes[1]?.textContent).toBe('unripe 0,31');
+    // Étiqueter les dix boîtes rendait le cadre de 208 px illisible : les `unripe` sont comptées.
+    expect(boxes[1]?.dataset.label).toBe('unripe');
+    expect(boxes[1]?.textContent).toBe('');
+    expect(screen.getByTestId('perception-boxes').textContent).toBe('1 ripe · 1 unripe');
+  });
+
+  it('says so in its title when it shows the local sim instead of a replayed episode', () => {
+    renderPanel();
+    expect(screen.getByRole('button', { name: /Perception \(p\)/ }).textContent).not.toContain('sim locale');
+    cleanup();
+    render(<PerceptionPanel state={state()} open live={false} onToggle={() => undefined} onOpenPipeline={() => undefined} />);
+    expect(screen.getByRole('button', { name: /Perception \(p\)/ }).textContent).toContain('sim locale, pas l’épisode rejoué');
   });
 
   it('says it is waiting before the first frame and keeps the header readable', () => {

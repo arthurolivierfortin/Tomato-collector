@@ -19,6 +19,7 @@ const capture: PipelineCapture = {
     canny: true,
     inputPx: 640,
     viewPx: 800,
+    target: 'episode',
   }).map((s, i) => ({ ...s, pngBase64: i === 0 ? '' : 'iVBORw0KGgo=' })),
 };
 
@@ -39,7 +40,7 @@ describe('PipelinePanel', () => {
     expect(tiles[3]?.textContent).toContain('seuillage HSV 640');
     expect(tiles[4]?.textContent).toContain('logique');
     expect(tiles[7]?.textContent).toContain('simulation');
-    expect(tiles[8]?.textContent).toContain('physique');
+    expect(tiles[8]?.textContent).toContain('géométrie');
   });
 
   it('renders the real buffer of each stage and says when one is missing', () => {

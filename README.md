@@ -79,7 +79,8 @@ PowerShell `$env:TOMATO_MODEL = "claude-sonnet-5"; npm run demo`.
 
 Touches du dashboard : `h` masque/affiche les contrôles, `v` bascule la vue « ce que voit l'agent »,
 `b` ouvre/ferme le schéma bloc (flux agent ↔ serveur ↔ sim), `c` affiche/masque les gizmos des trois caméras dans la vue 3D,
-`z` ouvre la loupe plein écran sur la vue mise en avant, `t` replie/déplie le panneau « Session agent (brut) ».
+`z` ouvre la loupe plein écran sur la vue mise en avant, `t` replie/déplie le panneau « Session agent (brut) »,
+`p` replie/déplie le panneau « Perception », `x` ouvre le mode « Pipeline de traitement » plein écran.
 
 Suivre la chaîne de bout en bout : le bandeau de statuts affiche la tomate en cours de mûrissement
 (« tomate 3 : mûrit 62 % ») — une seule mûrit à la fois. Quand la perception la détecte, un bandeau
@@ -158,15 +159,20 @@ l'on dit exactement où s'arrête le traitement d'image et où commence l'aide v
   | 6 | grille, axes et échelle | calibration caméra |
   | 7 | ciseaux et panier | état robot |
   | 8 | repères de tomates et ligne de tige | simulation |
-  | 9 | ligne de chute prévue | physique |
+  | 9 | ligne de chute prévue | géométrie (verticale) |
   | 10 | vue finale envoyée à l'agent | sortie |
 
 **Quel détecteur tourne ?** Le bandeau haut et la pastille de perception le nomment en entier :
 « YOLOv8n ONNX 640 » quand le modèle est chargé et a produit la dernière détection, « seuillage HSV 640 »
 sinon. Par défaut c'est le modèle : un YOLOv8n affiné sur 400 rendus de la simulation, livré avec le
-dépôt (12,3 Mo), qui atteint 1,000 de rappel et 0,971 de précision sur les tomates mûres d'un jeu de
-contrôle jamais vu, contre 0,824 / 0,771 pour le seuillage HSV. L'inférence tourne dans un Web Worker
-pour ne pas geler la scène. Chiffres complets, jeu d'évaluation, limites et reproduction dans
+dépôt (12,3 Mo), qui atteint **1,000 de rappel et 0,963 de précision** sur les tomates mûres d'un jeu de
+contrôle de 60 plants jamais vus, contre 0,816 / 0,743 pour le seuillage HSV.
+
+L'inférence tourne dans un Web Worker, en wasm SIMD multithread : la page est servie *cross-origin
+isolated* (`Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` dans `vite.config.ts`, et
+`Cross-Origin-Resource-Policy` côté serveur MCP), sans quoi onnxruntime retombe sur un seul thread.
+Résultat : 0,3–0,5 s par image et **2,5 s entre « la tomate est mûre » et « détectée »**, contre 10,8 s
+avant ce travail. Chiffres complets, jeux, licences, limites et reproduction dans
 [`docs/perception-model.md`](docs/perception-model.md).
 
 ## Tournage
@@ -182,6 +188,7 @@ pour ne pas geler la scène. Chiffres complets, jeu d'évaluation, limites et re
   autour du curseur, glisser pour se déplacer, boutons `top` / `front` / `side` pour changer de caméra, Échap pour fermer.
 - `p` : panneau « Perception » — l'image d'entrée du détecteur et ses boîtes (voir la section Perception).
 - `x` : mode « Pipeline de traitement » plein écran — les dix étapes du traitement et leur provenance.
+  Depuis la loupe, `x` ferme la loupe avant d'ouvrir le pipeline.
 - Vitesse ×1 pendant l'épisode : les vitesses ×2/×5/×10 accélèrent la simulation mais brouillent la prise.
 - Les mouvements sont animés : l'outil ne répond qu'une fois le bras arrivé. Vitesses en temps sim (donc
   multipliées par le facteur ×2/×5/×10) : ciseaux et panier 15 cm/s, rotations 45°/s, caméras 20 cm/s et
@@ -235,6 +242,8 @@ pour ne pas geler la scène. Chiffres complets, jeu d'évaluation, limites et re
 | `npx tsx scripts/perception/generate-dataset.ts` | rend un jeu étiqueté (vues caméra brutes + boîtes de vérité terrain) |
 | `python scripts/perception/evaluate.py --detector onnx` | précision, rappel et AP50 du détecteur sur ce jeu (`--detector hsv` pour le repli) |
 | `python scripts/perception/finetune.py` | affine YOLOv8n sur les rendus de la sim et réexporte l'ONNX |
+| `npx tsx scripts/perception/measure-latency.ts` | temps d'inférence et délai « mûre → détectée » |
+| `npx tsx scripts/perception/verify-live.ts` | vérifie sur la vraie page que le réveil vient bien du modèle |
 | `npm run lint` / `npm run typecheck` / `npm test` / `npm run build` | les quatre gates, obligatoires avant toute PR |
 
 ## Structure
@@ -242,7 +251,8 @@ pour ne pas geler la scène. Chiffres complets, jeu d'évaluation, limites et re
     packages/shared            contrats : types, schémas zod des outils MCP, machine à états, monde par défaut
     packages/sim               page navigateur (Three.js + Rapier, React)
       src/plant, robot, cameras   plant, bras à ciseaux, panier, trois caméras
-      src/perception              détection HSV / ONNX de la maturité, annotations
+      src/perception              détection de maturité (modèle ONNX dans un worker, repli HSV), contours
+      src/dev                     outils de développement : jeu d'évaluation rendu par la sim (mode dev seulement)
       src/bridge                  pont WebSocket vers le serveur (état, actions, vues)
       src/dashboard               dashboard React : bandeau, trace, replay, schéma bloc, contrôles
     packages/server            Node
