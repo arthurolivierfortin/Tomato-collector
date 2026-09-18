@@ -4,15 +4,14 @@ import { join, resolve } from 'node:path';
 import type { Page } from 'playwright';
 import { firstPaintEpochMs, measureRafFps, openCapturePage, webglRenderer } from './browser';
 import type { ScriptEntry } from './episodes';
-import { createMarkerLog, type TakeMarkers } from './markers';
-import type { Scenario } from './scenario';
+import { createMarkerLog, type MarkerLog, type TakeMarkers } from './markers';
+import { scenarioMarkers, type Scenario } from './scenario';
 import { runStep } from './steps';
 
 export interface RecordOptions {
   readonly scenario: Scenario;
   readonly take: string;
   readonly pageUrl: string;
-  readonly wsUrl: string;
   readonly apiUrl: string;
   readonly outDir: string;
   readonly episode: readonly ScriptEntry[];
@@ -26,9 +25,17 @@ export interface RecordResult {
   readonly renderer: string;
   readonly rafFps: number;
   readonly pageErrors: readonly string[];
+  /** Message de l'étape qui a échoué ; la prise est écrite quand même. */
+  readonly failure: string | null;
 }
 
 const READY_TIMEOUT_MS = 120_000;
+
+/** Première ligne d'une erreur : Playwright en écrit vingt, une seule intéresse le journal de prise. */
+function firstLine(e: unknown): string {
+  const message = e instanceof Error ? e.message : String(e);
+  return message.split('\n')[0] ?? message;
+}
 
 /** Attend que la scène soit montée ET que le pont de développement soit exposé (comme le test e2e). */
 async function waitForReady(page: Page): Promise<void> {
@@ -46,6 +53,28 @@ async function waitForServer(page: Page, log: (line: string) => void): Promise<v
   );
 }
 
+async function playSteps(page: Page, options: RecordOptions, markerLog: MarkerLog): Promise<string | null> {
+  const { scenario, log } = options;
+  for (const [i, step] of scenario.steps.entries()) {
+    const position = `${i + 1}/${scenario.steps.length}`;
+    let label: string = step.kind;
+    try {
+      await runStep(page, step, {
+        log: markerLog,
+        episode: options.episode,
+        onStep: (text) => {
+          label = text;
+          log(`  ${position.padStart(6, ' ')} ${text}`);
+        },
+      });
+    } catch (e) {
+      // La prise garde de la valeur : on rend la main pour l'écrire, en nommant l'étape fautive.
+      return `étape ${position} (${label}) : ${firstLine(e)}`;
+    }
+  }
+  return null;
+}
+
 export async function record(options: RecordOptions): Promise<RecordResult> {
   const { scenario, take, outDir, log } = options;
   const outAbs = resolve(outDir);
@@ -58,6 +87,7 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
   const startedAt = new Date().toISOString();
   let renderer = 'inconnu';
   let rafFps = 0;
+  let failure: string | null = null;
   let markers: TakeMarkers;
   try {
     log(`page : ${options.pageUrl}`);
@@ -70,15 +100,18 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
     log(`rendu : ${renderer} — ${rafFps} images/s (requestAnimationFrame)`);
     if (/swiftshader|software/i.test(renderer)) log('ATTENTION : rendu logiciel, la prise sera saccadée.');
     if (scenario.mode === 'live') await waitForServer(page, log);
-    for (const [i, step] of scenario.steps.entries()) {
-      await runStep(page, step, {
-        log: markerLog,
-        episode: options.episode,
-        onStep: (label) => log(`  ${String(i + 1).padStart(2, ' ')}/${scenario.steps.length} ${label}`),
-      });
-    }
+    failure = await playSteps(page, options, markerLog);
+  } catch (e) {
+    failure = firstLine(e);
   } finally {
-    markers = markerLog.snapshot({ take, video: `${take}.webm`, mode: scenario.mode, startedAt });
+    markers = markerLog.snapshot({
+      take,
+      video: `${take}.webm`,
+      mode: scenario.mode,
+      startedAt,
+      expected: scenarioMarkers(scenario),
+      ...(failure === null ? {} : { failedStep: failure }),
+    });
     await context.close();
     await browser.close();
   }
@@ -90,5 +123,5 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
   await rm(rawDir, { recursive: true, force: true });
   const markersPath = join(outAbs, `${take}.markers.json`);
   await writeFile(markersPath, `${JSON.stringify(markers, null, 2)}\n`, 'utf8');
-  return { markers, videoPath, markersPath, renderer, rafFps, pageErrors: errors };
+  return { markers, videoPath, markersPath, renderer, rafFps, pageErrors: errors, failure };
 }

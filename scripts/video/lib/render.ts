@@ -5,19 +5,22 @@ import { clipDurationS, type Clip } from './cuts';
 import {
   captionFilters,
   chain,
+  highlightFilter,
   lineCount,
+  CAPTION_MAX_LINES,
   escapeFilterPath,
   normalizeFilters,
   titleFilters,
   wrapText,
   TITLE_BACKGROUND,
   type Format,
+  type Rect,
   type TextStyle,
 } from './ffmpegFilters';
 import { encoderArgs, ffmpeg, type VideoInfo } from './ffmpegRun';
 
 /** Largeurs de rupture, en caractères, calées sur les corps de `DEFAULT_STYLE` en 1920 px. */
-const WRAP = { caption: 84, title: 40, subtitle: 78 } as const;
+const WRAP = { caption: 45, title: 40, subtitle: 78 } as const;
 
 export interface RenderContext {
   readonly format: Format;
@@ -27,6 +30,7 @@ export interface RenderContext {
   readonly workDir: string;
   /** Chemin du fichier vidéo de chaque prise, par nom de prise. */
   readonly videoOf: ReadonlyMap<string, string>;
+  readonly warn: (line: string) => void;
 }
 
 function pad(i: number): string {
@@ -64,11 +68,15 @@ async function renderTitle(ctx: RenderContext, i: number, clip: Extract<Clip, { 
   ]);
 }
 
-async function captionChain(ctx: RenderContext, i: number, caption: string | undefined, atTop = false): Promise<string[]> {
-  if (caption === undefined) return [];
+/** Cadre de mise en évidence puis bandeau : le cadre passe dessous, le texte reste lisible. */
+async function overlayChain(ctx: RenderContext, i: number, caption: string | undefined, zone: Rect | undefined): Promise<string[]> {
+  const frame = zone === undefined ? [] : [highlightFilter(zone, ctx.style)];
+  if (caption === undefined) return frame;
   const wrapped = wrapText(caption, WRAP.caption);
+  const lines = lineCount(wrapped);
+  if (lines > CAPTION_MAX_LINES) ctx.warn(`sous-titre sur ${lines} lignes, raccourcir : « ${caption} »`);
   const path = await textFile(ctx, `cap-${pad(i)}`, wrapped);
-  return captionFilters(path, ctx.style, lineCount(wrapped), atTop);
+  return [...frame, ...captionFilters(path, ctx.style, lines)];
 }
 
 async function renderVideo(ctx: RenderContext, i: number, clip: Extract<Clip, { kind: 'video' }>, out: string): Promise<void> {
@@ -80,7 +88,7 @@ async function renderVideo(ctx: RenderContext, i: number, clip: Extract<Clip, { 
     '-t',
     (clip.toS - clip.fromS).toFixed(3),
     '-vf',
-    chain([...normalizeFilters(ctx.format), ...(await captionChain(ctx, i, clip.caption, clip.atTop ?? false))]),
+    chain([...normalizeFilters(ctx.format), ...(await overlayChain(ctx, i, clip.caption, clip.highlight))]),
     ...encoderArgs(ctx.encoder, ctx.format.fps),
     out,
   ]);
@@ -99,7 +107,7 @@ async function renderFreeze(ctx: RenderContext, i: number, clip: Extract<Clip, {
     '-i',
     still,
     '-vf',
-    chain([...normalizeFilters(ctx.format), ...(await captionChain(ctx, i, clip.caption, clip.atTop))]),
+    chain([...normalizeFilters(ctx.format), ...(await overlayChain(ctx, i, clip.caption, clip.highlight))]),
     ...encoderArgs(ctx.encoder, ctx.format.fps),
     out,
   ]);

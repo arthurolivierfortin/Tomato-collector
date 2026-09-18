@@ -21,7 +21,7 @@
     "demo:noagent": "concurrently -n server,sim -c blue,green --kill-others \"cross-env TOMATO_AGENT=off npm run start -w @tomato/server\" \"npm run dev -w @tomato/sim\"",
     "video:record": "tsx scripts/video/record.ts",
     "video:montage": "tsx scripts/video/montage.ts",
-    "video:all": "npm run video:record -- --scenario concepts --mode replay --take concepts && npm run video:record -- --scenario cycle --mode live --take cycle && npm run video:montage"
+    "video:all": "npm run video:record -- --scenario concepts --mode replay --take concepts && npm run video:record -- --scenario cycle --mode live --take cycle && npm run video:montage -- --episode latest"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

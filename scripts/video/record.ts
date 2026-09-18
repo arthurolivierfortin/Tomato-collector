@@ -5,12 +5,13 @@
  *   npx tsx scripts/video/record.ts --scenario cycle --mode live --take cycle
  *
  * Options : --scenario <concepts|cycle> | --scenario-file <json>, --mode <live|replay>,
- * --take <nom>, --page <url>, --api <url>, --ws <url>, --episode <id ou chemin>, --out <dossier>.
+ * --take <nom>, --page <url>, --api <url>, --episode <id ou chemin>, --out <dossier>.
  */
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { flag, opt, parseArgs } from './lib/cli';
 import { isEpisodeFile, normalizeEntries, type ScriptEntry } from './lib/episodes';
+import { fetchHealth, liveBlocker } from './lib/health';
 import type { TakeMode } from './lib/markers';
 import { parseScenario, scenarioMarkers, type Scenario } from './lib/scenario';
 import { record } from './lib/recorder';
@@ -19,7 +20,6 @@ import { builtinScenario } from './scenarios';
 const DEFAULTS = {
   page: 'http://localhost:5173',
   api: 'http://localhost:7331',
-  ws: 'ws://localhost:7332',
   out: 'data/video/takes',
   episodes: 'data/episodes',
 };
@@ -51,6 +51,7 @@ async function main(): Promise<void> {
   if (rawMode !== 'live' && rawMode !== 'replay') throw new Error(`--mode : « live » ou « replay », reçu « ${rawMode} »`);
   const scenario = await loadScenario(args, rawMode);
   const take = opt(args, 'take', scenario.name);
+  const apiUrl = opt(args, 'api', DEFAULTS.api);
   const episode = await loadEpisode(opt(args, 'episode', ''), opt(args, 'episodes-dir', DEFAULTS.episodes));
   log(`prise « ${take} » — scénario « ${scenario.name} », mode ${scenario.mode}, ${scenario.steps.length} étapes`);
   log(`marqueurs prévus : ${scenarioMarkers(scenario).join(', ')}`);
@@ -58,12 +59,16 @@ async function main(): Promise<void> {
     log('--dry-run : scénario valide, rien n’a été enregistré.');
     return;
   }
+  if (scenario.mode === 'live') {
+    const blocker = liveBlocker(await fetchHealth(apiUrl), apiUrl);
+    if (blocker !== null) throw new Error(blocker);
+    log(`serveur ${apiUrl} : prêt, aucune simulation connectée.`);
+  }
   const result = await record({
     scenario,
     take,
     pageUrl: opt(args, 'page', DEFAULTS.page),
-    apiUrl: opt(args, 'api', DEFAULTS.api),
-    wsUrl: opt(args, 'ws', DEFAULTS.ws),
+    apiUrl,
     outDir: opt(args, 'out', DEFAULTS.out),
     episode,
     log,
@@ -72,6 +77,12 @@ async function main(): Promise<void> {
   log(`marqueurs: ${result.markersPath} (${result.markers.markers.length}, prise de ${(result.markers.durationMs / 1000).toFixed(1)} s)`);
   if (result.pageErrors.length > 0) {
     log(`ATTENTION : ${result.pageErrors.length} erreur(s) dans la page : ${result.pageErrors.join(' | ')}`);
+  }
+  if (result.failure !== null) {
+    // La prise est écrite et reste exploitable : le montage saura quels marqueurs manquent.
+    log(`ÉCHEC : ${result.failure}`);
+    log(`marqueurs manquants : ${result.markers.missing.join(', ') || 'aucun'}`);
+    process.exitCode = 1;
   }
 }
 
