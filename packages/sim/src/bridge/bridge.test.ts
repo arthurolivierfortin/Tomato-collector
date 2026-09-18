@@ -179,6 +179,18 @@ describe('sim bridge', () => {
     expect(seen).toEqual([{ type: 'phase', phase: 'detected', reason: 'x' }]);
   });
 
+  // Issue #23 partie C : le flux brut de la session agent et le réveil doivent atteindre le dashboard.
+  it('republishes agent_wake and agent_raw', () => {
+    socket().open();
+    const seen: ServerToDashboard[] = [];
+    bridge.onServerMessage((m) => seen.push(m));
+    const wake: ServerToDashboard = { type: 'agent_wake', episodeId: 'e1', tomatoId: 3, detector: 'hsv', confidence: 0.9, sessionResumed: true };
+    const raw: ServerToDashboard = { type: 'agent_raw', episodeId: 'e1', kind: 'tool_use', line: 'cut {}' };
+    socket().receive(wake);
+    socket().receive(raw);
+    expect(seen).toEqual([wake, raw]);
+  });
+
   it('reconnects 2 s after a drop and stops after close()', () => {
     socket().open();
     socket().drop();

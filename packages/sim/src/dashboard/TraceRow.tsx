@@ -4,13 +4,15 @@ import { JsonBlock } from './JsonBlock';
 import { formatClock, formatDuration } from './traceFormat';
 import { formatToolArgs, formatToolResult } from './traceJson';
 
-const KIND_LABEL: Record<TraceKind, string> = { text: 'agent', tool: 'outil', event: 'événement', phase: 'phase' };
+const KIND_LABEL: Record<TraceKind, string> = { text: 'agent', tool: 'outil', event: 'événement', phase: 'phase', wake: 'réveil' };
 
 /** Un appel d'outil sans résultat : il est en cours, surligné, avec un chrono qui tourne. */
 export const isPending = (entry: TraceEntry): boolean => entry.kind === 'tool' && entry.ok === undefined;
 
 /** Bordure gauche = nature de la ligne ; fond teinté = erreur ou appel en cours. */
 function tone(entry: TraceEntry): string {
+  // Le réveil passe avant tout : c'est le moment que la démo doit rendre évident (issue #23).
+  if (entry.kind === 'wake') return 'border-l-turning bg-turning/20 text-ink';
   if (entry.ok === false) return 'border-l-ripe bg-ripe/10';
   if (isPending(entry)) return 'border-l-scissors bg-scissors/10';
   switch (entry.kind) {
@@ -55,7 +57,7 @@ export const TraceRow = memo(function TraceRow({ entry, expanded, onToggle, nowM
         <time className="font-mono text-[11px] tabular-nums text-ink-dim">{formatClock(entry.atMs)}</time>
         <span className="text-[11px] text-ink-dim">{KIND_LABEL[entry.kind]}</span>
         <div className="min-w-0">
-          <p className={`break-words ${error ? 'text-ripe' : 'text-ink'}`}>{entry.title}</p>
+          <p className={`break-words ${error ? 'text-ripe' : 'text-ink'} ${entry.kind === 'wake' ? 'font-semibold' : ''}`}>{entry.title}</p>
           {entry.detail !== undefined && entry.detail !== '' && (
             <p data-testid={`trace-text-${entry.id}`} className={`whitespace-pre-wrap break-words text-[12px] ${error ? 'text-ripe/80' : 'text-ink-dim'}`}>
               {entry.detail}

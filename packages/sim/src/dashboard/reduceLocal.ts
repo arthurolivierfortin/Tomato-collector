@@ -1,10 +1,11 @@
+import { advanceQueue } from './blockQueue';
 import type { DashboardState, LocalMessage } from './dashboardTypes';
 import { initialDashboardState } from './initialState';
 import { closedLightbox, normalizeView } from './lightbox';
 import { isTraceExpanded } from './traceExpand';
 
-/** Réducteur pur des messages locaux (connexion, replay, interface). */
-export function reduceLocal(state: DashboardState, m: LocalMessage): DashboardState {
+/** Réducteur pur des messages locaux (connexion, replay, interface). `nowMs` sert au rythme du schéma bloc. */
+export function reduceLocal(state: DashboardState, m: LocalMessage, nowMs: number): DashboardState {
   switch (m.type) {
     case 'local_connection':
       return state.connection === m.connection ? state : { ...state, connection: m.connection };
@@ -28,6 +29,13 @@ export function reduceLocal(state: DashboardState, m: LocalMessage): DashboardSt
       return { ...state, ui: { ...state.ui, agentView: !state.ui.agentView } };
     case 'local_toggle_diagram':
       return { ...state, ui: { ...state.ui, diagramOpen: !state.ui.diagramOpen } };
+    case 'local_toggle_session':
+      return { ...state, ui: { ...state.ui, sessionOpen: !state.ui.sessionOpen } };
+    case 'local_block_advance': {
+      // `advanceQueue` rend le même état quand il n'y a rien à faire : le store ne notifie personne.
+      const blocks = advanceQueue(state.blocks, nowMs);
+      return blocks === state.blocks ? state : { ...state, blocks };
+    }
     case 'local_feature':
       return state.featured === m.camera ? state : { ...state, featured: m.camera };
     case 'local_lightbox_open':

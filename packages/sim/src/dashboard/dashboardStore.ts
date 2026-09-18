@@ -5,7 +5,7 @@ import { reduceLocal } from './reduceLocal';
 import { reduceServer } from './reduceServer';
 
 export { DEFAULT_MODEL, initialDashboardState } from './initialState';
-export { TRACE_MAX } from './reduceServer';
+export { RAW_MAX, TRACE_MAX } from './reduceServer';
 
 function isLocal(m: DashboardMessage): m is LocalMessage {
   return m.type.startsWith('local_');
@@ -13,7 +13,7 @@ function isLocal(m: DashboardMessage): m is LocalMessage {
 
 /** Réducteur pur : messages du serveur (`ServerToDashboard`) et messages locaux (`local_*`). */
 export function reduce(state: DashboardState, message: DashboardMessage, nowMs: number = Date.now()): DashboardState {
-  return isLocal(message) ? reduceLocal(state, message) : reduceServer(state, message as ServerToDashboard, nowMs);
+  return isLocal(message) ? reduceLocal(state, message, nowMs) : reduceServer(state, message as ServerToDashboard, nowMs);
 }
 
 /** Store minimal compatible avec `useSyncExternalStore` (snapshot immuable, abonnés notifiés sur changement réel). */

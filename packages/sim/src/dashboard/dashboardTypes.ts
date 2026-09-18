@@ -1,7 +1,11 @@
-import type { BlockId, CameraId, Phase, ServerToDashboard, ViewImage } from '@tomato/shared';
+import type { BlockId, CameraId, Phase, ServerToDashboard, ViewImage, WakeDetector } from '@tomato/shared';
+import type { BlockQueue } from './blockQueue';
 import type { LightboxView } from './lightbox';
+import type { RawLine } from './rawLines';
+import type { Ripening } from './ripening';
 
-export type TraceKind = 'text' | 'tool' | 'event' | 'phase';
+/** `wake` = la détection qui a réveillé l'agent, sur-lignée dans la trace (issue #23). */
+export type TraceKind = 'text' | 'tool' | 'event' | 'phase' | 'wake';
 
 /** Une ligne de la trace ; `ok === false` = erreur surlignée, `ok === undefined` sur un outil = appel en cours. */
 export interface TraceEntry {
@@ -45,10 +49,21 @@ export interface SimClock {
   paused: boolean;
 }
 
+/** Dernier réveil de l'agent : bandeau bref et ligne sur-lignée de la trace. */
+export interface WakeInfo {
+  tomatoId: number;
+  detector: WakeDetector;
+  confidence: number;
+  sessionResumed: boolean;
+  atMs: number;
+}
+
 export interface UiState {
   controlsHidden: boolean;
   agentView: boolean;
   diagramOpen: boolean;
+  /** Panneau « Session agent (brut) » déplié (touche `t`). */
+  sessionOpen: boolean;
   /** Loupe plein écran ouverte sur une vue, avec son zoom et son déplacement ; null = fermée. */
   lightbox: LightboxView | null;
   /** Repli/dépli explicite d'une entrée de trace, par identifiant ; absent = état par défaut. */
@@ -70,7 +85,18 @@ export interface DashboardState {
   /** Vue mise en avant en grand : la dernière demandée par l'agent, `front` par défaut. */
   featured: CameraId;
   lastViewsAt: number | null;
-  blocks: { active: BlockId | null; flow: BlockFlow | null; atMs: number | null };
+  /** Flux brut de la session agent, plus ancien en haut, au plus RAW_MAX lignes. */
+  raw: RawLine[];
+  nextRawId: number;
+  /** Épisode auquel appartient le tampon `raw` : il repart à vide quand l'épisode change. */
+  rawEpisodeId: string | null;
+  /** Instant du réveil, origine des horodatages relatifs du panneau. */
+  rawSinceMs: number | null;
+  wake: WakeInfo | null;
+  /** Tomate en cours de mûrissement, d'après le dernier snapshot. */
+  ripening: Ripening | null;
+  /** File des activités du schéma bloc : une à la fois, au moins BLOCK_MIN_MS chacune. */
+  blocks: BlockQueue;
   costUsd: number;
   model: string | null;
   sim: SimClock;
@@ -84,6 +110,9 @@ export type LocalMessage =
   | { type: 'local_toggle_controls' }
   | { type: 'local_toggle_agent_view' }
   | { type: 'local_toggle_diagram' }
+  | { type: 'local_toggle_session' }
+  /** Battement du schéma bloc : fait avancer la file quand l'activité en cours a tenu sa durée. */
+  | { type: 'local_block_advance' }
   /** Clic sur une vignette : elle passe en grand. */
   | { type: 'local_feature'; camera: CameraId }
   | { type: 'local_lightbox_open'; camera: CameraId }

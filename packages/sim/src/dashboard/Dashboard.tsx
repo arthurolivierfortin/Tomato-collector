@@ -14,17 +14,16 @@ import { detectorLabel, loadPerceptionState, type PerceptionReader } from './per
 import { ReplayPanel } from './ReplayPanel';
 import { StatusBar } from './StatusBar';
 import { isTraceExpanded } from './traceExpand';
-import { TracePanel } from './TracePanel';
+import { TraceColumn } from './TraceColumn';
+import { useDashboardKeys } from './useDashboardKeys';
+import { useRipening } from './useRipening';
 import { useWorldClock } from './useWorldClock';
 import { ViewLightbox } from './ViewLightbox';
 import { ViewsPanel } from './ViewsPanel';
+import { WakeBanner } from './WakeBanner';
 
 /** Période de relecture de `perceptionState()` (M4) pour le bandeau. */
 const DETECTOR_POLL_MS = 500;
-
-function isEditable(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
-}
 
 function useDetectorLabel(): string {
   const [label, setLabel] = useState(detectorLabel(null));
@@ -54,12 +53,14 @@ interface Props {
  * Mise en page (spec section 6, revue par l'issue #22) : bandeau haut, puis trois colonnes — vue
  * spectateur, trace de l'agent, et à droite la colonne des vues (celle demandée en dernier par l'agent
  * en grand, les deux autres en vignettes dessous). En mode « ce que voit l'agent » (`v`) la trace
- * s'efface et les trois vues passent en grand. Touches : h contrôles, v mode agent, b schéma,
- * c gizmos de caméra, z loupe plein écran sur la vue mise en avant.
+ * s'efface et les trois vues passent en grand. La colonne du milieu porte aussi, sous la trace, le
+ * flux brut de la session agent (issue #23, touche `t`). Touches : h contrôles, v mode agent,
+ * b schéma, c gizmos de caméra, z loupe plein écran, t session brute.
  */
 export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
   const state = useSyncExternalStore(store.subscribe, store.get);
   const clock = useWorldClock(runtime);
+  const ripening = useRipening(runtime);
   const detector = useDetectorLabel();
   /** Gizmos de caméra (issue #18) : masqués par défaut, hors du store (état de la scène Three, pas de la sim). */
   const [gizmosVisible, setGizmosVisible] = useState(false);
@@ -75,6 +76,8 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
     [store],
   );
   const toggleTrace = useCallback((id: number) => store.dispatch({ type: 'local_toggle_trace', id }), [store]);
+  const toggleSession = useCallback(() => store.dispatch({ type: 'local_toggle_session' }), [store]);
+  const advanceBlocks = useCallback(() => store.dispatch({ type: 'local_block_advance' }), [store]);
   const expanded = useCallback((id: number) => isTraceExpanded(store.get(), id), [store]);
 
   const { ui } = state;
@@ -94,25 +97,16 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
     void window.__tomato?.renderViews?.(['top', 'front', 'side']);
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (isEditable(e.target) || e.altKey || e.ctrlKey || e.metaKey) return;
-      if (e.key === 'h') store.dispatch({ type: 'local_toggle_controls' });
-      else if (e.key === 'v') store.dispatch({ type: 'local_toggle_agent_view' });
-      else if (e.key === 'b') store.dispatch({ type: 'local_toggle_diagram' });
-      else if (e.key === 'c') toggleCameraGizmos();
-      else if (e.key === 'z') store.dispatch(lightboxOpen ? { type: 'local_lightbox_close' } : { type: 'local_lightbox_open', camera: store.get().featured });
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [store, toggleCameraGizmos, lightboxOpen]);
+  useDashboardKeys(store, toggleCameraGizmos, lightboxOpen);
 
   const sim = clock ?? state.sim;
 
   return (
     <main data-testid="dashboard" data-layout={ui.agentView ? 'agent' : 'normal'} className="grid h-full w-full grid-rows-[auto_minmax(0,1fr)_auto] bg-panel text-ink">
       <div className="shrink-0">
-        <StatusBar state={state} clock={clock} detector={detector} />
+        <StatusBar state={state} clock={clock} detector={detector} ripening={ripening} />
+        {/* Issue #23 : bandeau bref au réveil, juste sous les statuts, là où l'œil est déjà. */}
+        <WakeBanner wake={state.wake} />
         {/* Pastille de perception de M4 : contours actifs, modèle, dernier détecteur (data-testid="perception-badge"). */}
         <div className="border-b border-line bg-panel-2 px-4 pt-2">
           <PerceptionBadge />
@@ -130,9 +124,11 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
                 timeScale={sim.timeScale}
                 agentView={ui.agentView}
                 cameraGizmosVisible={gizmosVisible}
+                sessionOpen={ui.sessionOpen}
                 onToggleControls={() => store.dispatch({ type: 'local_toggle_controls' })}
                 onToggleAgentView={() => store.dispatch({ type: 'local_toggle_agent_view' })}
                 onToggleCameraGizmos={toggleCameraGizmos}
+                onToggleSession={toggleSession}
                 onOpenLightbox={() => openLightbox(state.featured)}
               >
                 <ReplayPanel slot={slot} />
@@ -140,7 +136,7 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
             </div>
           )}
         </section>
-        {!ui.agentView && <TracePanel trace={state.trace} isExpanded={expanded} onToggle={toggleTrace} />}
+        {!ui.agentView && <TraceColumn state={state} isExpanded={expanded} onToggleTrace={toggleTrace} onToggleSession={toggleSession} />}
         <ViewsPanel
           views={state.views}
           viewsAt={state.viewsAt}
@@ -152,7 +148,13 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
           {...(standalone ? { onRefresh: refresh } : {})}
         />
       </div>
-      <BlockDiagram flow={state.blocks.flow} atMs={state.blocks.atMs} open={ui.diagramOpen} onToggle={() => store.dispatch({ type: 'local_toggle_diagram' })} />
+      <BlockDiagram
+        queue={state.blocks}
+        episodeActive={state.episode !== null}
+        open={ui.diagramOpen}
+        onToggle={() => store.dispatch({ type: 'local_toggle_diagram' })}
+        onAdvance={advanceBlocks}
+      />
       {ui.lightbox && (
         <ViewLightbox view={ui.lightbox} views={state.views} onClose={closeLightbox} onCamera={lightboxCamera} onView={lightboxView} />
       )}

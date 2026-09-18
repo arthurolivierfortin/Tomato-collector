@@ -1,24 +1,38 @@
+import { useEffect } from 'react';
 import type { BlockId } from '@tomato/shared';
 import { BLOCKS, BLOCK_H, BLOCK_W, BLOCK_Y, BUS_Y, DIAGRAM_H, DIAGRAM_W, blockCenterX, blockX, busSegment } from './blockLayout';
-import type { BlockFlow } from './dashboardTypes';
-import { useFlash } from './useFlash';
-
-/** Durée d'allumage d'un bloc et de sa flèche après `block_activity` (contrat Étape 3). */
-export const BLOCK_FLASH_MS = 600;
+import { queueDueMs, type BlockQueue } from './blockQueue';
 
 interface Props {
-  flow: BlockFlow | null;
-  atMs: number | null;
+  queue: BlockQueue;
+  /** Un épisode est en cours : le bloc « Agent » reste allumé du réveil au rapport (issue #23). */
+  episodeActive: boolean;
   open: boolean;
   onToggle: () => void;
+  /** Fait avancer la file quand l'activité en cours a tenu sa durée minimale. */
+  onAdvance: () => void;
 }
 
-/** Bandeau bas repliable : Simulation → Perception → Serveur MCP → Agent → Dashboard sur un bus d'événements. */
-export function BlockDiagram({ flow, atMs, open, onToggle }: Props) {
-  const lit = useFlash(atMs, BLOCK_FLASH_MS);
-  const active: BlockId | null = lit && flow ? flow.to : null;
-  const seg = lit && flow ? busSegment(flow.from, flow.to) : null;
+/**
+ * Bandeau bas repliable : Simulation → Perception → Serveur MCP → Agent → Dashboard sur un bus d'événements.
+ *
+ * Les activités s'allument une par une, au moins `BLOCK_MIN_MS` chacune (`blockQueue`) : la séquence
+ * perception → serveur puis serveur → agent se lit au lieu de clignoter.
+ */
+export function BlockDiagram({ queue, episodeActive, open, onToggle, onAdvance }: Props) {
+  const lit = queue.current;
+  useEffect(() => {
+    const due = queueDueMs(queue, Date.now());
+    if (due === null) return;
+    const timer = setTimeout(onAdvance, due);
+    return () => clearTimeout(timer);
+  }, [queue, onAdvance]);
+
+  const flow = lit?.flow ?? null;
+  const seg = flow ? busSegment(flow.from, flow.to) : null;
   const toX = flow ? blockCenterX(flow.to) : 0;
+  const label = flow ?? queue.last;
+  const isActive = (id: BlockId): boolean => id === flow?.to || (episodeActive && id === 'agent');
   return (
     <footer data-testid="block-diagram" className="shrink-0 border-t border-line bg-panel-2">
       <button
@@ -30,9 +44,10 @@ export function BlockDiagram({ flow, atMs, open, onToggle }: Props) {
       >
         <span aria-hidden="true">{open ? '▾' : '▸'}</span>
         Schéma bloc (b)
-        {flow && (
+        {label && (
           <span className="ml-auto font-mono text-[11px]" data-testid="block-last-flow">
-            {flow.from} → {flow.to} : {flow.label}
+            {label.from} → {label.to} : {label.label}
+            {queue.pending.length > 0 && ` (+${queue.pending.length})`}
           </span>
         )}
       </button>
@@ -55,7 +70,7 @@ export function BlockDiagram({ flow, atMs, open, onToggle }: Props) {
             </g>
           )}
           {BLOCKS.map((b) => {
-            const on = b.id === active;
+            const on = isActive(b.id);
             const cx = blockCenterX(b.id);
             return (
               <g key={b.id} data-block={b.id} data-active={on ? 'true' : undefined}>
