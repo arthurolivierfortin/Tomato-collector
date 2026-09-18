@@ -7,6 +7,8 @@ import { createWorldStore } from '../core/store';
 import { createFakePhysics } from './fakePhysics';
 import { generatePlant } from './generatePlant';
 import { createPlantModule } from './plantModule';
+import { RIPEN_DURATION_S } from './ripening';
+import { FIRST_RIPENING_START_S, RIPENING_GAP_S } from './ripeningSchedule';
 
 const SEED = 123;
 
@@ -42,32 +44,32 @@ describe('plantModule init', () => {
     expect(tomatoes.map((t) => t.id)).toEqual(spec.tomatoes.map((t) => t.id));
     for (const t of tomatoes) {
       expect(t.attached).toBe(true);
-      // La première tomate mûrit à 10 s (plant v2) : sa rampe de 15 s a déjà commencé au chargement,
-      // mais aucune tomate n'est mûre ni même en transition (ripeness < 0,35).
+      // Issue #23 : la première rampe ne démarre qu'à 3 s sim, rien n'a donc encore commencé à mûrir.
       expect(t.state).toBe('unripe');
-      expect(t.ripeness).toBeLessThan(0.35);
+      expect(t.ripeness).toBe(0);
       expect(t.visibleIn).toEqual({ top: 1, front: 1, side: 1 });
     }
     const t0 = tomatoes[0]!;
     const s0 = spec.tomatoes[0]!;
     expect(t0.positionCm).toEqual(s0.centerCm);
     expect(t0.stem.fromCm).toEqual(s0.anchorCm);
-    // Point d'attache sur la surface du fruit au rayon COURANT (la rampe de maturité a déjà commencé à t = 0).
+    // Point d'attache sur la surface du fruit, au rayon courant (encore le rayon de génération à t = 0).
     expect(Math.hypot(...t0.stem.toCm.map((v, i) => v - s0.centerCm[i]!))).toBeCloseTo(t0.radiusCm);
   });
 });
 
 describe('plantModule ripening', () => {
-  it('ripens tomatoes with sim time: turning halfway, ripe with radius ×1.2 at ripenAtS', async () => {
+  it('ripens the scheduled fruit with sim time: turning halfway, ripe with radius ×1.2 at the end of the ramp', async () => {
     const { ctx, mod } = await setup();
     const spec = generatePlant(SEED);
-    const first = [...spec.tomatoes].sort((a, b) => a.ripenAtS - b.ripenAtS)[0]!;
-    ctx.store.update((s) => ({ ...s, simTimeS: first.ripenAtS - 7.5 }));
+    // Issue #23 : la première rampe va de 3 s à 18 s sim, et elle concerne la plus petite id.
+    const first = spec.tomatoes[0]!;
+    ctx.store.update((s) => ({ ...s, simTimeS: FIRST_RIPENING_START_S + RIPEN_DURATION_S / 2 }));
     mod.update!(0.01, ctx);
     let t = ctx.store.get().tomatoes.find((x) => x.id === first.id)!;
     expect(t.state).toBe('turning');
     expect(t.ripeness).toBeCloseTo(0.5);
-    ctx.store.update((s) => ({ ...s, simTimeS: first.ripenAtS }));
+    ctx.store.update((s) => ({ ...s, simTimeS: FIRST_RIPENING_START_S + RIPEN_DURATION_S }));
     mod.update!(0.01, ctx);
     t = ctx.store.get().tomatoes.find((x) => x.id === first.id)!;
     expect(t.state).toBe('ripe');
@@ -89,10 +91,11 @@ describe('plantModule ripening', () => {
 });
 
 describe('plantModule actions', () => {
-  it('ripen_next ripens the next attached unripe tomato immediately, then fails with not_available', async () => {
+  it('ripen_next ripens the fruit in progress immediately, then the next by id, then fails with not_available', async () => {
     const { ctx, mod } = await setup();
     const spec = generatePlant(SEED);
-    const first = [...spec.tomatoes].sort((a, b) => a.ripenAtS - b.ripenAtS)[0]!;
+    // Issue #23 : le fruit en cours est celui de plus petite id, pas celui du ripenAtS de génération.
+    const first = spec.tomatoes[0]!;
     const r = mod.handle!({ type: 'ripen_next' }, ctx);
     expect(r?.ok).toBe(true);
     expect(r?.message).toContain(`tomato ${first.id}`);
@@ -184,5 +187,59 @@ describe('plantModule cut and landing', () => {
     tick(mod, ctx, 4);
     expect(events.filter((e) => e.type === 'tomato_landed')).toEqual([]);
     for (const t of ctx.store.get().tomatoes) expect(t.attached).toBe(true);
+  });
+});
+
+describe('plantModule one tomato at a time (issue #23)', () => {
+  const attachedRipening = (ctx: SimContext): number[] =>
+    ctx.store.get().tomatoes.filter((t) => t.attached && t.ripeness > 0).map((t) => t.id);
+
+  it('starts nothing at t = 0, has exactly one ripe fruit at t = 20 and the next 4 s after the cut', async () => {
+    const { ctx, mod } = await setup();
+    expect(attachedRipening(ctx)).toEqual([]);
+
+    tick(mod, ctx, 20);
+    const ripe = ctx.store.get().tomatoes.filter((t) => t.ripeness >= 1);
+    expect(ripe).toHaveLength(1);
+    const first = ripe[0]!;
+    expect(first.id).toBe(Math.min(...ctx.store.get().tomatoes.map((t) => t.id)));
+    expect(attachedRipening(ctx)).toEqual([first.id]);
+
+    ctx.signals.emit({ type: 'tomato_cut', tomatoId: first.id });
+    // Le compte à rebours de 4 s part du tick qui constate la coupe, pas de la coupe elle-même.
+    tick(mod, ctx, RIPENING_GAP_S);
+    expect(attachedRipening(ctx)).toEqual([]);
+    tick(mod, ctx, 1);
+    const second = attachedRipening(ctx);
+    expect(second).toHaveLength(1);
+    expect(second[0]).not.toBe(first.id);
+    expect(ctx.store.get().tomatoes.find((t) => t.id === second[0])!.ripeness).toBeGreaterThan(0);
+  });
+
+  it('never has two attached fruits ripening at once over 200 s of harvesting', async () => {
+    const { ctx, mod } = await setup();
+    let maxRipening = 0;
+    for (let i = 0; i < 20_000; i++) {
+      ctx.store.update((s) => ({ ...s, simTimeS: s.simTimeS + 0.01 }));
+      mod.update!(0.01, ctx);
+      const tomatoes = ctx.store.get().tomatoes;
+      maxRipening = Math.max(maxRipening, tomatoes.filter((t) => t.attached && t.ripeness > 0).length);
+      const ripe = tomatoes.find((t) => t.attached && t.ripeness >= 1);
+      if (ripe !== undefined) ctx.signals.emit({ type: 'tomato_cut', tomatoId: ripe.id });
+    }
+    expect(maxRipening).toBe(1);
+    // La chaîne avance vraiment : plusieurs fruits ont été récoltés en 200 s (19 s par fruit).
+    const cut = ctx.store.get().tomatoes.filter((t) => !t.attached);
+    expect(cut.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('new_plant restarts the schedule from the first fruit', async () => {
+    const { ctx, mod } = await setup();
+    tick(mod, ctx, 20);
+    expect(ctx.store.get().tomatoes.filter((t) => t.ripeness >= 1)).toHaveLength(1);
+    mod.handle!({ type: 'new_plant', seed: 4242 }, ctx);
+    expect(attachedRipening(ctx)).toEqual([]);
+    tick(mod, ctx, FIRST_RIPENING_START_S + 1);
+    expect(attachedRipening(ctx)).toEqual([Math.min(...ctx.store.get().tomatoes.map((t) => t.id))]);
   });
 });

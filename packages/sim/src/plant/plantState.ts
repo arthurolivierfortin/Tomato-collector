@@ -41,18 +41,3 @@ export function ripenTomato(tomato: Tomato, spec: TomatoSpec, ripenAtS: number, 
   const radiusCm = spec.radiusCm * radiusScale(ripeness);
   return { ...tomato, ripeness, state: stateFromRipeness(ripeness), radiusCm, stem: stemOf(spec, radiusCm) };
 }
-
-/** La prochaine tomate attachée et non mûre : celle dont l'instant de maturité est le plus proche. */
-export function nextToRipen(tomatoes: readonly Tomato[], ripenAt: ReadonlyMap<number, number>): number | null {
-  let best: number | null = null;
-  let bestAt = Infinity;
-  for (const t of tomatoes) {
-    if (!t.attached || t.state === 'ripe') continue;
-    const at = ripenAt.get(t.id) ?? Infinity;
-    if (at < bestAt) {
-      bestAt = at;
-      best = t.id;
-    }
-  }
-  return best;
-}

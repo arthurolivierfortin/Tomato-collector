@@ -3,6 +3,7 @@ import {
   FIRST_RIPENING_START_S,
   RIPENING_GAP_S,
   nextRipeningStart,
+  ripenNextTarget,
   type RipeningInput,
 } from './ripeningSchedule';
 
@@ -53,5 +54,22 @@ describe('nextRipeningStart', () => {
     const copy = tomatoes.map((x) => ({ ...x }));
     nextRipeningStart({ simTimeS: 0, tomatoes, currentId: null });
     expect(tomatoes).toEqual(copy);
+  });
+});
+
+describe('ripenNextTarget', () => {
+  it('accelerates the fruit currently ripening', () => {
+    expect(ripenNextTarget([t(1, true, 0.4), t(2), t(3)], 1)).toBe(1);
+  });
+
+  it('starts the next attached unripe fruit when the current one is already ripe or gone', () => {
+    expect(ripenNextTarget([t(1, true, 1), t(2), t(3)], 1)).toBe(2);
+    expect(ripenNextTarget([t(1, false, 1), t(3), t(2)], 1)).toBe(2);
+    expect(ripenNextTarget([t(1), t(2)], null)).toBe(1);
+  });
+
+  it('is null when every fruit is ripe or detached', () => {
+    expect(ripenNextTarget([t(1, false, 1), t(2, true, 1)], 2)).toBeNull();
+    expect(ripenNextTarget([], null)).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { vlen, vsub } from '@tomato/shared';
 import { generatePlant, type PlantSpec } from './generatePlant';
-import { nextToRipen, ripenTomato, stemOf, tomatoesFromSpec } from './plantState';
+import { ripenTomato, stemOf, tomatoesFromSpec } from './plantState';
 
 const spec: PlantSpec = {
   seed: 1,
@@ -62,21 +62,6 @@ describe('ripenTomato', () => {
     expect(after.visibleIn).toEqual({ top: 0.42, front: 1, side: 0 });
     expect(after.positionCm).toEqual([1, 2, 3]);
     expect(after.attached).toBe(true);
-  });
-});
-
-describe('nextToRipen', () => {
-  const ripenAt = new Map([[1, 20], [2, 40]]);
-
-  it('picks the attached unripe tomato with the earliest ripenAtS', () => {
-    expect(nextToRipen(tomatoesFromSpec(spec, 0), ripenAt)).toBe(1);
-  });
-
-  it('skips ripe and detached tomatoes, null when none is left', () => {
-    const ts = tomatoesFromSpec(spec, 20);
-    expect(nextToRipen(ts, ripenAt)).toBe(2);
-    const detached = ts.map((t) => (t.id === 2 ? { ...t, attached: false } : t));
-    expect(nextToRipen(detached, ripenAt)).toBeNull();
   });
 });
 

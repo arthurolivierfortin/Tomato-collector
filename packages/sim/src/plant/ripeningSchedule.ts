@@ -60,3 +60,18 @@ export function nextRipeningStart(state: RipeningInput): RipeningStart {
   const started = state.tomatoes.some((t) => !t.attached || t.ripeness > 0);
   return { currentId: next.id, startAtS: started ? state.simTimeS + RIPENING_GAP_S : FIRST_RIPENING_START_S };
 }
+
+/**
+ * Cible de l'action `ripen_next` : le fruit en cours tant qu'il n'est pas au bout de sa rampe
+ * (« accélère le fruit en cours »), sinon le prochain attaché non mûr, qui démarre alors tout de suite.
+ * null quand il ne reste rien à mûrir.
+ */
+export function ripenNextTarget(tomatoes: readonly ScheduledTomato[], currentId: number | null): number | null {
+  const current = currentId === null ? undefined : tomatoes.find((t) => t.id === currentId);
+  if (current !== undefined && isCandidate(current)) return current.id;
+  let next: ScheduledTomato | null = null;
+  for (const t of tomatoes) {
+    if (isCandidate(t) && (next === null || t.id < next.id)) next = t;
+  }
+  return next?.id ?? null;
+}
