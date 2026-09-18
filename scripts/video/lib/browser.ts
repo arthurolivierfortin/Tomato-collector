@@ -23,6 +23,17 @@ const GPU_ARGS = [
   '--mute-audio',
 ];
 
+/**
+ * Taille de la page « terminal » filmée en parallèle : 960×600, soit exactement le rapport de la
+ * vignette (480×300) et du demi-écran (912×570) du montage, donc aucune bande à l'incrustation.
+ *
+ * Elle est volontairement petite. Une page plus large tiendrait plus de lignes, mais réduite à une
+ * vignette de 480 px son texte tomberait sous six pixels : illisible. À 960 px, la vignette est à
+ * la moitié de l'échelle et le demi-écran est presque à l'échelle 1.
+ */
+export const TERMINAL_WIDTH = 960;
+export const TERMINAL_HEIGHT = 600;
+
 export interface OpenedPage {
   readonly browser: Browser;
   readonly context: BrowserContext;
@@ -45,6 +56,20 @@ export async function openCapturePage(videoDir: string): Promise<OpenedPage> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   return { browser, context, page, errors };
+}
+
+/**
+ * Seconde page filmée dans le même navigateur : le terminal. Elle vit dans son propre contexte,
+ * avec sa propre taille et sa propre vidéo, et ne partage rien avec la page du dashboard.
+ */
+export async function openTerminalPage(browser: Browser, videoDir: string): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext({
+    viewport: { width: TERMINAL_WIDTH, height: TERMINAL_HEIGHT },
+    deviceScaleFactor: 1,
+    recordVideo: { dir: videoDir, size: { width: TERMINAL_WIDTH, height: TERMINAL_HEIGHT } },
+  });
+  const page = await context.newPage();
+  return { context, page };
 }
 
 /** Nom du rendu WebGL réel : « SwiftShader » ici voudrait dire rendu logiciel, donc prise saccadée. */

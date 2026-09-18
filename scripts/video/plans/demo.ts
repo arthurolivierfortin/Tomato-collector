@@ -35,13 +35,17 @@ const ZONE = {
 } as const satisfies Record<string, Rect>;
 
 /**
- * Incrustations de la capture du terminal. En partie 2 c'est une vignette dans le coin bas droit,
- * hors de la colonne spectateur et au-dessus du schéma bloc ; en partie 1, le segment qui montre
- * que l'agent est une vraie session Claude Code lui donne la moitié droite de l'écran.
+ * Incrustations de la capture du terminal, au rapport 1280×800 de la page filmée : aucune bande.
+ *
+ * `corner` (480×300) est posée sur la rangée de vignettes, en bas à droite. C'est la seule zone de
+ * l'écran dont l'information est redondante : la vue mise en avant, qui s'arrête à y 752, porte
+ * déjà tout, et la partie 1 a montré les trois vues en plein écran. Elle ne touche ni la colonne de
+ * trace (qui s'arrête à x 1284), ni la vue mise en avant, ni la vue spectateur, ni le bandeau de
+ * statuts, ni le sous-titre.
  */
 const PIP = {
-  corner: { x: 1432, y: 620, w: 472, h: 300 },
-  half: { x: 976, y: 168, w: 912, h: 744 },
+  corner: { x: 1424, y: 760, w: 480, h: 300 },
+  half: { x: 976, y: 236, w: 912, h: 570 },
 } as const satisfies Record<string, Rect>;
 
 /** Sept tuiles, sept arrêts sur image : ce qui entre, qui fait le travail, ce qui sort. */
@@ -165,6 +169,23 @@ const part1: PlanEntry[] = [
       { at: { marker: 'views_first', offsetS: 1 }, durationS: 3.5, caption: 'First tool call of the episode: get_views on all three cameras', highlight: ZONE.trace },
     ],
   },
+  // L'agent est une vraie session Claude Code : le terminal prend la moitié droite de l'écran, au
+  // moment même où le tout premier `tool_use` de la session s'y inscrit.
+  {
+    take: CONCEPTS,
+    from: { marker: 'views_first', offsetS: 1.5 },
+    to: { marker: 'lightbox_front', offsetS: -1.5 },
+    title: { text: 'The agent is a real Claude Code session', durationS: 3.5, subtitle: 'The server console, live: init, text, tool_use, tool_result, result' },
+    caption: 'On the right, the server console: the SDK stream as it arrives',
+    pip: PIP.half,
+    freezeAt: [
+      {
+        at: { marker: 'views_first', offsetS: 2.5 },
+        durationS: 4,
+        caption: 'The first tool_use of the session: get_views, and the tool_result that answers it',
+      },
+    ],
+  },
   // (e) Les trois vues, à la loupe (plein écran : pas de cadre, tout est déjà montré).
   {
     take: CONCEPTS,
@@ -207,7 +228,7 @@ const part1: PlanEntry[] = [
   {
     take: CONCEPTS,
     from: { marker: 'rotate', offsetS: -0.8 },
-    to: { marker: 'rotate', offsetS: 2 },
+    to: { marker: 'agent_view', offsetS: -1.6 },
     title: {
       text: 'MCP tools: every action is a JSON call',
       durationS: 3,
@@ -218,22 +239,12 @@ const part1: PlanEntry[] = [
     freezeAt: [
       { at: { marker: 'rotate', offsetS: 0.8 }, durationS: 3.5, caption: 'One call, one line: the JSON sent, the JSON returned, and how long it took' },
       {
-        at: { marker: 'rotate', offsetS: 1.7 },
+        at: { marker: 'rotate', offsetS: 2.6 },
         durationS: 3.5,
         caption: 'The raw session stream (key t): init, text, tool_use, tool_result, stderr',
         highlight: ZONE.rawSession,
       },
     ],
-  },
-  // L'agent est une vraie session Claude Code : le terminal prend la moitié de l'écran.
-  {
-    take: CONCEPTS,
-    from: { marker: 'rotate', offsetS: 2 },
-    to: { marker: 'agent_view', offsetS: -1.6 },
-    title: { text: 'The agent is a real Claude Code session', durationS: 3.5, subtitle: 'Same stream, read from the server console: init, text, tool_use, tool_result, result' },
-    caption: 'On the right, the server console: the SDK stream as it arrives',
-    pip: PIP.half,
-    freezeAt: [{ at: { marker: 'rotate', offsetS: 2.8 }, durationS: 4, caption: 'One tool_use line, its JSON arguments, and the tool_result that answers it' }],
   },
   // Ce que l'agent reçoit vraiment.
   {

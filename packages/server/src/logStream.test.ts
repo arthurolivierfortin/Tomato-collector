@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { logStreamLine, stripAnsi } from './logStream';
+import { logStreamLine, serverLine, stripAnsi } from './logStream';
 
 /** Caractère d'échappement ANSI ; écrit par son code pour ne pas poser un caractère de contrôle dans le source. */
 const ESC = String.fromCharCode(27);
@@ -36,5 +36,40 @@ describe('logStreamLine', () => {
   it('stays silent on the messages that would drown the stream', () => {
     expect(logStreamLine({ type: 'phase', phase: 'detected', reason: 'x' })).toBeNull();
     expect(logStreamLine({ type: 'block_activity', from: 'server', to: 'agent', label: 'réveil' })).toBeNull();
+  });
+});
+
+describe('serverLine', () => {
+  it('prefixes the server own lines, so they read like the rest of the stream', () => {
+    expect(stripAnsi(serverLine('prêt : MCP http://localhost:7331/mcp'))).toBe('server    prêt : MCP http://localhost:7331/mcp');
+  });
+
+  it('colours them apart from the agent stream', () => {
+    expect(serverLine('x')).toContain(ESC);
+    expect(serverLine('x').slice(0, 8)).not.toBe(logStreamLine({ type: 'agent_raw', episodeId: 'e', kind: 'tool_use', line: 'cut {}' })?.slice(0, 8));
+  });
+
+  it('strips the timestamp that consoleLogger adds, the terminal already scrolls in order', () => {
+    expect(stripAnsi(serverLine('[2026-09-18T17:46:41.818Z] prêt : agent on'))).toBe('server    prêt : agent on');
+  });
+});
+
+describe('logStreamLine, côté MCP', () => {
+  it('prints the tool calls the robot server actually served', () => {
+    const start = logStreamLine({ type: 'tool_call_start', episodeId: 'e', callId: 'c1', tool: 'move_basket', args: { x: 13, mode: 'absolute' } });
+    expect(stripAnsi(start ?? '')).toBe('mcp       move_basket {"x":13,"mode":"absolute"}');
+  });
+
+  it('prints the answer with its duration, and marks a failure', () => {
+    const ok = logStreamLine({ type: 'tool_call_result', episodeId: 'e', callId: 'c1', ok: true, summary: 'panier à X 13', durationMs: 210 });
+    expect(stripAnsi(ok ?? '')).toBe('mcp       ok : panier à X 13 (210 ms)');
+    const bad = logStreamLine({ type: 'tool_call_result', episodeId: 'e', callId: 'c2', ok: false, summary: 'collision', durationMs: 90 });
+    expect(stripAnsi(bad ?? '')).toBe('mcp       ERREUR : collision (90 ms)');
+    expect(bad?.slice(0, 8)).not.toBe(ok?.slice(0, 8));
+  });
+
+  it('prints what the simulation reports back', () => {
+    const line = logStreamLine({ type: 'sim_event', event: { type: 'tomato_landed', tomatoId: 1, inBasket: true } });
+    expect(stripAnsi(line ?? '')).toBe('sim       {"type":"tomato_landed","tomatoId":1,"inBasket":true}');
   });
 });

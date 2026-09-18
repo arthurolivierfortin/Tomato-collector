@@ -8,7 +8,8 @@ import { createHub } from './hub/hub';
 import { createApp } from './http/app';
 import { consoleLogger } from './log';
 import { createMcpServer } from './mcp/createMcpServer';
-import { logStreamLine } from './logStream';
+import { createLogSink } from './logSink';
+import { logStreamLine, serverLine } from './logStream';
 import { createSimBridge } from './sim/simBridge';
 import { createSession } from './state/session';
 import { VERSION } from './version';
@@ -17,8 +18,15 @@ import { VERSION } from './version';
 const SYSTEM_PROMPT_PATH = resolve(import.meta.dirname, '../prompts/system.md');
 
 async function main(): Promise<void> {
-  const log = consoleLogger;
   const config = readConfig(process.env);
+  // Le flux de la session, tel quel, sur stdout et dans un fichier que la page « terminal » du
+  // pipeline vidéo suit (issue #35). Les lignes du serveur lui-même y vont aussi : la vidéo doit
+  // montrer le démarrage et le réveil, pas seulement les appels d'outils.
+  const sink = createLogSink(config.logStream === 'on' ? config.logFile : '');
+  const log = (line: string): void => {
+    consoleLogger(line);
+    if (config.logStream === 'on') sink.write(serverLine(line));
+  };
   log(`tomato-server ${VERSION} : démarrage`);
 
   const hub = createHub(config.wsPort, { log });
@@ -31,8 +39,10 @@ async function main(): Promise<void> {
   if (config.logStream === 'on') {
     hub.onBroadcast((m) => {
       const line = logStreamLine(m);
-      if (line !== null) process.stdout.write(`${line}
+      if (line === null) return;
+      process.stdout.write(`${line}
 `);
+      sink.write(line);
     });
   }
   sim.onEvent((e) => session.handleSimEvent(e));
@@ -60,7 +70,7 @@ async function main(): Promise<void> {
 
   const wake = wakePort === null ? 'réveil manuel indisponible' : `réveil manuel http://127.0.0.1:${wakePort}/wake/<tomatoId>`;
   log(
-    `prêt : MCP ${mcpUrl} · WebSocket ws://localhost:${wsPort} · ${wake} · épisodes ${config.episodesDir} · agent ${config.agent} (${config.model}) · rythme outils ${config.toolPacingMs} ms · flux console ${config.logStream}`,
+    `prêt : MCP ${mcpUrl} · WebSocket ws://localhost:${wsPort} · ${wake} · épisodes ${config.episodesDir} · agent ${config.agent} (${config.model}) · rythme outils ${config.toolPacingMs} ms · flux console ${config.logStream}${config.logFile === '' ? '' : ` → ${config.logFile}`}`,
   );
 
   const shutdown = (): void => {

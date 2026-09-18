@@ -36,13 +36,16 @@ const RIPENING_TIMEOUT_MS = 180_000;
  * Durées de maintien, choisies pour tenir dans la fenêtre réelle entre les premières vues et la
  * coupe. Sur l'épisode de référence (2026-09-18T16-36-29-196Z-t1) il s'écoule 47 s entre
  * « Vues demandées » et « Coupe » ; la somme des maintiens ci-dessous fait 38 s, ce qui laisse une
- * dizaine de secondes de marge pour revenir en vue spectateur avant la chute.
+ * dizaine de secondes de marge pour revenir en vue spectateur avant la chute. Répétition du
+ * 2026-09-18 : `normal_view` à 66,5 s pour un `cut` à 68,6 s, la chute était bien à l'écran.
  */
 const HOLD = {
-  /** Une vue dans la loupe (0,8 s d'ouverture en plus, soit ~5,8 s par vue à l'écran). */
-  lightbox: 5000,
+  /** Le terminal en demi-écran, pendant que le premier `tool_use` de la session s'y inscrit. */
+  terminal: 6000,
+  /** Une vue dans la loupe (0,8 s d'ouverture en plus, soit ~4,8 s par vue à l'écran). */
+  lightbox: 4000,
   /** Les gizmos des trois caméras dans la scène. */
-  gizmos: 5000,
+  gizmos: 4000,
   /** La colonne de trace et le flux brut, pendant que l'agent écrit. */
   trace: 4000,
   /** Le mode « ce que voit l'agent ». */
@@ -98,8 +101,10 @@ export function conceptsScenario(mode: TakeMode): Scenario {
       { kind: 'waitForText', selector: TRACE, text: 'Vues demandées', timeoutMs: EPISODE_TIMEOUT_MS },
       { kind: 'marker', name: 'views_first' },
       { kind: 'waitForSelector', selector: FEATURED_IMAGE, timeoutMs: EPISODE_TIMEOUT_MS },
-      // 2,5 s : le temps que les trois images arrivent, et de quoi séparer ce segment du suivant.
-      { kind: 'wait', ms: 2500 },
+      // Le temps que les trois images arrivent, et que le premier `tool_use` de la session
+      // s'inscrive dans le terminal filmé en parallèle : c'est ce que montre le segment
+      // « The agent is a real Claude Code session », juste avant la loupe.
+      { kind: 'wait', ms: HOLD.terminal },
 
       // (f) La loupe (`z`) sur la vue mise en avant — `front` par défaut — puis `side` et `top`.
       { kind: 'press', key: 'z' },

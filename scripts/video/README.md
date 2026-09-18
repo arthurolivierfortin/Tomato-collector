@@ -3,8 +3,8 @@
 Trois prises, un montage. Rien n'est manuel : la page est pilotée par Playwright, la fenêtre de
 terminal est filmée par ffmpeg, et ffmpeg assemble le résultat.
 
-    npm run video:record -- --scenario concepts --mode live --take concepts --terminal "Tomato server"
-    npm run video:record -- --scenario cycle    --mode live --take cycle    --terminal "Tomato server"
+    npm run video:record -- --scenario concepts --mode live --take concepts --terminal page
+    npm run video:record -- --scenario cycle    --mode live --take cycle    --terminal page
     npm run video:record -- --scenario pipeline --mode replay --take pipeline --episode latest
     npm run video:montage -- --episode latest
 
@@ -24,7 +24,8 @@ qui fait foi.
 | Chemin | Contenu |
 |---|---|
 | `data/video/takes/<prise>.webm` | la prise brute, 1920×1080 |
-| `data/video/takes/<prise>.terminal.mkv` | la fenêtre de terminal filmée en parallèle |
+| `data/video/takes/<prise>.terminal.webm` | le terminal filmé en parallèle (`.mkv` en mode gdigrab) |
+| `data/video/server.log` | le flux du serveur, que la page « terminal » suit |
 | `data/video/takes/<prise>.markers.json` | les marqueurs horodatés de la prise |
 | `data/video/work/` | les sous-plans intermédiaires (effacé à chaque montage) |
 | `data/video/tomato-demo.mp4` | le film monté |
@@ -113,7 +114,9 @@ prompt système, avant la première approche) ; s'il la saute, la prise garde to
 | `--take <nom>` | nom du scénario | nom des fichiers de sortie |
 | `--page <url>` | `http://localhost:5173` | page à piloter |
 | `--api <url>` | `http://localhost:7331` | HTTP du serveur ; en direct, `/health` doit dire `phase: "idle"` et `simConnected: false` |
-| `--terminal <titre>` | — | filme la fenêtre de terminal portant ce titre exact (gdigrab) |
+| `--terminal <page\|gdigrab\|off>` | `off` | comment filmer le terminal |
+| `--terminal-log <fichier>` | `data/video/server.log` | mode `page` : le fichier écrit par `TOMATO_LOG_FILE` |
+| `--terminal-window <titre>` | `Tomato server` | mode `gdigrab` : titre exact de la fenêtre |
 | `--episode <id\|chemin>` | — | journal à rejouer en mode `replay` |
 | `--episodes-dir <dossier>` | `data/episodes` | où chercher `<id>.json` |
 | `--out <dossier>` | `data/video/takes` | dossier des prises |
@@ -135,26 +138,51 @@ prompt système, avant la première approche) ; s'il la saute, la prise garde to
 ## Le terminal à l'image
 
 Sans terminal, un spectateur peut croire que la session de l'agent est une mise en scène du
-dashboard. La vidéo filme donc une **vraie fenêtre de console** en parallèle de la page.
+dashboard. La vidéo filme donc, en parallèle de la page, **la sortie réelle du processus serveur**.
 
-1. **Côté serveur**, `TOMATO_LOG_STREAM=on` imprime sur la sortie standard exactement les lignes que
-   le dashboard reçoit en `agent_raw` — `init`, `text`, `tool_use` avec ses arguments, `tool_result`,
-   `result` avec le coût — une couleur par nature d'événement, base64 filtré (`packages/server/src/logStream.ts`).
-2. **Côté tournage**, `scripts/video/terminal.ps1` ouvre une console au titre stable (« Tomato
-   server » par défaut), la dimensionne à 960×620 et la place en haut à gauche : elle tient
-   largement dans un écran de 1536×960 et n'est donc jamais rognée. C'est la seule fenêtre visible
-   du pipeline ; la page, elle, reste en headless 1920×1080.
-3. **Côté prise**, `--terminal "<titre>"` lance `ffmpeg -f gdigrab -i title=<titre>` au moment même
-   où la page de capture s'ouvre : les deux vidéos partagent l'horloge de la prise, et le décalage
-   est écrit dans `<prise>.markers.json` (`terminal.startMs`).
-4. **Côté montage**, un segment qui porte `pip` incruste le terminal : une vignette dans le coin bas
-   droit pendant toute la partie 2 dès le réveil, et la moitié droite de l'écran sur le segment
-   « The agent is a real Claude Code session » de la partie 1.
+1. **Le serveur écrit son flux dans un fichier.** `TOMATO_LOG_STREAM=on` imprime sur la sortie
+   standard exactement les lignes que le dashboard reçoit, une couleur par nature d'événement,
+   base64 filtré : les lignes du serveur lui-même (`server`, dont « prêt : … agent on
+   (claude-opus-5) »), le réveil (`wake`), le flux du SDK (`init`, `text`, `tool_use`,
+   `tool_result`, `result` avec le coût), le versant MCP de chaque appel (`mcp`, avec ses arguments,
+   sa réponse et son chrono) et les événements de simulation (`sim`). `TOMATO_LOG_FILE=<chemin>`
+   recopie ces mêmes lignes, codes ANSI compris, dans un fichier, vidé au démarrage : une prise
+   filme une session, pas l'historique de la machine.
 
-`gdigrab` exige que la fenêtre soit **visible sur le bureau interactif** : titre exact, fenêtre non
-réduite, non masquée. Si ffmpeg ne la trouve pas, il s'arrête, la prise continue sans terminal, le
-fichier de marqueurs n'annonce aucune piste, et le montage prévient puis monte sans incrustation.
-Une session non interactive (agent, service) n'a pas de bureau : la capture y échoue toujours.
+2. **Une page suit ce fichier.** `scripts/video/terminal/index.html` est une page statique : barre
+   de titre « Tomato server · Claude Code session », police monospace, curseur qui clignote,
+   défilement automatique. Elle demande les nouvelles lignes toutes les 100 ms à un petit serveur
+   local que `record.ts` ouvre sur un port libre de 127.0.0.1, et les affiche telles quelles. Le
+   HTML coloré est produit côté Node (`lib/ansi.ts`, testé) ; la page ne fait que le coller. Aucune
+   bibliothèque, aucun CDN : un navigateur headless n'a pas toujours le droit d'aller en chercher
+   une, et cette page-là n'en a pas besoin.
+
+   **C'est la sortie réelle du processus, pas une reconstitution** : chaque ligne à l'écran a été
+   écrite par le serveur, dans l'ordre où il l'a écrite.
+
+3. **Playwright la filme.** `--terminal page` ouvre une seconde page headless de 1280×800 dans le
+   même navigateur, au moment même où s'ouvre la page du dashboard : les deux vidéos partagent
+   l'horloge de la prise, et le décalage (quelques centaines de millisecondes) est écrit dans
+   `<prise>.markers.json`. Rien ne dépend du bureau Windows, donc la capture marche depuis
+   n'importe quelle session, y compris sans écran.
+
+4. **Le montage l'incruste.** Un segment qui porte `pip` met le terminal par-dessus la prise :
+   vignette de 480×300 en bas à droite pendant toute la partie 2 dès le réveil, et moitié droite de
+   l'écran en partie 1, sur le segment « The agent is a real Claude Code session », avec un arrêt
+   sur image sur le premier `tool_use` de la session. La vignette est posée sur la rangée de
+   vignettes de vues, la seule zone dont l'information est redondante : elle ne couvre ni la colonne
+   de trace, ni la vue mise en avant, ni la vue spectateur, ni le bandeau de statuts, ni le
+   sous-titre.
+
+### `--terminal gdigrab`, l'option
+
+`gdigrab` filme une **vraie fenêtre de console** par son titre ; `scripts/video/terminal.ps1` en
+ouvre une, au titre stable, dimensionnée à 960×620 et placée en haut à gauche. C'est plus
+authentique, mais ffmpeg exige alors une fenêtre **visible sur le bureau interactif** : titre exact,
+fenêtre non réduite, non masquée. Une session non interactive (agent, service) n'a pas de bureau et
+la capture y échoue toujours — c'est pourquoi le défaut est la page. Si ffmpeg ne trouve pas la
+fenêtre, il s'arrête, la prise continue, le fichier de marqueurs n'annonce aucune piste, et le
+montage prévient puis monte sans incrustation.
 
 ## Marqueurs
 
@@ -202,10 +230,12 @@ ils ne comptent pas dans les marqueurs prévus, et les segments du plan qui les 
 
 Comment la partie 1 a été mise au point sans lancer une seule session payante, et comment la refaire :
 
-1. Un serveur **neuf**, agent coupé, flux console activé, sur des ports d'essai :
+1. Un serveur **neuf**, agent coupé, flux console activé et recopié dans le fichier que la page
+   « terminal » suivra, sur des ports d'essai :
 
-       TOMATO_AGENT=off TOMATO_LOG_STREAM=on TOMATO_MCP_PORT=7471 TOMATO_WS_PORT=7472 \
-       TOMATO_WAKE_PORT=7473 npx tsx packages/server/src/index.ts
+       TOMATO_AGENT=off TOMATO_LOG_STREAM=on TOMATO_LOG_FILE=data/video/server.log \
+       TOMATO_MCP_PORT=7471 TOMATO_WS_PORT=7472 TOMATO_WAKE_PORT=7473 \
+       npx tsx packages/server/src/index.ts
 
 2. La sim, sur un port d'essai, pointée sur le WebSocket du serveur d'essai
    (`packages/sim/.env.local` avec `VITE_TOMATO_WS_URL=ws://localhost:7472`, à effacer ensuite) :
@@ -224,7 +254,8 @@ Comment la partie 1 a été mise au point sans lancer une seule session payante,
 4. La prise, comme en vrai :
 
        npx tsx scripts/video/record.ts --scenario concepts --mode live --take concepts \
-         --page http://localhost:5318 --api http://localhost:7471
+         --page http://localhost:5318 --api http://localhost:7471 \
+         --terminal page --terminal-log data/video/server.log
 
 **Ce qui manque à une répétition** : le texte que l'agent écrit entre deux appels et le flux brut de
 la session viennent du SDK. Le panneau « Session agent (brut) » reste donc vide et affiche « En
@@ -344,7 +375,10 @@ sous-titre dépasse deux lignes.
     lib/browser.ts         ouverture de Chromium, mesures GPU et cadence
     lib/health.ts          GET /health, serveur neuf et aucune autre sim
     lib/recorder.ts        déroulé d'une prise, écriture vidéo + marqueurs
-    lib/terminal.ts        capture gdigrab de la fenêtre de terminal
+    lib/terminal.ts        capture du terminal : page filmée (défaut) ou fenêtre gdigrab
+    lib/termServer.ts      serveur local qui sert la page terminal et lui donne les lignes
+    lib/ansi.ts            codes ANSI du serveur → HTML coloré (pur, testé)
+    terminal/index.html    la page « terminal », sans bibliothèque ni CDN
     lib/steps.ts           exécution d'une étape de scénario
     lib/scenario.ts        types et validation d'un scénario
     lib/markers.ts         marqueurs horodatés
@@ -366,8 +400,11 @@ sont testées par `npm test` (projet vitest `video`), sans lancer ffmpeg ni navi
 - **« page sans pont simulé »** : la sim tourne en production. Relancer `npm run dev:sim` ou `npm run demo`.
 - **« __name is not defined »** : ne devrait plus arriver — `browser.ts` injecte le fantôme laissé
   par esbuild (`keepNames`) dans les fonctions passées à `page.evaluate`.
-- **« Can't find window … »** : le titre de la fenêtre de terminal ne correspond pas, ou la fenêtre
-  n'est pas sur le bureau interactif. La prise continue sans incrustation.
+- **« Can't find window … »** (mode `gdigrab`) : le titre de la fenêtre ne correspond pas, ou la
+  fenêtre n'est pas sur le bureau interactif. La prise continue sans incrustation ; en mode `page`,
+  ce problème n'existe pas.
+- **Terminal vide à l'image** : le serveur tourne sans `TOMATO_LOG_FILE`, ou `--terminal-log` ne
+  pointe pas sur le même fichier. `record.ts` affiche le chemin suivi au démarrage de la prise.
 - **« prises absentes »** au montage : enregistrer la prise manquante, ou passer `--skip-missing`.
 - **Un arrêt sur image tombe à côté** : ajuster l'`offsetS` du plan, relancer `npm run video:montage`
   (sans réenregistrer), puis regarder l'image extraite.
