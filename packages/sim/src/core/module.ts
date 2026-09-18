@@ -20,21 +20,16 @@ export interface SimContext {
   registry: Registry;
 }
 
-/** Options de traitement d'une action (issue #21). */
-export interface HandleOptions {
-  /** true : pose finale appliquée d'un coup, résultat immédiat (contrôles locaux, mise en place des tests). */
-  instant: boolean;
-}
-
 export interface SimModule {
   name: string;
   init(ctx: SimContext): void | Promise<void>;
   /** Appelé à chaque frame avec le dt SIM (déjà mis à l'échelle, 0 si pause). */
   update?(dtSimS: number, ctx: SimContext): void;
+  /** Réponse immédiate : la pose finale est posée d'un coup. Retourne null si l'action n'est pas de son ressort. */
+  handle?(action: SimAction, ctx: SimContext): ActionResult | null;
   /**
-   * Retourne null si l'action n'est pas de son ressort.
-   * Une promesse = mouvement animé : elle se résout à la fin du déplacement.
-   * Avec `opts.instant`, le module DOIT répondre de façon synchrone.
+   * Variante animée (issue #21) : la promesse ne se résout qu'à la fin du mouvement.
+   * Absente (ou null) : `handle` fait foi, l'action est instantanée de toute façon.
    */
-  handle?(action: SimAction, ctx: SimContext, opts?: HandleOptions): ActionResult | Promise<ActionResult> | null;
+  handleAnimated?(action: SimAction, ctx: SimContext): Promise<ActionResult> | null;
 }

@@ -54,7 +54,7 @@ let arrive: (() => void) | null = null;
 const slowModule: SimModule = {
   name: 'lent',
   init: () => undefined,
-  handle: (action, ctx) => {
+  handleAnimated: (action, ctx) => {
     if (action.type !== 'cut') return null;
     return new Promise((resolve) => {
       arrive = () => resolve(ok(ctx.store.get(), 'stem_cut'));

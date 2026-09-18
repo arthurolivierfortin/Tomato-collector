@@ -44,13 +44,13 @@ async function advance(m: SimModule, c: SimContext, dtS: number, steps: number):
   await settle();
 }
 
-const animated = (r: ActionResult | Promise<ActionResult> | null): Promise<ActionResult> => {
-  if (r === null || !(r instanceof Promise)) throw new Error('attendu : une action animée');
+const animated = (r: Promise<ActionResult> | null): Promise<ActionResult> => {
+  if (r === null) throw new Error('attendu : une action animée');
   return r;
 };
 
-const now = (r: ActionResult | Promise<ActionResult> | null): ActionResult => {
-  if (r === null || r instanceof Promise) throw new Error('attendu : un résultat immédiat');
+const now = (r: ActionResult | null): ActionResult => {
+  if (r === null) throw new Error('attendu : un résultat immédiat');
   return r;
 };
 
@@ -59,22 +59,22 @@ describe('robotModule (mode immédiat)', () => {
     const m = createRobotModule();
     const c = ctx();
     m.init(c);
-    expect(m.handle!({ type: 'ripen_next' }, c, { instant: true })).toBeNull();
-    expect(m.handle!({ type: 'set_target', tomatoId: 1 }, c, { instant: true })).toBeNull();
+    expect(m.handle!({ type: 'ripen_next' }, c)).toBeNull();
+    expect(m.handle!({ type: 'set_target', tomatoId: 1 }, c)).toBeNull();
   });
 
   it('applies successful actions to the store and leaves it untouched on failure', () => {
     const m = createRobotModule();
     const c = ctx();
     m.init(c);
-    const r = now(m.handle!({ type: 'move_basket', x: 10, y: 5, mode: 'absolute' }, c, { instant: true }));
+    const r = now(m.handle!({ type: 'move_basket', x: 10, y: 5, mode: 'absolute' }, c));
     expect(r.ok).toBe(true);
     expect(c.store.get().basket.centerCm).toEqual([10, 5, 5]);
     const before = c.store.get();
-    const bad = now(m.handle!({ type: 'move_scissors', x: -30, y: 30, z: 60, mode: 'absolute' }, c, { instant: true }));
+    const bad = now(m.handle!({ type: 'move_scissors', x: -30, y: 30, z: 60, mode: 'absolute' }, c));
     expect(bad.ok).toBe(false);
     expect(c.store.get()).toBe(before);
-    const rot = now(m.handle!({ type: 'rotate_scissors', yaw: 45, mode: 'relative' }, c, { instant: true }));
+    const rot = now(m.handle!({ type: 'rotate_scissors', yaw: 45, mode: 'relative' }, c));
     expect(rot.ok).toBe(true);
     expect(c.store.get().scissors.yawDeg).toBe(45);
   });
@@ -85,9 +85,9 @@ describe('robotModule (mode immédiat)', () => {
     m.init(c);
     const seen = vi.fn();
     c.signals.on('tomato_cut', seen);
-    m.handle!({ type: 'open_scissors' }, c, { instant: true });
+    m.handle!({ type: 'open_scissors' }, c);
     expect(c.store.get().scissors.openingDeg).toBe(60);
-    const r = now(m.handle!({ type: 'cut' }, c, { instant: true }));
+    const r = now(m.handle!({ type: 'cut' }, c));
     expect(r.ok).toBe(true);
     expect(seen).toHaveBeenCalledTimes(1);
     expect(seen).toHaveBeenCalledWith({ type: 'tomato_cut', tomatoId: 3 });
@@ -100,8 +100,8 @@ describe('robotModule (mode immédiat)', () => {
     m.init(c);
     const seen = vi.fn();
     c.signals.on('tomato_cut', seen);
-    m.handle!({ type: 'open_scissors' }, c, { instant: true });
-    const r = now(m.handle!({ type: 'cut' }, c, { instant: true }));
+    m.handle!({ type: 'open_scissors' }, c);
+    const r = now(m.handle!({ type: 'cut' }, c));
     expect(r.ok).toBe(false);
     expect(seen).not.toHaveBeenCalled();
   });
@@ -118,12 +118,12 @@ describe('robotModule (mode immédiat)', () => {
       leaves: [{ positionCm: [45, -33, 60], normal: [0, 0, 1], sizeCm: 10, spinDeg: 0 }],
       tomatoes: [],
     };
-    const blocked = now(m.handle!({ type: 'move_scissors', x: 30, y: -35, z: 60, mode: 'absolute' }, c, { instant: true }));
+    const blocked = now(m.handle!({ type: 'move_scissors', x: 30, y: -35, z: 60, mode: 'absolute' }, c));
     if (blocked.ok) throw new Error('expected a collision');
     expect(blocked.error).toBe('collision');
     expect(blocked.details?.blockedBy).toBe('stem');
-    m.handle!({ type: 'open_scissors' }, c, { instant: true });
-    const leaf = now(m.handle!({ type: 'cut' }, c, { instant: true }));
+    m.handle!({ type: 'open_scissors' }, c);
+    const leaf = now(m.handle!({ type: 'cut' }, c));
     if (leaf.ok) throw new Error('expected leaf_cut');
     expect(leaf.error).toBe('leaf_cut');
   });
@@ -135,7 +135,7 @@ describe('robotModule (mouvements animés)', () => {
     const c = ctx();
     m.init(c);
     // 15 cm de trajet à 15 cm/s = 1 s de temps SIM.
-    const p = animated(m.handle!({ type: 'move_scissors', x: 45, y: -35, z: 45, mode: 'absolute' }, c));
+    const p = animated(m.handleAnimated!({ type: 'move_scissors', x: 45, y: -35, z: 45, mode: 'absolute' }, c));
     const w = watch(p);
     await settle();
     expect(c.store.get().scissors.cutPointCm).toEqual([45, -35, 60]); // rien n'a encore bougé
@@ -163,7 +163,7 @@ describe('robotModule (mouvements animés)', () => {
     const c = ctx();
     m.init(c);
     const before = c.store.get().scissors.cutPointCm;
-    const r = await animated(m.handle!({ type: 'move_scissors', x: -30, y: 30, z: 60, mode: 'absolute' }, c));
+    const r = await animated(m.handleAnimated!({ type: 'move_scissors', x: -30, y: 30, z: 60, mode: 'absolute' }, c));
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error('unreachable');
     expect(r.error).toBe('out_of_reach');
@@ -174,7 +174,7 @@ describe('robotModule (mouvements animés)', () => {
     const m = createRobotModule();
     const c = ctx();
     m.init(c);
-    const p = animated(m.handle!({ type: 'move_scissors', x: 45, y: -35, z: 45, mode: 'absolute' }, c));
+    const p = animated(m.handleAnimated!({ type: 'move_scissors', x: 45, y: -35, z: 45, mode: 'absolute' }, c));
     const w = watch(p);
     await advance(m, c, 0, 20);
     expect(c.store.get().scissors.cutPointCm).toEqual([45, -35, 60]);
@@ -187,8 +187,8 @@ describe('robotModule (mouvements animés)', () => {
     const m = createRobotModule();
     const c = ctx();
     m.init(c);
-    const first = animated(m.handle!({ type: 'move_scissors', x: 45, y: -35, z: 45, mode: 'absolute' }, c));
-    const second = animated(m.handle!({ type: 'move_scissors', x: 0, y: 0, z: 15, mode: 'relative' }, c));
+    const first = animated(m.handleAnimated!({ type: 'move_scissors', x: 45, y: -35, z: 45, mode: 'absolute' }, c));
+    const second = animated(m.handleAnimated!({ type: 'move_scissors', x: 0, y: 0, z: 15, mode: 'relative' }, c));
     const w2 = watch(second);
     await advance(m, c, 0.25, 4);
     expect(await first).toMatchObject({ ok: true });
@@ -202,7 +202,7 @@ describe('robotModule (mouvements animés)', () => {
     const m = createRobotModule();
     const c = ctx();
     m.init(c);
-    const p = animated(m.handle!({ type: 'rotate_scissors', yaw: 90, mode: 'relative' }, c)); // 90° à 45°/s = 2 s
+    const p = animated(m.handleAnimated!({ type: 'rotate_scissors', yaw: 90, mode: 'relative' }, c)); // 90° à 45°/s = 2 s
     await advance(m, c, 0.5, 2);
     expect(c.store.get().scissors.yawDeg).toBeCloseTo(45, 6);
     await advance(m, c, 0.5, 3);
@@ -215,7 +215,7 @@ describe('robotModule (mouvements animés)', () => {
     const m = createRobotModule();
     const c = ctx();
     m.init(c);
-    const p = animated(m.handle!({ type: 'open_scissors' }, c));
+    const p = animated(m.handleAnimated!({ type: 'open_scissors' }, c));
     await advance(m, c, BLADES_DURATION_S / 2, 1);
     expect(c.store.get().scissors.openingDeg).toBeCloseTo(30, 6);
     await advance(m, c, BLADES_DURATION_S / 2, 2);
@@ -229,10 +229,10 @@ describe('robotModule (mouvements animés)', () => {
     m.init(c);
     const seen = vi.fn();
     c.signals.on('tomato_cut', seen);
-    const opened = animated(m.handle!({ type: 'open_scissors' }, c));
+    const opened = animated(m.handleAnimated!({ type: 'open_scissors' }, c));
     await advance(m, c, 0.25, 3);
     expect((await opened).ok).toBe(true);
-    const p = animated(m.handle!({ type: 'cut' }, c));
+    const p = animated(m.handleAnimated!({ type: 'cut' }, c));
     const w = watch(p);
     await advance(m, c, BLADES_DURATION_S / 2, 1);
     expect(c.store.get().scissors.openingDeg).toBeCloseTo(30, 6);
@@ -248,8 +248,8 @@ describe('robotModule (mouvements animés)', () => {
     const m = createRobotModule();
     const c = ctx();
     m.init(c);
-    const scissors = animated(m.handle!({ type: 'move_scissors', x: 45, y: -35, z: 45, mode: 'absolute' }, c));
-    const basket = animated(m.handle!({ type: 'move_basket', x: 15, y: 0, mode: 'absolute' }, c)); // 15 cm = 1 s
+    const scissors = animated(m.handleAnimated!({ type: 'move_scissors', x: 45, y: -35, z: 45, mode: 'absolute' }, c));
+    const basket = animated(m.handleAnimated!({ type: 'move_basket', x: 15, y: 0, mode: 'absolute' }, c)); // 15 cm = 1 s
     await advance(m, c, 0.25, 2);
     expect(c.store.get().basket.centerCm[0]).toBeCloseTo(7.5, 6);
     await advance(m, c, 0.25, 3);
