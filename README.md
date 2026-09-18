@@ -163,7 +163,10 @@ l'on dit exactement où s'arrête le traitement d'image et où commence l'aide v
 
 **Quel détecteur tourne ?** Le bandeau haut et la pastille de perception le nomment en entier :
 « YOLOv8n ONNX 640 » quand le modèle est chargé et a produit la dernière détection, « seuillage HSV 640 »
-sinon. Les chiffres du modèle, le jeu d'évaluation et la décision de le retenir ou non sont dans
+sinon. Par défaut c'est le modèle : un YOLOv8n affiné sur 400 rendus de la simulation, livré avec le
+dépôt (12,3 Mo), qui atteint 1,000 de rappel et 0,971 de précision sur les tomates mûres d'un jeu de
+contrôle jamais vu, contre 0,824 / 0,771 pour le seuillage HSV. L'inférence tourne dans un Web Worker
+pour ne pas geler la scène. Chiffres complets, jeu d'évaluation, limites et reproduction dans
 [`docs/perception-model.md`](docs/perception-model.md).
 
 ## Tournage
@@ -208,9 +211,11 @@ sinon. Les chiffres du modèle, le jeu d'évaluation et la décision de le reten
 - `npm run wake` répond « fetch failed » : le serveur n'est pas démarré, ou son `TOMATO_WAKE_PORT` diffère
   de celui du réveil. La trace en direct de l'épisode demande en plus le même `TOMATO_WS_PORT` que le serveur
   (sans elle, le réveil part quand même et la commande le signale).
-- Modèle ONNX absent (`packages/sim/public/models/tomato-ripe.onnx`) : la démo fonctionne sans, la
-  perception retombe sur la détection par contours HSV. Pour l'exporter : `python scripts/export-yolo.py`
-  (dépendances et licence détaillées en en-tête du script).
+- Le dashboard affiche « mode dégradé HSV » : le modèle `packages/sim/public/models/tomato-ripe.onnx`
+  (livré avec le dépôt, 12,3 Mo) n'a pas été chargé — fichier absent après un `git clone` partiel, ou
+  worker refusé par le navigateur. La démo fonctionne quand même : la perception retombe sur le
+  seuillage HSV, et le bandeau le dit. Pour régénérer le modèle : `python scripts/export-yolo.py` puis
+  `python scripts/perception/finetune.py --install` (dépendances et licence en en-tête des scripts).
 - Sous Windows, `npm run demo` démarre le serveur avec `npm run start -w @tomato/server` (sans
   rechargement à chaud) plutôt que `npm run dev -w @tomato/server` : `tsx watch` bloque au démarrage une
   fois relayé par `concurrently` sur cette plateforme (le process reste sur « démarrage », `/health` ne

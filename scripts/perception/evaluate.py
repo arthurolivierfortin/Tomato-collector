@@ -96,7 +96,7 @@ def detect_hsv(_session, img: Image.Image) -> list[tuple[int, float, np.ndarray]
     sat = np.where(mx == 0, 0, 255 * (mx - mn) / np.maximum(mx, 1e-6))
     mask = ((hue < 10) | (hue > 170)) & (sat > 100) & (mx > 80)
     mask = ndimage.binary_opening(mask, structure=np.ones((3, 3)))
-    labels, n = ndimage.label(mask)
+    labels, _count = ndimage.label(mask)
     out = []
     for index, slices in enumerate(ndimage.find_objects(labels), start=1):
         area = int((labels[slices] == index).sum())
@@ -116,11 +116,8 @@ def average_precision(hits: list[tuple[float, int]], positives: int) -> float:
     for _, hit in sorted(hits, key=lambda x: -x[0]):
         tp, fp = tp + hit, fp + (1 - hit)
         points.append((tp / positives, tp / (tp + fp)))
-    best = 0.0
     area = 0.0
     previous_recall = 0.0
-    for recall, precision in points:
-        best = max(best, precision)
     # Interpolation par tous les points : on parcourt en sens inverse pour garder la precision maximale a droite.
     envelope = []
     running = 0.0
