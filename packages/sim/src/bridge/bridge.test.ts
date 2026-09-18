@@ -1,5 +1,6 @@
-import { createDefaultWorld, type ServerToDashboard, type SimToServer, type ViewsResult } from '@tomato/shared';
+import { createDefaultWorld, ok, type ServerToDashboard, type SimToServer, type ViewsResult } from '@tomato/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SimModule } from '../core/module';
 import { createRuntime, type SimRuntime } from '../core/runtime';
 import { RECONNECT_MS, STATE_INTERVAL_MS, createBridge, type Bridge, type BridgeStatus, type SocketLike } from './bridge';
 
@@ -46,6 +47,20 @@ const views = (): Promise<ViewsResult> =>
 let runtime: SimRuntime;
 let bridge: Bridge;
 let statuses: BridgeStatus[];
+/** Termine le mouvement animé en cours du module factice ci-dessous. */
+let arrive: (() => void) | null = null;
+
+/** Module factice : `cut` ne répond qu'à la fin de son « mouvement », comme le module robot animé. */
+const slowModule: SimModule = {
+  name: 'lent',
+  init: () => undefined,
+  handle: (action, ctx) => {
+    if (action.type !== 'cut') return null;
+    return new Promise((resolve) => {
+      arrive = () => resolve(ok(ctx.store.get(), 'stem_cut'));
+    });
+  },
+};
 
 function socket(): FakeSocket {
   return FakeSocket.instances.at(-1)!;
@@ -54,7 +69,8 @@ function socket(): FakeSocket {
 beforeEach(async () => {
   vi.useFakeTimers();
   FakeSocket.instances = [];
-  runtime = await createRuntime(createDefaultWorld(1), null, []);
+  arrive = null;
+  runtime = await createRuntime(createDefaultWorld(1), null, [slowModule]);
   bridge = createBridge({ url: 'ws://test', runtime, renderViews: views, socketFactory: (url) => new FakeSocket(url) });
   statuses = [];
   bridge.onStatus((s) => statuses.push(s));
@@ -76,13 +92,34 @@ describe('sim bridge', () => {
     expect(socket().sent[1]).toMatchObject({ type: 'state', state: { seed: 1 } });
   });
 
-  it('answers apply_action with action_result (same requestId) followed by a fresh state', () => {
+  it('answers apply_action with action_result (same requestId) followed by a fresh state', async () => {
     socket().open();
     socket().receive({ type: 'apply_action', requestId: 'r1', action: { type: 'set_paused', paused: true } });
+    await vi.advanceTimersByTimeAsync(0);
     const [, , result, state] = socket().sent;
     expect(result).toMatchObject({ type: 'action_result', requestId: 'r1', result: { ok: true, message: 'paused' } });
     expect(state).toMatchObject({ type: 'state', state: { paused: true } });
     expect(runtime.ctx.store.get().paused).toBe(true);
+  });
+
+  it('holds action_result until the movement is over, while the state keeps flowing at 5 Hz', async () => {
+    socket().open();
+    socket().receive({ type: 'apply_action', requestId: 'r-move', action: { type: 'cut' } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(socket().types()).not.toContain('action_result');
+
+    // Le dashboard voit le bras bouger : l'état continue d'être diffusé pendant le mouvement.
+    for (let i = 1; i <= 3; i++) {
+      runtime.ctx.store.update((s) => ({ ...s, simTimeS: i }));
+      await vi.advanceTimersByTimeAsync(STATE_INTERVAL_MS);
+    }
+    expect(socket().types().filter((t) => t === 'state').length).toBeGreaterThanOrEqual(3);
+    expect(socket().types()).not.toContain('action_result');
+
+    arrive!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(socket().sent.at(-2)).toMatchObject({ type: 'action_result', requestId: 'r-move', result: { ok: true, message: 'stem_cut' } });
+    expect(socket().sent.at(-1)).toMatchObject({ type: 'state' });
   });
 
   it('answers render_views with views_result, or an empty result when rendering fails', async () => {
