@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "build": "npm run build --workspaces --if-present",
     "dev:sim": "npm run dev -w @tomato/sim",
+    "dev:server": "npm run dev -w @tomato/server",
     "shot": "npm run shot -w @tomato/sim"
   },
   "devDependencies": {
