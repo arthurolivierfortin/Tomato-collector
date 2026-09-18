@@ -52,7 +52,7 @@ export type ServerToDashboard =
   | { type: 'block_activity'; from: BlockId; to: BlockId; label: string }
   // Ajouts de l'issue #23, en FIN d'union : flux brut de la session agent et réveil explicite.
   | { type: 'agent_raw'; episodeId: string; kind: AgentRawKind; line: string }
-  | { type: 'agent_wake'; episodeId: string; tomatoId: number; detector: WakeDetector; confidence: number };
+  | { type: 'agent_wake'; episodeId: string; tomatoId: number; detector: WakeDetector; confidence: number; sessionResumed: boolean };
 
 export type AnyMessage = SimToServer | ServerToSim | ServerToDashboard;
 

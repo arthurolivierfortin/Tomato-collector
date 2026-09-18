@@ -17,6 +17,10 @@ export function formatTraceLine(m: ServerToDashboard): string | null {
       return `== episode ${m.episodeId} tomato #${m.tomatoId} (${m.sessionResumed ? 'resumed' : 'new'} session)`;
     case 'agent_text':
       return `[agent] ${m.text}`;
+    case 'agent_wake':
+      return `== réveil tomate #${m.tomatoId} (${m.detector} ${m.confidence.toFixed(2).replace('.', ',')}, ${m.sessionResumed ? 'session reprise' : 'nouvelle session'})`;
+    case 'agent_raw':
+      return `[raw  ] ${m.kind} ${m.line}`;
     case 'tool_call_start':
       return `[tool ] ${m.tool} ${JSON.stringify(m.args)}`;
     case 'tool_call_result':

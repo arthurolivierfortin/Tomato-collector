@@ -17,6 +17,13 @@ describe('wake CLI formatting', () => {
     ).toBe('== end harvested: n (9 tool calls, $0.500, 61 s)');
   });
 
+  it('prints the wake and the raw session stream (issue #23)', () => {
+    expect(
+      formatTraceLine({ type: 'agent_wake', episodeId: 'e1', tomatoId: 3, detector: 'yolo', confidence: 0.56, sessionResumed: false }),
+    ).toBe('== réveil tomate #3 (yolo 0,56, nouvelle session)');
+    expect(formatTraceLine({ type: 'agent_raw', episodeId: 'e1', kind: 'tool_use', line: 'cut {}' })).toBe('[raw  ] tool_use cut {}');
+  });
+
   it('ignores snapshots, views and block activity', () => {
     expect(formatTraceLine({ type: 'block_activity', from: 'server', to: 'agent', label: 'x' })).toBeNull();
   });

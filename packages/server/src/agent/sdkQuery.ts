@@ -11,6 +11,8 @@ export function toAgentMessage(m: SDKMessage): AgentMessage {
   switch (m.type) {
     case 'assistant':
       return m;
+    case 'user':
+      return m;
     case 'result':
       return m;
     case 'stream_event':

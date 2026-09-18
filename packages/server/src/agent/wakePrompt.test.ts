@@ -30,7 +30,7 @@ describe('summarizeWorld', () => {
 });
 
 describe('buildWakePrompt', () => {
-  const event = { tomatoId: 3, positionCm: [12, -4.25, 38.04] as const, ripeness: 0.973 };
+  const event = { tomatoId: 3, positionCm: [12, -4.25, 38.04] as const, ripeness: 0.973, detector: 'yolo' as const, confidence: 0.61 };
 
   it('names the target with its position in cm, the status, the limit and the first call', () => {
     const p = buildWakePrompt(event, 'status text', { resumed: false });

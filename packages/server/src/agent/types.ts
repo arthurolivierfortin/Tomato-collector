@@ -1,13 +1,15 @@
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
-import type { Phase, ServerToDashboard, Vec3, WorldState } from '@tomato/shared';
+import type { Phase, ServerToDashboard, Vec3, WakeDetector, WorldState } from '@tomato/shared';
 
 export type EpisodeOutcome = 'harvested' | 'missed' | 'aborted';
 
-/** Événement de réveil : la tomate mûre détectée. */
+/** Événement de réveil : la tomate mûre détectée, et par qui (issue #23). */
 export interface WakeEvent {
   tomatoId: number;
   positionCm: Vec3;
   ripeness: number;
+  detector: WakeDetector;
+  confidence: number;
 }
 
 /** Sous-ensemble structurel du `Hub` de M5 consommé par le runner. */
@@ -24,7 +26,7 @@ export interface AgentSessionState {
 
 export interface AgentSession {
   get(): AgentSessionState;
-  startEpisode(tomatoId: number): unknown;
+  startEpisode(tomatoId: number, detection?: { detector: WakeDetector; confidence: number }): unknown;
   endEpisode(outcome: EpisodeOutcome, note: string): unknown;
   onPhase(fn: (phase: Phase) => void): unknown;
 }
@@ -41,6 +43,10 @@ export interface AgentContentBlock {
   id?: string;
   name?: string;
   input?: unknown;
+  /** Blocs `tool_result` d'un message utilisateur : résultat renvoyé à l'agent. */
+  tool_use_id?: string;
+  content?: unknown;
+  is_error?: boolean;
 }
 
 /**
@@ -58,6 +64,7 @@ export type AgentMessage =
       apiKeySource: string;
     }
   | { type: 'assistant'; message: { content: ReadonlyArray<AgentContentBlock> } }
+  | { type: 'user'; message: { content: string | ReadonlyArray<AgentContentBlock> } }
   | { type: 'stream_event'; event: { type: string; delta?: unknown } }
   | {
       type: 'result';

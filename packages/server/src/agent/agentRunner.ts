@@ -1,10 +1,12 @@
 import { buildQueryOptions } from './queryOptions';
 import { sdkQuery } from './sdkQuery';
 import {
+  agentRaw,
   createStreamState,
   episodeEndMessage,
   episodeOutcome,
   reduceStreamMessage,
+  stderrLines,
 } from './streamToDashboard';
 import type { StreamState } from './streamToDashboard';
 import type { AgentHub, AgentRunner, AgentSession, QueryFn, WakeEvent } from './types';
@@ -51,7 +53,10 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       systemPrompt: deps.systemPrompt,
       sessionId,
       abortController: abort,
-      stderr: (data) => log(`[claude stderr] ${data.trimEnd()}`),
+      stderr: (data) => {
+        log(`[claude stderr] ${data.trimEnd()}`);
+        for (const line of stderrLines(data)) deps.hub.broadcast(agentRaw(state.episodeId, 'stderr', line));
+      },
     });
     try {
       for await (const msg of queryFn(prompt, options)) {
@@ -72,9 +77,20 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
   async function runEpisode(event: WakeEvent): Promise<void> {
     // Posé avant `startEpisode`, qui prévient ses abonnés `onWake` (M5) et rappellerait `wake`.
     currentTomato = event.tomatoId;
-    if (deps.session.get().episodeId === null) deps.session.startEpisode(event.tomatoId);
+    if (deps.session.get().episodeId === null) {
+      deps.session.startEpisode(event.tomatoId, { detector: event.detector, confidence: event.confidence });
+    }
     const episodeId = deps.session.get().episodeId ?? 'manual';
     const resumed = sessionId !== null;
+    // Le réveil d'abord : le dashboard met la détection en évidence avant d'ouvrir l'épisode (issue #23).
+    deps.hub.broadcast({
+      type: 'agent_wake',
+      episodeId,
+      tomatoId: event.tomatoId,
+      detector: event.detector,
+      confidence: event.confidence,
+      sessionResumed: resumed,
+    });
     deps.hub.broadcast({ type: 'episode_start', episodeId, tomatoId: event.tomatoId, sessionResumed: resumed });
     log(`episode ${episodeId} for tomato #${event.tomatoId} (${resumed ? 'resumed session' : 'new session'})`);
 
