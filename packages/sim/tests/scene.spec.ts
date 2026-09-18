@@ -18,7 +18,8 @@ test('spectator scene renders the plant module and is captured', async ({ page }
   );
   const tomatoCount = await page.evaluate(() => window.__tomato!.runtime.ctx.store.get().tomatoes.length);
   expect(tomatoCount).toBeGreaterThanOrEqual(4);
-  const ripen = await page.evaluate(() => window.__tomato!.runtime.apply({ type: 'ripen_next' }));
+  // Issue #21 : `apply` attend la fin du mouvement ; ici tout est immédiat, on prend `applyNow`.
+  const ripen = await page.evaluate(() => window.__tomato!.runtime.applyNow({ type: 'ripen_next' }));
   expect(ripen.ok).toBe(true);
   // Issue #23 : un seul fruit mûrit à la fois. `ripen_next` rend rouge le fruit en cours et le
   // suivant ne démarre sa rampe que 4 s sim APRÈS sa coupe : on coupe donc le fruit rouge, puis
@@ -30,11 +31,11 @@ test('spectator scene renders the plant module and is captured', async ({ page }
     const rt = window.__tomato!.runtime;
     const ripe = rt.ctx.store.get().tomatoes.find((t) => t.state === 'ripe');
     if (ripe) rt.ctx.signals.emit({ type: 'tomato_cut', tomatoId: ripe.id });
-    rt.apply({ type: 'set_time_scale', scale: 20 });
+    rt.applyNow({ type: 'set_time_scale', scale: 20 });
     const deadline = performance.now() + 30_000;
     const freeze = (): void => {
-      rt.apply({ type: 'set_time_scale', scale: 1 });
-      rt.apply({ type: 'set_paused', paused: true });
+      rt.applyNow({ type: 'set_time_scale', scale: 1 });
+      rt.applyNow({ type: 'set_paused', paused: true });
     };
     await new Promise<void>((resolve) => {
       const tick = (): void => {

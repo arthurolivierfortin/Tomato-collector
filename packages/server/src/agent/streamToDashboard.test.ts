@@ -4,6 +4,7 @@ import {
   episodeEndMessage,
   episodeOutcome,
   reduceStreamMessage,
+  RAW_LINE_MAX,
   robotToolName,
   stderrLines,
   stripBase64,
@@ -173,9 +174,16 @@ describe('agent_raw (issue #23)', () => {
     ]);
   });
 
-  it('prints the full text of the agent', () => {
+  it('previews the agent text on one line, the full text staying in agent_text', () => {
     expect(rawLines(run([text('  Je vise la tomate #3.\nPuis je coupe.  ')]).out)).toEqual([
       'text: Je vise la tomate #3. Puis je coupe.',
+    ]);
+    // Mots séparés : une longue suite de lettres collées passerait pour du base64 et serait masquée.
+    const long = 'tomate '.repeat(40).trim();
+    const { out } = run([text(long)]);
+    expect(rawLines(out)).toEqual([`text: ${long.slice(0, RAW_LINE_MAX)}… (+${long.length - RAW_LINE_MAX} car.)`]);
+    expect(out.filter((m) => (m as { type: string }).type === 'agent_text')).toEqual([
+      { type: 'agent_text', episodeId: 'ep-1', text: long },
     ]);
   });
 
