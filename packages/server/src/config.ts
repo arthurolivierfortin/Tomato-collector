@@ -13,6 +13,11 @@ export interface ServerConfig {
   episodesDir: string;
   /** Durée minimale d'un appel d'outil, de `tool_call_start` à `tool_call_result` (0 = pas de rythme). */
   toolPacingMs: number;
+  /**
+   * `on` : le flux de la session agent est imprimé sur la sortie standard (`logStream.ts`), pour
+   * qu'un vrai terminal le montre dans la vidéo de démo. Sans effet sur le dashboard.
+   */
+  logStream: 'on' | 'off';
 }
 
 export const DEFAULT_MCP_PORT = 7331;
@@ -50,5 +55,6 @@ export function readConfig(env: Record<string, string | undefined>): ServerConfi
     agent: env.TOMATO_AGENT === 'off' ? 'off' : 'on',
     episodesDir: nonEmpty(env.TOMATO_EPISODES_DIR, DEFAULT_EPISODES_DIR),
     toolPacingMs: readMs(env.TOMATO_TOOL_PACING_MS, DEFAULT_TOOL_PACING_MS),
+    logStream: env.TOMATO_LOG_STREAM === 'on' ? 'on' : 'off',
   };
 }

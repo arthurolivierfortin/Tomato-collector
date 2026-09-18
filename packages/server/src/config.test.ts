@@ -8,6 +8,7 @@ describe('readConfig', () => {
     expect(c.wsPort).toBe(DEFAULT_WS_PORT);
     expect(c.model).toBe(DEFAULT_MODEL);
     expect(c.agent).toBe('on');
+    expect(c.logStream).toBe('off');
     expect(c.toolPacingMs).toBe(DEFAULT_TOOL_PACING_MS);
     expect(DEFAULT_TOOL_PACING_MS).toBe(1500);
     expect(c.episodesDir.replace(/\\/g, '/')).toMatch(/data\/episodes$/);
@@ -28,11 +29,14 @@ describe('readConfig', () => {
       TOMATO_MODEL: ' claude-sonnet-5 ',
       TOMATO_AGENT: 'off',
       TOMATO_EPISODES_DIR: '/tmp/ep',
+      TOMATO_LOG_STREAM: 'on',
     });
     expect(c.mcpPort).toBe(8000);
     expect(c.wsPort).toBe(DEFAULT_WS_PORT);
     expect(c.model).toBe('claude-sonnet-5');
     expect(c.agent).toBe('off');
     expect(c.episodesDir).toBe('/tmp/ep');
+    expect(c.logStream).toBe('on');
+    expect(readConfig({ TOMATO_LOG_STREAM: 'yes' }).logStream).toBe('off');
   });
 });

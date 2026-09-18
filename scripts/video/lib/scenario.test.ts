@@ -11,7 +11,8 @@ const raw = {
     { kind: 'waitForPhase', phase: 'harvested' },
     { kind: 'click', selector: '[data-testid="view-thumb-top"] button' },
     { kind: 'waitForText', selector: '[data-testid="trace"]', text: 'récoltée' },
-    { kind: 'demo', speed: 0.4 },
+    { kind: 'waitForSelector', selector: '[data-testid="view-featured"] img' },
+    { kind: 'waitForRipeness', minPercent: 50 },
     { kind: 'replay', speed: 1 },
     { kind: 'sim', action: 'ripen_next' },
   ],
@@ -22,7 +23,7 @@ describe('parseScenario', () => {
     const scenario = parseScenario(raw);
     expect(scenario.name).toBe('concepts');
     expect(scenario.mode).toBe('replay');
-    expect(scenario.steps).toHaveLength(9);
+    expect(scenario.steps).toHaveLength(10);
     expect(scenario.steps[2]).toEqual({ kind: 'press', key: 'b' });
   });
 

@@ -8,6 +8,7 @@ import { createHub } from './hub/hub';
 import { createApp } from './http/app';
 import { consoleLogger } from './log';
 import { createMcpServer } from './mcp/createMcpServer';
+import { logStreamLine } from './logStream';
 import { createSimBridge } from './sim/simBridge';
 import { createSession } from './state/session';
 import { VERSION } from './version';
@@ -26,6 +27,14 @@ async function main(): Promise<void> {
   const session = createSession(hub, { sim, journal, log });
   hub.setSnapshot(() => ({ type: 'snapshot', state: sim.latestState() ?? createDefaultWorld(0), phase: session.get().phase, episodeId: session.get().episodeId }));
   hub.onBroadcast((m) => journal.record(m));
+  // Terminal de tournage (issue #35) : le flux de la session agent, tel quel, sur la sortie standard.
+  if (config.logStream === 'on') {
+    hub.onBroadcast((m) => {
+      const line = logStreamLine(m);
+      if (line !== null) process.stdout.write(`${line}
+`);
+    });
+  }
   sim.onEvent((e) => session.handleSimEvent(e));
 
   const app = createApp({
@@ -51,7 +60,7 @@ async function main(): Promise<void> {
 
   const wake = wakePort === null ? 'réveil manuel indisponible' : `réveil manuel http://127.0.0.1:${wakePort}/wake/<tomatoId>`;
   log(
-    `prêt : MCP ${mcpUrl} · WebSocket ws://localhost:${wsPort} · ${wake} · épisodes ${config.episodesDir} · agent ${config.agent} (${config.model}) · rythme outils ${config.toolPacingMs} ms`,
+    `prêt : MCP ${mcpUrl} · WebSocket ws://localhost:${wsPort} · ${wake} · épisodes ${config.episodesDir} · agent ${config.agent} (${config.model}) · rythme outils ${config.toolPacingMs} ms · flux console ${config.logStream}`,
   );
 
   const shutdown = (): void => {

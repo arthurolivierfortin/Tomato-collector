@@ -13,9 +13,15 @@ export type ScenarioStep =
   | { readonly kind: 'click'; readonly selector: string }
   | { readonly kind: 'waitForPhase'; readonly phase: string; readonly timeoutMs?: number }
   | { readonly kind: 'waitForText'; readonly selector: string; readonly text: string; readonly timeoutMs?: number }
+  /** Attend qu'un élément soit visible : la première image reçue, la loupe ouverte… */
+  | { readonly kind: 'waitForSelector'; readonly selector: string; readonly timeoutMs?: number }
+  /**
+   * Attend que la tomate en cours de mûrissement atteigne `minPercent`, lu dans le bandeau de
+   * statuts. Le pourcentage monte d'un point toutes les 150 ms environ : viser une valeur exacte
+   * serait un coup de dé, c'est un seuil qu'on attend.
+   */
+  | { readonly kind: 'waitForRipeness'; readonly minPercent: number; readonly timeoutMs?: number }
   | { readonly kind: 'marker'; readonly name: string }
-  /** Injecte l'épisode scripté de la page (`buildDemoScript`) ; `speed` < 1 ralentit. */
-  | { readonly kind: 'demo'; readonly speed?: number }
   /** Rejoue le journal d'épisode passé en option `--episode` via le pont simulé. */
   | { readonly kind: 'replay'; readonly speed?: number }
   | { readonly kind: 'sim'; readonly action: SimAction };
@@ -63,9 +69,12 @@ function parseStep(raw: unknown): ScenarioStep {
       return { kind, phase: str(raw, 'phase'), ...optNum(raw, 'timeoutMs') };
     case 'waitForText':
       return { kind, selector: str(raw, 'selector'), text: str(raw, 'text'), ...optNum(raw, 'timeoutMs') };
+    case 'waitForSelector':
+      return { kind, selector: str(raw, 'selector'), ...optNum(raw, 'timeoutMs') };
+    case 'waitForRipeness':
+      return { kind, minPercent: num(raw, 'minPercent'), ...optNum(raw, 'timeoutMs') };
     case 'marker':
       return { kind, name: str(raw, 'name') };
-    case 'demo':
     case 'replay':
       return { kind, ...optNum(raw, 'speed') };
     case 'sim': {
