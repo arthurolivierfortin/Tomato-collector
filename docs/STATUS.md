@@ -28,3 +28,4 @@
 - 2026-09-17 : M3 (PR #9) mergé après correction et vérification visuelle finale 12/12 avec tomates. Étape 2 terminée (224 tests). Étape 3 lancée : builders M4, M5, M6, M7 en parallèle.
 - 2026-09-17 : M4, M5, M7 mergés (368 tests). Intégration réelle serveur + page + appel MCP vérifiée. M6 en finalisation avec premier épisode Claude réel.
 - 2026-09-18 : M6 (PR #16) mergé. Premier épisode réel de Claude : harvested, 10 tool calls, 0 erreur, 0,355 $, 61 s. Étape 3 terminée (412 tests). Étape 4 lancée.
+- 2026-09-18 : PR #24 mergée (#21) : mouvements animés en temps sim (ciseaux/panier 15 cm/s, rotations 45°/s, caméras 20 cm/s, lames 0,5 s), outil MCP répondant à la fin du mouvement, `TOMATO_TOOL_PACING_MS` (1500 ms). 455 tests.
