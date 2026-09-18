@@ -49,6 +49,7 @@ Variables d'environnement du serveur (`TOMATO_*`, valeurs par défaut) :
 | `TOMATO_MODEL` | `claude-opus-5` | modèle de l'agent |
 | `TOMATO_AGENT` | `on` | `off` désactive le runner (pilotage à la main uniquement) |
 | `TOMATO_EPISODES_DIR` | `data/episodes` | dossier des journaux d'épisodes |
+| `TOMATO_TOOL_PACING_MS` | `1500` | durée minimale d'un appel d'outil, pour qu'il reste lisible à l'écran (`0` = aucun rythme ; `report` n'est jamais retardé) |
 
 Variables d'environnement de la sim (Vite, `VITE_*`) :
 
@@ -77,6 +78,9 @@ appels d'outils, résultat, coût). Coût observé pour un épisode complet men�
 - `b` : ouvre le schéma bloc en bandeau bas, utile pour montrer le flux agent ↔ serveur ↔ sim.
 - `c` : affiche les gizmos des trois caméras (masqués par défaut), utile pour expliquer d'où viennent les vues.
 - Vitesse ×1 pendant l'épisode : les vitesses ×2/×5/×10 accélèrent la simulation mais brouillent la prise.
+- Les mouvements sont animés : l'outil ne répond qu'une fois le bras arrivé. Vitesses en temps sim (donc
+  multipliées par le facteur ×2/×5/×10) : ciseaux et panier 15 cm/s, rotations 45°/s, caméras 20 cm/s et
+  45°/s, ouverture ou fermeture des lames 0,5 s. Elles se règlent dans `packages/sim/src/core/speeds.ts`.
 - « Nouveau plant » entre deux prises pour repartir d'un plant frais.
 - Ne pas fermer l'onglet : la simulation (Three.js + Rapier) vit dans la page ; la fermer arrête tout.
 
