@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gdigrabArgs, terminalOffsetS } from './terminal';
+import { gdigrabArgs, parseTerminalMode, terminalOffsetS } from './terminal';
 
 describe('gdigrabArgs', () => {
   it('capture une fenêtre par son titre, pas l’écran', () => {
@@ -27,5 +27,18 @@ describe('terminalOffsetS', () => {
   it('rend null avant le début de la capture du terminal : il n’y a rien à incruster', () => {
     expect(terminalOffsetS(1.5, 2000)).toBeNull();
     expect(terminalOffsetS(2, 2000)).toBe(0);
+  });
+});
+
+describe('parseTerminalMode', () => {
+  it('prend la page par défaut du README, la fenêtre en option, ou rien', () => {
+    expect(parseTerminalMode('page')).toBe('page');
+    expect(parseTerminalMode('gdigrab')).toBe('gdigrab');
+    expect(parseTerminalMode('off')).toBe('off');
+    expect(parseTerminalMode('')).toBe('off');
+  });
+
+  it('refuse un mode inconnu plutôt que de filmer en silence la mauvaise chose', () => {
+    expect(() => parseTerminalMode('fenetre')).toThrow(/page.*gdigrab.*off/s);
   });
 });

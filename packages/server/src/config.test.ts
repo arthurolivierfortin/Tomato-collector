@@ -9,6 +9,7 @@ describe('readConfig', () => {
     expect(c.model).toBe(DEFAULT_MODEL);
     expect(c.agent).toBe('on');
     expect(c.logStream).toBe('off');
+    expect(c.logFile).toBe('');
     expect(c.toolPacingMs).toBe(DEFAULT_TOOL_PACING_MS);
     expect(DEFAULT_TOOL_PACING_MS).toBe(1500);
     expect(c.episodesDir.replace(/\\/g, '/')).toMatch(/data\/episodes$/);
@@ -30,6 +31,7 @@ describe('readConfig', () => {
       TOMATO_AGENT: 'off',
       TOMATO_EPISODES_DIR: '/tmp/ep',
       TOMATO_LOG_STREAM: 'on',
+      TOMATO_LOG_FILE: ' C:/tmp/term.log ',
     });
     expect(c.mcpPort).toBe(8000);
     expect(c.wsPort).toBe(DEFAULT_WS_PORT);
@@ -38,5 +40,6 @@ describe('readConfig', () => {
     expect(c.episodesDir).toBe('/tmp/ep');
     expect(c.logStream).toBe('on');
     expect(readConfig({ TOMATO_LOG_STREAM: 'yes' }).logStream).toBe('off');
+    expect(c.logFile).toBe('C:/tmp/term.log');
   });
 });

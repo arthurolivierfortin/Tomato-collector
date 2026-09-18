@@ -18,6 +18,12 @@ export interface ServerConfig {
    * qu'un vrai terminal le montre dans la vidéo de démo. Sans effet sur le dashboard.
    */
   logStream: 'on' | 'off';
+  /**
+   * Fichier où recopier ce flux, avec ses couleurs ANSI. C'est ce fichier que la page « terminal »
+   * du pipeline vidéo suit et affiche : elle montre la sortie réelle du processus, pas une
+   * reconstitution. Vide (défaut) : rien n'est écrit sur disque.
+   */
+  logFile: string;
 }
 
 export const DEFAULT_MCP_PORT = 7331;
@@ -56,5 +62,6 @@ export function readConfig(env: Record<string, string | undefined>): ServerConfi
     episodesDir: nonEmpty(env.TOMATO_EPISODES_DIR, DEFAULT_EPISODES_DIR),
     toolPacingMs: readMs(env.TOMATO_TOOL_PACING_MS, DEFAULT_TOOL_PACING_MS),
     logStream: env.TOMATO_LOG_STREAM === 'on' ? 'on' : 'off',
+    logFile: nonEmpty(env.TOMATO_LOG_FILE, ''),
   };
 }

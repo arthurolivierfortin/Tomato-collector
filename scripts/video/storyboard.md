@@ -91,6 +91,16 @@ Prise `concepts`, mode live. Touches pressées et marqueurs posés dans cet ordr
   - `wake_agent` + 0,4 s, **3 s** : « Server to agent: wake up, tomato 1 is ripe »
   - `views_first` + 1 s, **3,5 s**, cadre sur la trace : « First tool call of the episode: get_views on all three cameras »
 
+### (d bis) L'agent est une vraie session Claude Code
+
+- **Carton** (3,5 s) : **The agent is a real Claude Code session** — *The server console, live: init, text, tool_use, tool_result, result*.
+- **Segment** : `views_first` + 1,5 s → `lightbox_front` − 1,5 s, **terminal incrusté sur la moitié
+  droite** (`PIP.half`, 912×570). C'est le moment où le tout premier `tool_use` de la session
+  s'inscrit dans la console.
+- **Sous-titre** : « On the right, the server console: the SDK stream as it arrives ».
+- **Arrêt sur image** — `views_first` + 2,5 s, **4 s** : « The first tool_use of the session: get_views, and the tool_result that answers it ».
+- Sans capture de terminal, le montage prévient et monte le segment sans incrustation.
+
 ### (e) Les trois vues de l'agent
 
 - **Carton** (3,5 s) : **What the agent sees: three annotated orthographic views** — *Orthographic cameras: one centimetre is the same number of pixels at any depth*.
@@ -132,19 +142,11 @@ For each one: what goes in, what does the work, what comes out.*
 ### (f) Les outils MCP
 
 - **Carton** (3 s) : **MCP tools: every action is a JSON call** — *get_views, move_camera, move_basket, move_scissors, rotate_scissors, open_scissors, cut, get_status, report*.
-- **Segment** : `rotate` − 0,8 s → `rotate` + 2 s. Cadre sur la colonne de trace.
+- **Segment** : `rotate` − 0,8 s → `agent_view` − 1,6 s. Cadre sur la colonne de trace.
 - **Sous-titre** : « Every call shows its arguments and its result, as JSON ».
 - **Arrêts sur image** :
   - `rotate` + 0,8 s, **3,5 s** : « One call, one line: the JSON sent, the JSON returned, and how long it took »
-  - `rotate` + 1,7 s, **3,5 s**, cadre sur le panneau « Session agent (brut) » : « The raw session stream (key t): init, text, tool_use, tool_result, stderr »
-
-### (f bis) L'agent est une vraie session Claude Code
-
-- **Carton** (3,5 s) : **The agent is a real Claude Code session** — *Same stream, read from the server console: init, text, tool_use, tool_result, result*.
-- **Segment** : `rotate` + 2 s → `agent_view` − 1,6 s, **terminal incrusté sur la moitié droite** (`PIP.half`).
-- **Sous-titre** : « On the right, the server console: the SDK stream as it arrives ».
-- **Arrêt sur image** — `rotate` + 2,8 s, **4 s** : « One tool_use line, its JSON arguments, and the tool_result that answers it ».
-- Sans capture de terminal, le montage prévient et monte le segment sans incrustation.
+  - `rotate` + 2,6 s, **3,5 s**, cadre sur le panneau « Session agent (brut) » : « The raw session stream (key t): init, text, tool_use, tool_result, stderr »
 
 ### (f ter) Ce que l'agent reçoit vraiment
 
@@ -167,8 +169,10 @@ For each one: what goes in, what does the work, what comes out.*
 
 Prise `cycle`. **Aucun arrêt sur image, aucune coupure** : la prise passe d'un bout à l'autre, seuls
 les sous-titres changent au passage de chaque phase. C'est le point de la partie : montrer que rien
-n'est truqué ni accéléré. Dès le réveil, la capture du terminal est **incrustée en vignette** dans
-le coin bas droit (`PIP.corner`), hors de la colonne spectateur et au-dessus du schéma bloc.
+n'est truqué ni accéléré. Dès le réveil, la capture du terminal est **incrustée en vignette** de
+480×300 en bas à droite (`PIP.corner`), posée sur la rangée de vignettes de vues : elle ne couvre
+ni la colonne de trace, ni la vue mise en avant, ni la vue spectateur, ni le bandeau de statuts, ni
+le sous-titre.
 
 | Carton | Durée |
 |---|---|

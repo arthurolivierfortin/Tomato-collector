@@ -6,7 +6,7 @@
  *
  * Options : --scenario <concepts|cycle> | --scenario-file <json>, --mode <live|replay>,
  * --take <nom>, --page <url>, --api <url>, --episode <id ou chemin>, --out <dossier>,
- * --terminal <titre de fenêtre>.
+ * --terminal <page|gdigrab|off>, --terminal-log <fichier>, --terminal-window <titre>.
  */
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -16,6 +16,7 @@ import { fetchHealth, liveBlocker } from './lib/health';
 import type { TakeMode } from './lib/markers';
 import { optionalMarkers, parseScenario, scenarioMarkers, type Scenario } from './lib/scenario';
 import { record } from './lib/recorder';
+import { parseTerminalMode } from './lib/terminal';
 import { builtinScenario } from './scenarios';
 
 const DEFAULTS = {
@@ -23,6 +24,8 @@ const DEFAULTS = {
   api: 'http://localhost:7331',
   out: 'data/video/takes',
   episodes: 'data/episodes',
+  /** Même chemin que celui passé au serveur en `TOMATO_LOG_FILE` dans le README. */
+  terminalLog: 'data/video/server.log',
 };
 
 function log(line: string): void {
@@ -54,6 +57,7 @@ async function main(): Promise<void> {
   const take = opt(args, 'take', scenario.name);
   const apiUrl = opt(args, 'api', DEFAULTS.api);
   const episode = await loadEpisode(opt(args, 'episode', ''), opt(args, 'episodes-dir', DEFAULTS.episodes));
+  const terminalMode = parseTerminalMode(opt(args, 'terminal', 'off'));
   log(`prise « ${take} » — scénario « ${scenario.name} », mode ${scenario.mode}, ${scenario.steps.length} étapes`);
   log(`marqueurs prévus : ${scenarioMarkers(scenario).join(', ')}`);
   const optional = optionalMarkers(scenario);
@@ -74,7 +78,9 @@ async function main(): Promise<void> {
     apiUrl,
     outDir: opt(args, 'out', DEFAULTS.out),
     episode,
-    terminalTitle: opt(args, 'terminal', ''),
+    terminalMode,
+    terminalLog: resolve(opt(args, 'terminal-log', DEFAULTS.terminalLog)),
+    terminalWindow: opt(args, 'terminal-window', 'Tomato server'),
     log,
   });
   log(`vidéo    : ${result.videoPath}`);

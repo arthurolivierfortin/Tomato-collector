@@ -7,7 +7,7 @@ import type { ScriptEntry } from './episodes';
 import { createMarkerLog, type MarkerLog, type TakeMarkers } from './markers';
 import { scenarioMarkers, type Scenario } from './scenario';
 import { runStep } from './steps';
-import { startTerminalCapture, type TerminalCapture } from './terminal';
+import { startPageCapture, startTerminalCapture, type TerminalCapture, type TerminalMode } from './terminal';
 
 export interface RecordOptions {
   readonly scenario: Scenario;
@@ -16,8 +16,12 @@ export interface RecordOptions {
   readonly apiUrl: string;
   readonly outDir: string;
   readonly episode: readonly ScriptEntry[];
-  /** Titre de la fenêtre de terminal à filmer en parallèle (`--terminal`), '' pour n'en filmer aucune. */
-  readonly terminalTitle: string;
+  /** Comment filmer le terminal : la page qui suit le journal, une fenêtre de console, ou rien. */
+  readonly terminalMode: TerminalMode;
+  /** Mode `page` : le fichier que le serveur écrit avec `TOMATO_LOG_FILE`. */
+  readonly terminalLog: string;
+  /** Mode `gdigrab` : le titre exact de la fenêtre de console à filmer. */
+  readonly terminalWindow: string;
   readonly log: (line: string) => void;
 }
 
@@ -87,6 +91,8 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
   const { scenario, take, outDir, log } = options;
   const outAbs = resolve(outDir);
   const rawDir = join(outAbs, `.raw-${take}`);
+  // `.mkv` pour ffmpeg, `.webm` pour Playwright : le montage lit les deux sans rien savoir du mode.
+  const terminalName = `${take}.terminal.${options.terminalMode === 'gdigrab' ? 'mkv' : 'webm'}`;
   await mkdir(rawDir, { recursive: true });
   const { browser, context, page, errors } = await openCapturePage(rawDir);
   // Instant t = 0 du fichier vidéo : Playwright démarre le screencast à la création de la page,
@@ -98,13 +104,18 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
   // Le terminal démarre tout de suite : les deux vidéos partagent l'horloge de la prise, et le
   // montage sait à quelle seconde du terminal correspond chaque seconde de la page.
   let terminal: TerminalCapture | null = null;
-  if (options.terminalTitle !== '') {
+  let terminalVideo: (() => Promise<string>) | null = null;
+  if (options.terminalMode === 'gdigrab') {
     terminal = startTerminalCapture(
-      { title: options.terminalTitle, fps: TERMINAL_FPS, outPath: join(outAbs, `${take}.terminal.mkv`) },
+      { title: options.terminalWindow, fps: TERMINAL_FPS, outPath: join(outAbs, `${take}.terminal.mkv`) },
       videoStartMs,
       (line) => log(`  [ffmpeg terminal] ${line}`),
     );
-    log(`terminal : fenêtre « ${options.terminalTitle} » filmée dans ${terminal.outPath} (+${terminal.startMs} ms)`);
+    log(`terminal : fenêtre « ${options.terminalWindow} » filmée dans ${terminal.video} (+${terminal.startMs} ms)`);
+  } else if (options.terminalMode === 'page') {
+    const capture = await startPageCapture(browser, options.terminalLog, join(rawDir, 'terminal'), videoStartMs, log);
+    terminal = capture;
+    terminalVideo = () => capture.videoPath();
   }
   const startedAt = new Date().toISOString();
   let renderer = 'inconnu';
@@ -128,6 +139,8 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
   } catch (e) {
     failure = firstLine(e);
   } finally {
+    // Le contexte du terminal doit être fermé avant qu'on demande son fichier : Playwright n'écrit
+    // l'index de la vidéo qu'à la fermeture.
     await terminal?.stop();
     if (terminal !== null && terminal.failed()) log('ATTENTION : la capture du terminal s’est arrêtée (fenêtre introuvable ?) ; la prise n’aura pas d’incrustation.');
     markers = markerLog.snapshot({
@@ -139,7 +152,7 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
       firstPaintMs,
       // Capture perdue (fenêtre introuvable, ffmpeg arrêté) : la prise n'annonce pas une piste
       // qui n'existe pas, et le montage se rabat sur les segments sans incrustation.
-      ...(terminal === null || terminal.failed() ? {} : { terminal: { video: `${take}.terminal.mkv`, startMs: terminal.startMs } }),
+      ...(terminal === null || terminal.failed() ? {} : { terminal: { video: terminalName, startMs: terminal.startMs } }),
       ...(failure === null ? {} : { failedStep: failure }),
     });
     await context.close();
@@ -150,6 +163,13 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
   const videoPath = join(outAbs, `${take}.webm`);
   await rm(videoPath, { force: true });
   await rename(await video.path(), videoPath);
+  // Le terminal sort du même dossier brut : le sortir AVANT d'effacer ce dossier.
+  if (terminalVideo !== null && terminal !== null && !terminal.failed()) {
+    const to = join(outAbs, terminalName);
+    await rm(to, { force: true });
+    await rename(await terminalVideo(), to);
+    log(`terminal : ${to}`);
+  }
   await rm(rawDir, { recursive: true, force: true });
   const markersPath = join(outAbs, `${take}.markers.json`);
   await writeFile(markersPath, `${JSON.stringify(markers, null, 2)}\n`, 'utf8');
