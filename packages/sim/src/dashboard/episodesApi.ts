@@ -1,7 +1,7 @@
 import type { ScriptEntry } from './bridgeTypes';
 
 /** HTTP annexe du serveur M5 : GET /health, GET /episodes, GET /episodes/:id (contrat Étape 3). */
-export const SERVER_HTTP_URL = 'http://localhost:7331';
+export const SERVER_HTTP_URL = import.meta.env.VITE_TOMATO_API_URL ?? 'http://localhost:7331';
 
 export interface EpisodeSummary {
   episodeId: string;
