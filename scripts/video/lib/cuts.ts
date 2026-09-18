@@ -16,6 +16,7 @@ export type Clip =
       readonly caption?: string;
       readonly highlight?: Rect;
       readonly captionWidth?: number;
+      readonly captionBottom?: number;
       readonly pip?: PipSpec;
     }
   | {
@@ -26,6 +27,7 @@ export type Clip =
       readonly caption: string;
       readonly highlight?: Rect;
       readonly captionWidth?: number;
+      readonly captionBottom?: number;
       readonly pip?: PipSpec;
     };
 
@@ -39,6 +41,7 @@ export function segmentClips(segment: ResolvedSegment): Clip[] {
     ...(segment.caption === undefined ? {} : { caption: segment.caption }),
     ...(segment.highlight === undefined ? {} : { highlight: segment.highlight }),
     ...(segment.captionWidth === undefined ? {} : { captionWidth: segment.captionWidth }),
+    ...(segment.captionBottom === undefined ? {} : { captionBottom: segment.captionBottom }),
     ...(segment.pip === undefined ? {} : { pip: segment.pip }),
   };
   let cursor = segment.fromS;
@@ -54,6 +57,7 @@ export function segmentClips(segment: ResolvedSegment): Clip[] {
       caption: freeze.caption,
       ...(freeze.highlight === undefined ? {} : { highlight: freeze.highlight }),
       ...(freeze.captionWidth === undefined ? {} : { captionWidth: freeze.captionWidth }),
+      ...(freeze.captionBottom === undefined ? {} : { captionBottom: freeze.captionBottom }),
       ...(freeze.pip === undefined ? {} : { pip: freeze.pip }),
     });
     cursor = freeze.atS;
@@ -102,6 +106,8 @@ function merge(a: ResolvedSegment, b: ResolvedSegment): ResolvedSegment {
   const caption = joinCaptions(a.caption, b.caption);
   const title = a.title ?? b.title;
   const highlight = a.highlight ?? b.highlight;
+  const captionBottom = a.captionBottom ?? b.captionBottom;
+  const captionWidth = a.captionWidth ?? b.captionWidth;
   const pip = a.pip ?? b.pip;
   return {
     take: a.take,
@@ -112,6 +118,8 @@ function merge(a: ResolvedSegment, b: ResolvedSegment): ResolvedSegment {
     ...(caption === undefined ? {} : { caption }),
     ...(title === undefined ? {} : { title }),
     ...(highlight === undefined ? {} : { highlight }),
+    ...(captionWidth === undefined ? {} : { captionWidth }),
+    ...(captionBottom === undefined ? {} : { captionBottom }),
     ...(pip === undefined ? {} : { pip }),
   };
 }

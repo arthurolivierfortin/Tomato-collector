@@ -10,13 +10,25 @@
 import type { PipSpec, Rect } from '../lib/ffmpegFilters';
 import { DEFAULT_STYLE, bandHeight, CAPTION_MAX_LINES } from '../lib/ffmpegFilters';
 
+/**
+ * Rectangles **mesurés** sur la page en 1920×1080, contrôles masqués (`getBoundingClientRect` des
+ * `data-testid` du dashboard, prises du 2026-09-18), et non estimés : la cellule de maturité vit à
+ * x 640 et non 568, la trace descend à y 508 et non 390. Un cadre posé à côté de ce qu'il désigne
+ * est pire que pas de cadre du tout.
+ */
 export const ZONE = {
-  ripening: { x: 568, y: 4, w: 244, h: 36 },
-  wakeBanner: { x: 8, y: 124, w: 786, h: 46 },
+  /** Cellule « mûrissement tomate 1 : mûrit 54 % » du bandeau, libellé compris. */
+  ripening: { x: 640, y: 8, w: 262, h: 28 },
+  wakeBanner: { x: 8, y: 122, w: 788, h: 48 },
+  /** Les cinq blocs et leurs flèches, pas tout le pied de page. */
   blockDiagram: { x: 476, y: 980, w: 968, h: 96 },
-  trace: { x: 800, y: 90, w: 484, h: 300 },
-  rawSession: { x: 800, y: 526, w: 484, h: 272 },
-  featuredView: { x: 1286, y: 116, w: 626, h: 636 },
+  /** Colonne de trace : l'en-tête du panneau et la liste des appels. */
+  trace: { x: 798, y: 96, w: 486, h: 412 },
+  /** Panneau « Session agent (brut) » (touche `t`), sous la trace. */
+  rawSession: { x: 798, y: 510, w: 486, h: 415 },
+  /** Panneau « Perception » (touche `p`) : il prend la place de la trace quand il s'ouvre. */
+  perceptionPanel: { x: 798, y: 514, w: 486, h: 438 },
+  featuredView: { x: 1288, y: 112, w: 626, h: 648 },
 } as const satisfies Record<string, Rect>;
 
 /** Le bandeau de sous-titre dans son cas le plus large : deux lignes, toute la largeur de rupture. */
@@ -35,8 +47,10 @@ const CAPTION_BAND: Rect = {
 export const PROTECTED = {
   statusBar: { x: 0, y: 0, w: 1920, h: 84 },
   trace: ZONE.trace,
+  rawSession: ZONE.rawSession,
   featuredView: ZONE.featuredView,
-  blockDiagram: ZONE.blockDiagram,
+  /** Le pied de page entier, mesuré : les cinq blocs, leurs flèches et la légende. */
+  blockDiagram: { x: 0, y: 951, w: 1920, h: 129 },
   blockActivity: { x: 1450, y: 950, w: 470, h: 30 },
   captionBand: CAPTION_BAND,
 } as const satisfies Record<string, Rect>;
@@ -66,13 +80,17 @@ export const PIP = {
 
 /**
  * Cadre bleu posé sur la tuile de l'étape, dans l'écran de traitement des vues (touche `x`).
- * **À recaler sur la première prise `pipeline`** : la grille est celle que l'issue #36 annonce
- * (quatre tuiles par rangée, deux rangées), les pixels exacts ne seront connus qu'une fois l'écran
- * à l'image. Les segments qui s'en servent sont `optional` : rien n'est monté tant que la prise ne
- * pose pas les marqueurs.
+ *
+ * Recalé sur la grille réelle livrée par l'issue #36, **mesurée** sur la page en 1920×1080
+ * (`getBoundingClientRect` de chaque `[data-testid="pipeline-tile"]`, prise `pipeline` du
+ * 2026-09-18) : `PipelinePanel` pose ses dix tuiles en **deux rangées de cinq** (`xl:grid-cols-5`),
+ * à x = 16 + 380 c et y = 56 + 508 r, chacune de 368 × 496. Le cadre est posé deux pixels en dehors
+ * de la bordure de la tuile, pour se détacher de son fond sombre sans mordre sur la voisine.
  */
+const TILE = { x0: 14, y0: 54, dx: 380, dy: 508, w: 372, h: 500 } as const;
+
 export function pipelineTile(i: number): Rect {
-  const column = i % 4;
-  const row = Math.floor(i / 4);
-  return { x: 24 + column * 472, y: 150 + row * 440, w: 448, h: 416 };
+  const column = i % 5;
+  const row = Math.floor(i / 5);
+  return { x: TILE.x0 + column * TILE.dx, y: TILE.y0 + row * TILE.dy, w: TILE.w, h: TILE.h };
 }

@@ -17,6 +17,8 @@ export interface FreezeSpec {
   readonly highlight?: Rect;
   /** Largeur du bandeau de sous-titre, quand la mise en page rétrécit la colonne spectateur. */
   readonly captionWidth?: number;
+  /** Hauteur du bandeau au-dessus du bas de l'image ; hérite de celle du segment quand absente. */
+  readonly captionBottom?: number;
   /** Zone où incruster la capture du terminal ; hérite de celle du segment quand elle est absente. */
   readonly pip?: PipSpec;
 }
@@ -39,6 +41,13 @@ export interface SegmentSpec {
   readonly highlight?: Rect;
   /** Largeur du bandeau de sous-titre pour ce segment (défaut : celle du style). */
   readonly captionWidth?: number;
+  /**
+   * Distance entre le bas de l'image et le bas du bandeau, pour ce segment (défaut : celle du
+   * style, 145 px, calée sur le dashboard). Un écran plein format n'a pas la même géographie que le
+   * dashboard : le mode « Pipeline de traitement » occupe toute l'image, et son bandeau descend
+   * donc sur la dernière ligne de texte des tuiles du bas, la seule bande redondante de cet écran.
+   */
+  readonly captionBottom?: number;
   /**
    * Incruste la capture du terminal de la prise dans cette zone (issue #35). Sans capture de
    * terminal, le segment est monté tel quel : le montage prévient, il n'échoue pas.
@@ -79,6 +88,7 @@ export interface ResolvedFreeze {
   readonly caption: string;
   readonly highlight?: Rect;
   readonly captionWidth?: number;
+  readonly captionBottom?: number;
   readonly pip?: PipSpec;
 }
 
@@ -91,6 +101,7 @@ export interface ResolvedSegment {
   readonly caption?: string;
   readonly highlight?: Rect;
   readonly captionWidth?: number;
+  readonly captionBottom?: number;
   readonly pip?: PipSpec;
   readonly freezes: readonly ResolvedFreeze[];
 }
@@ -111,6 +122,7 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
     .map((f) => {
       const zone = f.highlight ?? spec.highlight;
       const width = f.captionWidth ?? spec.captionWidth;
+      const bottom = f.captionBottom ?? spec.captionBottom;
       const pip = f.pip ?? spec.pip;
       return {
         atS: resolveTime(f.at, take),
@@ -118,6 +130,7 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
         caption: f.caption,
         ...(zone === undefined ? {} : { highlight: zone }),
         ...(width === undefined ? {} : { captionWidth: width }),
+        ...(bottom === undefined ? {} : { captionBottom: bottom }),
         ...(pip === undefined ? {} : { pip }),
       };
     })
@@ -135,6 +148,7 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
     freezes,
     ...(spec.highlight === undefined ? {} : { highlight: spec.highlight }),
     ...(spec.captionWidth === undefined ? {} : { captionWidth: spec.captionWidth }),
+    ...(spec.captionBottom === undefined ? {} : { captionBottom: spec.captionBottom }),
     ...(spec.pip === undefined ? {} : { pip: spec.pip }),
     ...(spec.title === undefined ? {} : { title: spec.title }),
     ...(spec.caption === undefined ? {} : { caption: spec.caption }),

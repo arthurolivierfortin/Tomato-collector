@@ -40,8 +40,9 @@ describe('demoPlan', () => {
       'agent_view', 'normal_view', 'cut', 'landed', 'report', 'end',
       // cycle
       'debut', 'murissement', 'detection', 'reveil', 'observation', 'positionnement', 'coupe', 'chute', 'rapport', 'fin',
-      // pipeline
-      'start', 'pipeline_1', 'pipeline_2', 'pipeline_3', 'pipeline_4', 'pipeline_5', 'pipeline_6', 'pipeline_7',
+      // pipeline : dix tuiles, la grille 5 × 2 réellement livrée par l'issue #36
+      'start', 'pipeline_1', 'pipeline_2', 'pipeline_3', 'pipeline_4', 'pipeline_5',
+      'pipeline_6', 'pipeline_7', 'pipeline_8', 'pipeline_9', 'pipeline_10',
     ]);
     const cited = new Set<string>();
     for (const entry of plan.segments) {

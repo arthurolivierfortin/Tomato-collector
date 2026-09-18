@@ -26,8 +26,8 @@ centrés.
 - Prise **`concepts`** (`scenarios/concepts.ts`), mode `live` : l'agent réel joue un épisode et le
   pilote appuie sur les touches de tournage aux vrais moments, en attendant des états de la page.
 - Prise **`cycle`** (`scenarios/cycle.ts`), mode `live` : le même épisode, mais sans une coupure.
-- Prise **`pipeline`** (`scenarios/pipeline.ts`), mode `replay` : le traitement des vues, une tuile
-  par étape. Sans agent, donc sans coût. Segments `optional` tant que la touche `x` n'existe pas.
+- Prise **`pipeline`** (`scenarios/pipeline.ts`), en direct contre un serveur `TOMATO_AGENT=off` :
+  le traitement des vues, une tuile par étape. Sans agent, donc sans coût. Segments `optional`.
 
 Le plan de montage correspondant est `scripts/video/plans/demo.ts` : mêmes sections, mêmes
 marqueurs, mêmes textes. Ce fichier-ci est la version lisible ; le plan est la version exécutable.
@@ -78,9 +78,9 @@ Prise `concepts`, mode live. Touches pressées et marqueurs posés dans cet ordr
 
 ### (c bis) Le panneau Perception, touche `p` — *facultatif, issue #36*
 
-- **Segment** : `perception_panel` → +3,8 s. Retiré du montage tant que la touche n'existe pas.
+- **Segment** : `perception_panel` → +3,8 s, cadre sur le panneau (`ZONE.perceptionPanel`).
 - **Sous-titre** : « What decides that a tomato is ripe ».
-- **Arrêt sur image** — `perception_panel` + 1 s, **4 s** : « Ripeness is decided from the camera frames, not from simulation state ».
+- **Arrêt sur image** — `perception_panel` + 1 s, **4,5 s** : « Ripeness is decided from the camera frames, not from simulation state ».
 
 ### (d) Le serveur réveille l'agent
 
@@ -119,19 +119,31 @@ Prise `concepts`, mode live. Touches pressées et marqueurs posés dans cet ordr
 
 ### (e ter) Le traitement des vues, étape par étape — *facultatif, issue #36*
 
-Prise `pipeline`, touche `x`. Un segment par tuile, un arrêt sur image de 4,5 s sur chacune, cadre
-bleu sur la tuile. Carton d'entrée : **From camera frame to what the agent sees** — *Seven stages.
-For each one: what goes in, what does the work, what comes out.*
+Prise `pipeline`, touche `x`. Un segment par tuile, un arrêt sur image de 5 s sur chacune, cadre
+bleu posé sur la tuile pendant tout le segment. L'écran livré range **dix** étapes en deux rangées
+de cinq : c'est cette grille, mesurée sur la page, que suit `pipelineTile()`.
+
+Deux cartons, portés par les segments eux-mêmes pour disparaître avec eux si la prise manque :
+**From camera frame to what the agent sees** — *Ten stages. For each one: what goes in, what does
+the work, what comes out.* à l'entrée, et **Second row: the annotation layers** — *Each layer is
+labelled by its source: camera calibration, robot state, simulation, geometry, output.* au passage
+à la seconde rangée.
+
+Le bandeau de sous-titre descend ici à 14 px du bas et s'élargit à 1100 px (`captionBottom`,
+`captionWidth`) : sur un écran plein format, sa place habituelle tomberait au milieu des tuiles.
 
 | Marqueur | Sous-titre du segment | Arrêt sur image |
 |---|---|---|
-| `pipeline_1` | Stage 1 of 7: raw camera frame | Raw camera frame, straight from the orthographic camera. No processing yet. |
-| `pipeline_2` | Stage 2 of 7: CLAHE contrast | CLAHE contrast (OpenCV, plain image processing): flattens the greenhouse lighting. |
-| `pipeline_3` | Stage 3 of 7: Canny edges | Canny edge detection (OpenCV, plain image processing): leaves, stems and fruit as white contours. |
-| `pipeline_4` | Stage 4 of 7: ripeness detection | Ripeness detection. The work is done by a model: YOLOv8n in ONNX, or HSV colour thresholding when the model is not retained. Out: boxes and a confidence. |
-| `pipeline_5` | Stage 5 of 7: box to tomato matching | Box to tomato matching (plain logic): each box is projected back onto the tomatoes of the scene. |
-| `pipeline_6` | Stage 6 of 7: annotations | Annotations. Grid and scale come from the camera calibration, scissors and basket from the robot state, tomato markers and the stem line from the simulation, the fall line from physics. |
-| `pipeline_7` | Stage 7 of 7: final view | The final view, exactly as the agent receives it: one PNG per camera, plus a JSON block. |
+| `pipeline_1` | Stage 1 of 10: raw camera frame | Raw camera frame. In: the 3D scene. Out: an 800 by 800 RGBA buffer, straight from the orthographic camera. No processing yet. |
+| `pipeline_2` | Stage 2 of 10: CLAHE contrast | CLAHE contrast (OpenCV, plain image processing). In: the RGBA buffer. Out: an equalised grey plane, so dark corners regain contrast. |
+| `pipeline_3` | Stage 3 of 10: Canny edges | Canny edges 50/150 (OpenCV). In: the grey plane. Out: white contours over a darkened render. This is layer one of every agent view. |
+| `pipeline_4` | Stage 4 of 10: ripeness detection | Ripeness detection. A model does the work: YOLOv8n in ONNX on a 640 by 640 frame. Out: boxes, a class and a confidence. Only this stage decides ripe. |
+| `pipeline_5` | Stage 5 of 10: box to tomato matching | Box to tomato matching (plain logic). In: the boxes and the projected 3D centres. Out: one tomato id per ripe box. No simulation ripeness is read. |
+| `pipeline_6` | Stage 6 of 10: grid, axes and scale | Grid, axes and scale bar (camera calibration). In: the camera pose and field. Out: the metric frame that makes a view measurable in centimetres. |
+| `pipeline_7` | Stage 7 of 10: scissors and basket | Scissors and basket (robot state). In: the arm pose. Out: blade position, blade angle and basket outline, as an encoder would report them. |
+| `pipeline_8` | Stage 8 of 10: tomato markers and stem line | Tomato markers and target stem line (simulation). In: positions, ids and stems. Out: circles and a target line. This is help given, not measured. |
+| `pipeline_9` | Stage 9 of 10: predicted fall line | Predicted fall line (geometry). In: the target and the basket. Out: the vertical the tomato is expected to follow once the stem is cut. |
+| `pipeline_10` | Stage 10 of 10: final view | Final view, exactly as the agent receives it. In: all the layers above. Out: one PNG per camera, plus a JSON block. |
 
 ### (e quater) D'où viennent les images
 

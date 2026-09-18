@@ -5,7 +5,7 @@ terminal est filmée par ffmpeg, et ffmpeg assemble le résultat.
 
     npm run video:record -- --scenario concepts --mode live --take concepts --terminal page
     npm run video:record -- --scenario cycle    --mode live --take cycle    --terminal page
-    npm run video:record -- --scenario pipeline --mode replay --take pipeline --episode latest
+    npm run video:record -- --scenario pipeline --mode live   --take pipeline   # serveur TOMATO_AGENT=off
     npm run video:montage -- --episode latest
 
     npm run video:all        # concepts, cycle, montage
@@ -39,7 +39,7 @@ qui fait foi.
 |---|---|---|---|
 | `concepts` | `live` | un épisode | la partie 1 : mûrissement, détection, réveil, vues, outils, coupe |
 | `cycle` | `live` | un épisode | la partie 2 : le même cycle, sans une seule coupure |
-| `pipeline` | `replay` | rien | le traitement des vues, une tuile par étape (issue #36) |
+| `pipeline` | `live`, agent coupé | rien | le traitement des vues, une tuile par étape (issue #36) |
 
 **La partie 1 est filmée en direct, avec l'agent réel.** La première version la fabriquait avec
 l'épisode scripté de la page (`buildDemoScript`) : la scène 3D ne bougeait pas pendant que la trace
@@ -49,7 +49,10 @@ page — une phase, une ligne de la trace, une flèche du schéma bloc — et ap
 tournage à ces moments-là.
 
 **Pourquoi `pipeline` est une prise à part.** L'écran de traitement des vues (touche `x`) ne montre
-que de l'image : il n'a besoin ni de l'agent ni du serveur. Le glisser au milieu de la prise en
+que de l'image : il n'a besoin ni de l'agent ni du serveur. On la filme quand même en `live`, contre
+un serveur lancé avec `TOMATO_AGENT=off` : la détection ouvre alors un épisode mis en scène, sans
+appeler le SDK et sans rien coûter, et les tuiles « détection », « appariement », « repères » et
+« chute » ont enfin une cible à dessiner. Le glisser au milieu de la prise en
 direct coûterait soit la coupe et la chute, masquées par un plein écran pendant une minute, soit un
 second épisode payant, puisque la tomate suivante mûrit une quinzaine de secondes après la récolte.
 Filmée seule, la séquence ne coûte rien et peut durer ce qu'il faut.
@@ -224,13 +227,29 @@ Une étape `gate` presse une touche et **ouvre une vanne du même nom si l'écra
 Les étapes qui portent `gate: <nom>` ne sont jouées que si la vanne est ouverte. C'est ainsi que le
 scénario montre un panneau livré par une autre branche sans casser la prise tant qu'il n'est pas là.
 
-Sur cette branche, deux écrans de l'issue #36 sont dans ce cas : le panneau « Perception »
-(touche `p`, dans `concepts`) et l'écran de traitement des vues (touche `x`, prise `pipeline`). Les
-marqueurs correspondants — `perception_panel`, `pipeline_1` à `pipeline_7` — sont donc **facultatifs** :
-ils ne comptent pas dans les marqueurs prévus, et les segments du plan qui les citent portent
+Deux écrans de l'issue #36 sont dans ce cas : le panneau « Perception » (touche `p`, dans
+`concepts`) et l'écran de traitement des vues (touche `x`, prise `pipeline`). Les marqueurs
+correspondants — `perception_panel`, `pipeline_1` à `pipeline_10` — restent **facultatifs** : ils ne
+comptent pas dans les marqueurs prévus, et les segments du plan qui les citent portent
 `optional: true`. Au montage, ces segments sont retirés avec un avertissement au lieu de faire
-échouer le film. Quand #36 sera mergée, il restera à **recaler `pipelineTile()`** dans
-`plans/demo.ts` sur la grille réelle de l'écran `x`, en regardant une image extraite.
+échouer le film.
+
+**Ces deux écrans sont là depuis la fusion de #36, et le plan a été recalé sur eux** (prises du
+2026-09-18) :
+
+- l'écran `x` range **dix** étapes en deux rangées de cinq, et non sept en deux rangées de quatre
+  comme le plan l'avait anticipé. `scenarios/pipeline.ts` pose donc dix marqueurs, et
+  `pipelineTile()` (`plans/zones.ts`) rend la grille mesurée sur la page :
+  x = 16 + 380 c, y = 56 + 508 r, tuiles de 368 × 496 ;
+- les zones encadrables de `plans/zones.ts` ont été **mesurées** au lieu d'être estimées
+  (`getBoundingClientRect` sur les `data-testid` du dashboard en 1920×1080). La cellule de maturité
+  vivait 70 px trop à gauche, la trace s'arrêtait 120 px trop haut. Le panneau « Perception » a sa
+  zone à lui, et l'arrêt sur image du segment `p` l'encadre ;
+- l'écran `x` est plein format : le bandeau de sous-titre du dashboard, calé à 145 px du bas, y
+  tomberait au milieu des tuiles de la seconde rangée. Les segments du pipeline le descendent à
+  14 px du bas (`captionBottom`, nouveau champ de segment) et l'élargissent à 1100 px, pour qu'il ne
+  recouvre que la dernière ligne de texte des tuiles du bas — la seule bande redondante de cet
+  écran, puisqu'elle redit en français ce que le sous-titre dit en anglais.
 
 ## Répétition sans coût
 
