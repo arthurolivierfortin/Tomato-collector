@@ -44,7 +44,7 @@ describe('MCP server over the in-memory transport', () => {
       { type: 'tool_call_start', episodeId: 'manual', callId: 'call-1', tool: 'get_status', args: {} },
     ]);
     expect(hub.broadcasts.filter((m) => m.type === 'tool_call_result')).toEqual([
-      { type: 'tool_call_result', episodeId: 'manual', callId: 'call-1', ok: true, summary: 'état : idle, 0 tomates', durationMs: 7 },
+      { type: 'tool_call_result', episodeId: 'manual', callId: 'call-1', ok: true, summary: 'état : idle, 0 tomates', durationMs: 7, result: expect.objectContaining({ phase: 'idle' }) },
     ]);
     const blocks = hub.broadcasts.filter((m) => m.type === 'block_activity');
     expect(blocks.map((b) => (b.type === 'block_activity' ? `${b.from}>${b.to}` : ''))).toEqual(['agent>server', 'server>agent']);

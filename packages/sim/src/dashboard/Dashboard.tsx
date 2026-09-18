@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import type { CameraId } from '@tomato/shared';
 import { setCameraGizmosVisible } from '../cameras/agentCameras';
+import { subscribeViews } from '../cameras/cameraModule';
 import type { SimRuntime } from '../core/runtime';
 import { PerceptionBadge } from '../perception/PerceptionBadge';
 import type { SceneHandle } from '../three/createScene';
@@ -78,6 +79,20 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
 
   const { ui } = state;
   const lightboxOpen = ui.lightbox !== null;
+  /** Page seule (sans serveur ni replay) : le rendu local de M3 alimente le panneau ; connecté, c'est l'agent. */
+  const standalone = state.connection === 'disconnected';
+
+  useEffect(
+    () =>
+      subscribeViews((result) => {
+        if (store.get().connection === 'disconnected') store.dispatch({ type: 'views', episodeId: null, result });
+      }),
+    [store],
+  );
+
+  const refresh = useCallback(() => {
+    void window.__tomato?.renderViews?.(['top', 'front', 'side']);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -134,6 +149,7 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
           agentView={ui.agentView}
           onFeature={feature}
           onOpen={openLightbox}
+          {...(standalone ? { onRefresh: refresh } : {})}
         />
       </div>
       <BlockDiagram flow={state.blocks.flow} atMs={state.blocks.atMs} open={ui.diagramOpen} onToggle={() => store.dispatch({ type: 'local_toggle_diagram' })} />

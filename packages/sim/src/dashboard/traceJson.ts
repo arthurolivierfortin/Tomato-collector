@@ -77,13 +77,36 @@ export function jsonTokens(json: string): JsonToken[] {
   return tokens;
 }
 
+const isPrimitive = (v: unknown): boolean => v === null || typeof v !== 'object';
+
+function write(v: unknown, pad: string): string {
+  const inner = pad + ' '.repeat(JSON_INDENT);
+  if (Array.isArray(v)) {
+    if (v.length === 0) return '[]';
+    // Un vecteur de nombres tient sur une ligne : [17.3, -19.5, 38.3] plutôt que quatre lignes.
+    if (v.every(isPrimitive)) return `[${v.map((x) => JSON.stringify(x)).join(', ')}]`;
+    return `[\n${v.map((x) => inner + write(x, inner)).join(',\n')}\n${pad}]`;
+  }
+  if (v !== null && typeof v === 'object') {
+    const entries = Object.entries(v).filter(([, x]) => x !== undefined);
+    if (entries.length === 0) return '{}';
+    return `{\n${entries.map(([k, x]) => `${inner}${JSON.stringify(k)}: ${write(x, inner)}`).join(',\n')}\n${pad}}`;
+  }
+  return JSON.stringify(v) ?? 'null';
+}
+
+/** JSON indenté à 2 espaces, mais vecteurs et listes de valeurs simples sur une seule ligne. */
+export function stringifyCompact(value: unknown): string {
+  return write(value, '');
+}
+
 /** Arguments d'un appel d'outil, en JSON indenté. */
 export function formatToolArgs(args: Record<string, unknown>): string {
-  return JSON.stringify(maskAndSummarize(args), null, JSON_INDENT);
+  return stringifyCompact(maskAndSummarize(args));
 }
 
 /** Résultat d'un appel d'outil, en JSON indenté, sans image ; chaîne vide si le serveur n'en a pas envoyé. */
 export function formatToolResult(result: unknown): string {
   if (result === undefined) return '';
-  return JSON.stringify(maskAndSummarize(result), null, JSON_INDENT);
+  return stringifyCompact(maskAndSummarize(result));
 }

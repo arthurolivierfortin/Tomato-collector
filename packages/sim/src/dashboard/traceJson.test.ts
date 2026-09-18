@@ -40,6 +40,13 @@ describe('formatToolResult', () => {
     expect(formatToolResult(['Vue front — axes X→ Z↑', IMAGE_PLACEHOLDER, payload])).toContain('"targetTomatoId": 3');
   });
 
+  it('keeps vectors and simple lists on one line so the trace stays readable', () => {
+    expect(formatToolResult({ positionCm: [17.3, -19.5, 38.3], cameras: ['top', 'front'], tomatoes: [{ id: 1 }] })).toBe(
+      ['{', '  "positionCm": [17.3, -19.5, 38.3],', '  "cameras": ["top", "front"],', '  "tomatoes": [', '    {', '      "id": 1', '    }', '  ]', '}'].join('\n'),
+    );
+    expect(formatToolResult([])).toBe('[]');
+  });
+
   it('rounds long decimals and returns an empty string when there is no result', () => {
     expect(formatToolResult({ a: 1.23456789 })).toContain('1.23');
     expect(formatToolResult(undefined)).toBe('');

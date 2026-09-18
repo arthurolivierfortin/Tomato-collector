@@ -116,6 +116,13 @@ describe('resultPayload', () => {
     expect(resultPayload([])).toBeNull();
   });
 
+  it('splits « ok : … » followed by its JSON into the sentence and the object, never escaped JSON', () => {
+    expect(resultPayload([{ type: 'text', text: 'ok : scissors moved\n{"cutPointCm":[20,-20,50]}' }])).toEqual([
+      'ok : scissors moved',
+      { cutPointCm: [20, -20, 50] },
+    ]);
+    expect(resultPayload([{ type: 'text', text: 'collision : blocked\nat X 9' }])).toBe('collision : blocked\nat X 9');
+  });
 });
 
 describe('createToolRunner (arguments et résultat diffusés)', () => {

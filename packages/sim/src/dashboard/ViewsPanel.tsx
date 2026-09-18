@@ -1,5 +1,6 @@
 import { CAMERA_IDS, type CameraId, type ViewImage } from '@tomato/shared';
 import { formatAge } from './traceFormat';
+import { BTN } from './ui';
 import { useFlash } from './useFlash';
 import { useNow } from './useNow';
 
@@ -27,13 +28,13 @@ function Tile({ camera, image, age, big, onClick }: TileProps) {
     <figure
       data-testid={big ? 'view-featured' : `view-thumb-${camera}`}
       data-camera={camera}
-      className={`flex min-h-0 min-w-0 flex-col gap-1 ${big ? 'flex-1' : ''}`}
+      className={`flex min-h-0 min-w-0 flex-col gap-1 ${big ? 'flex-1' : 'h-full'}`}
     >
       <button
         type="button"
         aria-label={big ? `Ouvrir la vue ${camera} en plein écran` : `Mettre la vue ${camera} en avant`}
         onClick={onClick}
-        className={`relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-sm border border-line bg-black focus-visible:outline focus-visible:outline-stem ${big ? '' : 'hover:border-stem'}`}
+        className={`relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-sm border border-line bg-black focus-visible:outline focus-visible:outline-stem ${big ? '' : 'aspect-square self-center hover:border-stem'}`}
       >
         {image ? (
           <img alt={`vue ${camera}`} src={src(image)} className="h-full w-full object-contain" />
@@ -60,6 +61,8 @@ interface Props {
   agentView: boolean;
   onFeature: (camera: CameraId) => void;
   onOpen: (camera: CameraId) => void;
+  /** Rendu local des trois vues ; fourni seulement hors connexion serveur (sinon c'est l'agent qui les demande). */
+  onRefresh?: () => void;
   /** Horloge figée (tests, captures). */
   nowMs?: number;
 }
@@ -68,7 +71,7 @@ interface Props {
  * « Ce que voit l'agent » : la vue demandée en dernier par l'agent en grand, les deux autres en vignettes
  * dessous (clic pour permuter), l'âge de chaque image, et un flash à chaque nouveau message `views`.
  */
-export function ViewsPanel({ views, viewsAt, featured, lastViewsAt, agentView, onFeature, onOpen, nowMs }: Props) {
+export function ViewsPanel({ views, viewsAt, featured, lastViewsAt, agentView, onFeature, onOpen, onRefresh, nowMs }: Props) {
   const flash = useFlash(lastViewsAt, VIEWS_FLASH_MS);
   const now = useNow(nowMs);
   const others = CAMERA_IDS.filter((id) => id !== featured);
@@ -78,8 +81,16 @@ export function ViewsPanel({ views, viewsAt, featured, lastViewsAt, agentView, o
       data-testid="views"
       data-flash={flash ? 'true' : undefined}
       aria-label="Ce que voit l'agent"
-      className={`flex h-full min-h-0 min-w-0 flex-col gap-2 border-l border-line p-3 ${flash ? 'views-flash' : ''}`}
+      className={`flex h-full min-h-0 min-w-0 flex-col gap-2 overflow-hidden border-l border-line p-3 ${flash ? 'views-flash' : ''}`}
     >
+      {onRefresh && (
+        <div className="flex shrink-0 items-center justify-between gap-2">
+          <h2 className="text-[11px] uppercase tracking-widest text-ink-dim">Vues de l&apos;agent</h2>
+          <button type="button" data-testid="refresh-views" onClick={onRefresh} className={BTN}>
+            Rafraîchir les vues
+          </button>
+        </div>
+      )}
       {agentView ? (
         <div className="grid min-h-0 flex-1 grid-cols-3 gap-3">
           {CAMERA_IDS.map((id) => (
@@ -89,11 +100,10 @@ export function ViewsPanel({ views, viewsAt, featured, lastViewsAt, agentView, o
       ) : (
         <>
           <Tile camera={featured} image={views[featured]} age={formatAge(viewsAt[featured], now)} big onClick={() => onOpen(featured)} />
-          <div className="grid shrink-0 grid-cols-2 gap-2">
+          {/* Les deux autres vues en vignettes carrées : hauteur fixe pour laisser ≥ 600 px à la vue en avant. */}
+          <div className="flex h-[13rem] shrink-0 justify-center gap-4">
             {others.map((id) => (
-              <div key={id} className="h-[11.5rem]">
-                <Tile camera={id} image={views[id]} age={formatAge(viewsAt[id], now)} big={false} onClick={() => onFeature(id)} />
-              </div>
+              <Tile key={id} camera={id} image={views[id]} age={formatAge(viewsAt[id], now)} big={false} onClick={() => onFeature(id)} />
             ))}
           </div>
         </>

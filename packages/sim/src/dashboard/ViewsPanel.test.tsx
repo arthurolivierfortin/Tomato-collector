@@ -70,3 +70,15 @@ describe('ViewsPanel', () => {
     expect(screen.queryByTestId('view-thumb-top')).toBeNull();
   });
 });
+
+describe('ViewsPanel — page seule', () => {
+  it('offers a local refresh only when the caller provides one', () => {
+    const onRefresh = vi.fn();
+    setup({ onRefresh });
+    fireEvent.click(screen.getByTestId('refresh-views'));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    cleanup();
+    setup();
+    expect(screen.queryByTestId('refresh-views')).toBeNull();
+  });
+});
