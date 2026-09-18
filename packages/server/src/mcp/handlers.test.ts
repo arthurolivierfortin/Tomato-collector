@@ -98,6 +98,26 @@ describe('tool handlers', () => {
     expect(r.summary).toMatch(/^caméra side à /);
   });
 
+  it('appends the suggested blade angles of the target stem to get_views and move_camera', async () => {
+    const { handlers, session, sim } = setup();
+    session.handleSimEvent({ type: 'ripe_detected', tomatoId: 1, detector: 'hsv', confidence: 1 });
+    const tilted: Tomato = { ...tomato, stem: { fromCm: [10, 0, 66], toCm: [7, 0, 63] } };
+    sim.views = (cams) => ({ images: cams.map((camera) => ({ camera, pngBase64: PNG, widthPx: 800, heightPx: 800 })), json: { ...sim.state, targetTomatoId: 1, tomatoes: [tilted] } });
+    const suggestion = { type: 'text', text: 'suggestedScissors for target stem #1 (rotate_scissors, mode absolute, roll 0): {"yawDeg":0,"pitchDeg":45}' };
+
+    const views = await handlers.get_views({ cameras: ['top'] });
+    expect(views.content.map((b) => b.type)).toEqual(['text', 'image', 'text', 'text']);
+    expect(views.content.at(-1)).toEqual(suggestion);
+
+    const cam = await handlers.move_camera({ camera: 'side', zoom: 2 });
+    expect(cam.content.at(-1)).toEqual(suggestion);
+
+    // Aucune cible : aucune ligne suggestedScissors.
+    sim.views = (cams) => ({ images: cams.map((camera) => ({ camera, pngBase64: PNG, widthPx: 800, heightPx: 800 })), json: { ...sim.state, targetTomatoId: null, tomatoes: [tilted] } });
+    const noTarget = await handlers.get_views({ cameras: ['top'] });
+    expect(noTarget.content.map((b) => b.type)).toEqual(['text', 'image', 'text']);
+  });
+
   it('report closes the episode with the real outcome, refuses during falling, is harmless in manual mode', async () => {
     const { handlers, session, journal } = setup();
     const manual = await handlers.report({ outcome: 'aborted', note: 'rien' });

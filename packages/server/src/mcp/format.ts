@@ -1,4 +1,4 @@
-import { VIEW_SIZE_PX, type ActionResult, type CameraId, type CameraPose, type Vec3, type ViewImage } from '@tomato/shared';
+import { radToDeg, VIEW_SIZE_PX, vlen, vsub, type ActionResult, type CameraId, type CameraPose, type Vec3, type ViewImage, type ViewsPayload } from '@tomato/shared';
 
 export interface TextBlock {
   type: 'text';
@@ -115,4 +115,39 @@ export function summarizeAction(tool: string, r: ActionResult): string {
     default:
       return r.ok ? `${tool} : ${r.message}` : `${tool} : ${failText(r)}`;
   }
+}
+
+/**
+ * Pose absolue (roulis 0) qui met la normale des lames sur la direction de tige `d`.
+ *
+ * L'orientation des ciseaux est `Rz(lacet) · Ry(tangage) · Rx(roulis)` appliquée à la normale de base
+ * `[0, 0, 1]` (`packages/sim/src/robot/rotation.ts`), d'où la forme fermée, à roulis nul :
+ *
+ *     bladeNormal = (sin(tangage)·cos(lacet), sin(tangage)·sin(lacet), cos(tangage))
+ *
+ * On oriente `d` vers le haut (`dz ≥ 0`), puis `lacet = atan2(dy, dx)` et `tangage = arccos(dz)`.
+ * La pose `lacet ∓ 180°, −tangage` donne la même normale : on retient celle dont le lacet reste dans
+ * ±90°, la seule qui garde les lames tournées vers le plant (axe des lames en −X, base du bras en +X).
+ * `null` si la direction est dégénérée.
+ */
+export function bladeAnglesForStem(d: Vec3): { yawDeg: number; pitchDeg: number } | null {
+  const l = vlen(d);
+  if (l < 1e-9) return null;
+  const s = d[2] < 0 ? -1 / l : 1 / l;
+  const [dx, dy, dz] = [d[0] * s, d[1] * s, Math.min(1, Math.abs(d[2] / l))];
+  if (Math.hypot(dx, dy) < 1e-9) return { yawDeg: 0, pitchDeg: 0 };
+  const yawDeg = radToDeg(Math.atan2(dy, dx));
+  const pitchDeg = radToDeg(Math.acos(dz));
+  if (Math.abs(yawDeg) <= 90) return { yawDeg, pitchDeg };
+  return { yawDeg: yawDeg - Math.sign(yawDeg) * 180, pitchDeg: -pitchDeg };
+}
+
+/** Ligne `suggestedScissors` jointe aux vues : la pose prête à envoyer à `rotate_scissors` pour la tige cible. */
+export function suggestedScissorsText(json: ViewsPayload): string | null {
+  const id = json.targetTomatoId;
+  const target = id === null ? undefined : json.tomatoes.find((t) => t.id === id);
+  if (target === undefined) return null;
+  const angles = bladeAnglesForStem(vsub(target.stem.toCm, target.stem.fromCm));
+  if (angles === null) return null;
+  return `suggestedScissors for target stem #${id} (rotate_scissors, mode absolute, roll 0): ${compactJson(angles)}`;
 }

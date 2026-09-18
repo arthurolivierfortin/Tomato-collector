@@ -3,7 +3,7 @@ import type { Hub } from '../hub/hub';
 import type { SimBridge } from '../sim/simBridge';
 import { outcomeForPhase } from '../state/rules';
 import type { Session } from '../state/session';
-import { actionResultText, compactJson, png, summarizeAction, text, viewHeader, type ContentBlock } from './format';
+import { actionResultText, compactJson, png, suggestedScissorsText, summarizeAction, text, viewHeader, type ContentBlock } from './format';
 
 export interface ToolOutcome {
   ok: boolean;
@@ -66,6 +66,12 @@ export function createToolHandlers(deps: ToolDeps): Record<ToolName, ToolHandler
     return { result, blocks: result.images.flatMap((img) => [text(viewHeader(img, result.json.cameras[img.camera])), png(img)]) };
   }
 
+  /** Angles de lames prêts à l'emploi pour la tige cible : l'agent n'a plus à les redériver des images. */
+  const suggestion = (result: ViewsResult): ContentBlock[] => {
+    const line = suggestedScissorsText(result.json);
+    return line === null ? [] : [text(line)];
+  };
+
   return {
     get_status: withArgs('get_status', () => {
       const s = deps.session.get();
@@ -82,7 +88,7 @@ export function createToolHandlers(deps: ToolDeps): Record<ToolName, ToolHandler
       const cameras = args.cameras ?? [...CAMERA_IDS];
       const v = await views(cameras);
       if (v === null) return failure('vues : not_available', NO_IMAGES_TEXT);
-      return { ok: true, content: [...v.blocks, text(compactJson(v.result.json))], summary: `vues : ${cameras.join(', ')}` };
+      return { ok: true, content: [...v.blocks, text(compactJson(v.result.json)), ...suggestion(v.result)], summary: `vues : ${cameras.join(', ')}` };
     }),
     move_camera: withArgs('move_camera', async (args) => {
       const action: SimAction = { type: 'move_camera', camera: args.camera, ...definedNumbers({ dx: args.dx, dy: args.dy, dz: args.dz, yaw: args.yaw, tilt: args.tilt, zoom: args.zoom }) };
@@ -91,7 +97,7 @@ export function createToolHandlers(deps: ToolDeps): Record<ToolName, ToolHandler
       const v = await views([args.camera]);
       const pose = r.state.cameras[args.camera];
       const summary = `caméra ${args.camera} à ${compactJson(pose.positionCm)}, lacet ${pose.yawDeg}, tangage ${pose.tiltDeg}`;
-      return { ok: true, content: [...outcome.content, ...(v === null ? [text(NO_IMAGES_TEXT)] : v.blocks)], summary };
+      return { ok: true, content: [...outcome.content, ...(v === null ? [text(NO_IMAGES_TEXT)] : [...v.blocks, ...suggestion(v.result)])], summary };
     }),
     move_scissors: withArgs('move_scissors', async (args) => (await applyAction('move_scissors', { type: 'move_scissors', x: args.x, y: args.y, z: args.z, mode: args.mode }, (s) => s.scissors)).outcome),
     rotate_scissors: withArgs('rotate_scissors', async (args) => {
