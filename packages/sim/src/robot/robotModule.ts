@@ -8,6 +8,7 @@ import type { ArmMesh } from './buildArmMesh';
 import { buildBasketMesh } from './buildBasketMesh';
 import type { BasketMesh } from './buildBasketMesh';
 import { solveIk } from './ik';
+import { atRest } from './restPose';
 import { closeAndCut, moveBasket, moveScissors, openScissors, rotateScissors } from './robotState';
 import type { PlantObstacles } from './robotState';
 import { poseFromAngles, scissorsPoints } from './scissorsGeometry';
@@ -61,6 +62,7 @@ export function createRobotModule(): SimModule {
   let arm: ArmMesh | null = null;
   let basket: BasketMesh | null = null;
   let shown: WorldState | null = null;
+  let unlistenPlant: (() => void) | null = null;
   const motions = createMotionRunner();
   /** Une file par outil : une action animée attend la fin de la précédente sur le même outil. */
   const scissorsLane = createLane();
@@ -120,6 +122,10 @@ export function createRobotModule(): SimModule {
   return {
     name: 'robot',
     init(ctx) {
+      // Issue #31 : un « Nouveau plant » entre deux prises doit retrouver le bras garé, pas là où
+      // l'agent l'avait laissé devant le plant précédent.
+      unlistenPlant?.();
+      unlistenPlant = ctx.signals.on('plant_regenerated', () => ctx.store.update(atRest));
       if (ctx.scene === null) return;
       arm = buildArmMesh();
       basket = buildBasketMesh(ctx.store.get().basket);
