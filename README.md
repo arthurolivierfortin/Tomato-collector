@@ -18,22 +18,111 @@ Spec de design : `docs/superpowers/specs/2026-09-17-tomato-harvest-demo-design.m
     npm install
     npx playwright install chromium
 
+`playwright install` n'est nécessaire que pour `npm run shot` (capture automatisée) ; pas pour lancer la démo.
+
+## Lancer la démo
+
+Prérequis : Claude Code CLI connecté (l'agent utilise l'auth de la machine).
+
+    npm run demo
+
+Ouvrir http://localhost:5173 et attendre **serveur connecté** dans le bandeau du haut.
+
+Déroulé d'un épisode :
+
+1. Cliquer « Mûrir la prochaine tomate ».
+2. La perception (contours HSV ou détecteur ONNX) détecte la tomate mûre.
+3. Le serveur réveille l'agent (phase `detected` → réveil automatique de la file du runner).
+4. Suivre la trace dans le panneau de droite (texte de l'agent, appels d'outils MCP, résultats) jusqu'à `harvested` ou `missed`.
+
+Réveil manuel, sans attendre la détection (utile aussi avec `TOMATO_AGENT=off`) :
+
+    npm run wake -w @tomato/server -- <tomatoId>
+
+Variables d'environnement du serveur (`TOMATO_*`, valeurs par défaut) :
+
+| Variable | Défaut | Effet |
+|---|---|---|
+| `TOMATO_MCP_PORT` | `7331` | port HTTP : `/mcp`, `/health`, `/episodes` |
+| `TOMATO_WS_PORT` | `7332` | port WebSocket (hub sim + dashboards) |
+| `TOMATO_WAKE_PORT` | `7333` | port du serveur de réveil manuel (`npm run wake`) |
+| `TOMATO_MODEL` | `claude-opus-5` | modèle de l'agent |
+| `TOMATO_AGENT` | `on` | `off` désactive le runner (pilotage à la main uniquement) |
+| `TOMATO_EPISODES_DIR` | `data/episodes` | dossier des journaux d'épisodes |
+
+Variables d'environnement de la sim (Vite, `VITE_*`) :
+
+| Variable | Défaut | Effet |
+|---|---|---|
+| `VITE_TOMATO_WS_URL` | `ws://localhost:7332` | hub WebSocket contacté par la page |
+| `VITE_TOMATO_API_URL` | `http://localhost:7331` | serveur HTTP (liste et lecture des épisodes) |
+
+Pour positionner une variable ponctuellement : bash `TOMATO_MODEL=claude-sonnet-5 npm run demo` ;
+PowerShell `$env:TOMATO_MODEL = "claude-sonnet-5"; npm run demo`.
+
+Touches du dashboard : `h` masque/affiche les contrôles, `v` bascule la vue « ce que voit l'agent »,
+`b` ouvre/ferme le schéma bloc (flux agent ↔ serveur ↔ sim).
+
+Replay : le panneau « Épisodes », à côté des contrôles, liste les journaux de `data/episodes/` ;
+choisir un épisode et une vitesse puis « Rejouer » le repasse via un pont simulé, sans serveur ni agent.
+
+Journaux et coût : chaque épisode est écrit dans `data/episodes/<episodeId>.json` (messages horodatés,
+appels d'outils, résultat, coût). Coût observé pour un épisode complet mené par l'agent : environ 0,35 $.
+
+## Tournage
+
+- Résolution recommandée : 1920×1080 (redimensionner la fenêtre avant d'enregistrer).
+- `v` : mode « ce que voit l'agent » (vues caméra agrandies à 70 % de l'écran).
+- `h` : masque les contrôles pour un cadrage propre.
+- `b` : ouvre le schéma bloc en bandeau bas, utile pour montrer le flux agent ↔ serveur ↔ sim.
+- Vitesse ×1 pendant l'épisode : les vitesses ×2/×5/×10 accélèrent la simulation mais brouillent la prise.
+- « Nouveau plant » entre deux prises pour repartir d'un plant frais.
+- Ne pas fermer l'onglet : la simulation (Three.js + Rapier) vit dans la page ; la fermer arrête tout.
+
+## Dépannage
+
+- Port occupé (`EADDRINUSE`) : un serveur ou une sim précédente tourne encore. Identifier et arrêter le
+  processus (Windows : `netstat -ano | findstr :7331` puis `taskkill /PID <pid> /F` ; répéter pour 7332,
+  7333, 5173).
+- `simConnected:false` dans `GET /health`, ou vue spectateur vide : la page http://localhost:5173 n'est
+  pas ouverte ou n'a pas encore établi le WebSocket ; ouvrir ou recharger la page.
+- L'agent ne se réveille jamais : vérifier `TOMATO_AGENT` (doit être `on` ou absent), que Claude Code CLI
+  est connecté, et la ligne « prêt » du log serveur (elle indique `agent on/off` et le modèle).
+- Modèle ONNX absent (`packages/sim/public/models/tomato-ripe.onnx`) : la démo fonctionne sans, la
+  perception retombe sur la détection par contours HSV. Pour l'exporter : `python scripts/export-yolo.py`
+  (dépendances et licence détaillées en en-tête du script).
+- Sous Windows, `npm run demo` démarre le serveur avec `npm run start -w @tomato/server` (sans
+  rechargement à chaud) plutôt que `npm run dev -w @tomato/server` : `tsx watch` bloque au démarrage une
+  fois relayé par `concurrently` sur cette plateforme (le process reste sur « démarrage », `/health` ne
+  répond jamais). Pour du rechargement à chaud pendant le développement, lancer `npm run dev:server` seul.
+
 ## Commandes
 
 | Commande | Effet |
 |---|---|
-| `npm run dev:sim` | page sim + dashboard sur http://localhost:5173 |
-| `npm run dev:server` | serveur MCP + WebSocket (Étape 3) |
+| `npm run demo` | serveur + sim ensemble (agent actif), démo prête sur http://localhost:5173 |
+| `npm run demo:noagent` | idem, agent désactivé (`TOMATO_AGENT=off`), pilotage à la main |
+| `npm run dev:sim` | page sim + dashboard seule sur http://localhost:5173 |
+| `npm run dev:server` | serveur MCP + WebSocket seul, avec rechargement à chaud |
+| `npm run wake -w @tomato/server -- <tomatoId>` | réveil manuel de l'agent pour une tomate |
 | `npm run shot` | capture Playwright de la scène dans `data/shots/` |
 | `npm run lint` / `npm run typecheck` / `npm test` / `npm run build` | les quatre gates, obligatoires avant toute PR |
 
 ## Structure
 
-    packages/shared   contrats : types, schémas zod des outils MCP, machine à états, monde par défaut
-    packages/sim      page navigateur : Three.js + Rapier, plant, bras, caméras, perception, annotations, dashboard React
-    packages/server   Node : MCP streamable HTTP, hub WebSocket, journal des épisodes, runner d'agent
-    docs/             spec, plans, STATUS.md
-    .claude/          agents et skills du cycle de développement
+    packages/shared            contrats : types, schémas zod des outils MCP, machine à états, monde par défaut
+    packages/sim               page navigateur (Three.js + Rapier, React)
+      src/plant, robot, cameras   plant, bras à ciseaux, panier, trois caméras
+      src/perception              détection HSV / ONNX de la maturité, annotations
+      src/bridge                  pont WebSocket vers le serveur (état, actions, vues)
+      src/dashboard               dashboard React : bandeau, trace, replay, schéma bloc, contrôles
+    packages/server            Node
+      src/mcp                     serveur MCP streamable HTTP (outils du robot)
+      src/hub                     hub WebSocket (sim et dashboards)
+      src/agent                   runner d'agent Claude, réveil, serveur de réveil manuel
+      src/episodes                journal des épisodes (`data/episodes/`)
+    docs/                      spec, plans, STATUS.md
+    .claude/                   agents et skills du cycle de développement
 
 ## Conventions
 

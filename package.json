@@ -2,8 +2,12 @@
   "name": "tomato-collector",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*"],
-  "engines": { "node": ">=22" },
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "lint": "eslint .",
     "typecheck": "npm run typecheck --workspaces --if-present",
@@ -12,10 +16,14 @@
     "build": "npm run build --workspaces --if-present",
     "dev:sim": "npm run dev -w @tomato/sim",
     "dev:server": "npm run dev -w @tomato/server",
-    "shot": "npm run shot -w @tomato/sim"
+    "shot": "npm run shot -w @tomato/sim",
+    "demo": "concurrently -n server,sim -c blue,green --kill-others \"npm run start -w @tomato/server\" \"npm run dev -w @tomato/sim\"",
+    "demo:noagent": "concurrently -n server,sim -c blue,green --kill-others \"cross-env TOMATO_AGENT=off npm run start -w @tomato/server\" \"npm run dev -w @tomato/sim\""
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "concurrently": "^10.0.5",
+    "cross-env": "^10.1.0",
     "eslint": "^9.0.0",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.0.0",
