@@ -1,9 +1,9 @@
 import { createDefaultWorld } from '@tomato/shared';
-import type { ServerToDashboard } from '@tomato/shared';
+import type { ServerToDashboard, Tomato } from '@tomato/shared';
 import { describe, expect, it } from 'vitest';
-import { createNoopRunner, loadAgentRunner, type AgentRunnerDeps } from './agentRunner';
+import { createNoopRunner, loadAgentRunner, startRunner, type AgentRunnerDeps } from './agentRunner';
 import { createSession } from './state/session';
-import { createFakeHub, createFakeSim, createMemoryJournal, type FakeHub, type MemoryJournal } from './testing/fakes';
+import { createFakeHub, createFakeSim, createMemoryJournal, type FakeHub, type FakeSim, type MemoryJournal } from './testing/fakes';
 
 function deps(): AgentRunnerDeps & { hub: FakeHub; journal: MemoryJournal } {
   const hub = createFakeHub();
@@ -96,5 +96,55 @@ describe('no-op runner staging (issue #29)', () => {
     expect(wakes(d.hub)).toHaveLength(1);
     expect(d.session.get().targetTomatoId).toBe(1);
     expect(logs.at(-1)).toMatch(/épisode en cours pour la tomate 1/);
+  });
+});
+
+describe('startRunner: serveur de réveil toujours ouvert (issue #29)', () => {
+  const tomato: Tomato = {
+    id: 1,
+    state: 'ripe',
+    ripeness: 0.95,
+    positionCm: [11, -3, 39],
+    radiusCm: 3,
+    stem: { fromCm: [9, -2, 43], toCm: [11, -3, 42] },
+    attached: true,
+    visibleIn: { top: 1, front: 1, side: 1 },
+  };
+  function withTomato(): AgentRunnerDeps & { hub: FakeHub; journal: MemoryJournal } {
+    const d = deps();
+    (d.sim as FakeSim).state = { ...createDefaultWorld(1), tomatoes: [tomato] };
+    return d;
+  }
+
+  it('serves POST /wake even with the agent off, and stages the wake there', async () => {
+    const d = withTomato();
+    const handle = await startRunner(d, { agent: 'off', wakePort: 0 });
+    d.session.onWake((e) => handle.runner.wake(e));
+    try {
+      expect(handle.wakePort).not.toBeNull();
+      const r = await fetch(`http://127.0.0.1:${String(handle.wakePort)}/wake/1`, { method: 'POST' });
+      expect(r.status).toBe(202);
+      expect(await r.json()).toEqual({ ok: true, agent: 'off', tomatoId: 1 });
+      expect(d.session.get().phase).toBe('detected');
+      expect(d.session.get().targetTomatoId).toBe(1);
+      expect(d.hub.broadcasts.at(-1)).toMatchObject({ type: 'agent_wake', tomatoId: 1, detector: 'manual' });
+      expect(await (await fetch(`http://127.0.0.1:${String(handle.wakePort)}/wake`)).json()).toEqual({ busy: false, tomatoes: [1] });
+    } finally {
+      await handle.stop();
+    }
+    await expect(fetch(`http://127.0.0.1:${String(handle.wakePort)}/wake`)).rejects.toThrow();
+  });
+
+  it('owns the only wake server: the agent module is told not to open one', async () => {
+    const d = withTomato();
+    const handle = await startRunner(d, { agent: 'on', wakePort: 0, module: './testing/fakeAgent.js' });
+    try {
+      const { lastDeps } = await import('./testing/fakeAgent.js');
+      expect(lastDeps?.wakePort).toBe(-1);
+      const r = await fetch(`http://127.0.0.1:${String(handle.wakePort)}/wake/1`, { method: 'POST' });
+      expect(await r.json()).toMatchObject({ queued: true, agent: 'on', tomatoId: 1 });
+    } finally {
+      await handle.stop();
+    }
   });
 });

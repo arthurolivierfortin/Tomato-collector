@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createDefaultWorld } from '@tomato/shared';
-import { createNoopRunner, loadAgentRunner } from './agentRunner';
+import { startRunner } from './agentRunner';
 import { readConfig } from './config';
 import { createEpisodeJournal } from './episodes/journal';
 import { createHub } from './hub/hub';
@@ -42,20 +42,22 @@ async function main(): Promise<void> {
   const mcpUrl = `http://localhost:${config.mcpPort}/mcp`;
 
   const systemPrompt = await readFile(SYSTEM_PROMPT_PATH, 'utf8').catch(() => '');
-  const runner = config.agent === 'on'
-    ? await loadAgentRunner({ hub, session, sim, mcpUrl, model: config.model, systemPrompt }, log)
-    : createNoopRunner(log);
+  // Le serveur de réveil manuel écoute dans les deux modes ; agent off, le réveil est mis en scène sans SDK (issue #29).
+  const { runner, wakePort, stop } = await startRunner(
+    { hub, session, sim, mcpUrl, model: config.model, systemPrompt },
+    { agent: config.agent, log },
+  );
   session.onWake((e) => runner.wake(e));
 
+  const wake = wakePort === null ? 'réveil manuel indisponible' : `réveil manuel http://127.0.0.1:${wakePort}/wake/<tomatoId>`;
   log(
-    `prêt : MCP ${mcpUrl} · WebSocket ws://localhost:${wsPort} · épisodes ${config.episodesDir} · agent ${config.agent} (${config.model}) · rythme outils ${config.toolPacingMs} ms`,
+    `prêt : MCP ${mcpUrl} · WebSocket ws://localhost:${wsPort} · ${wake} · épisodes ${config.episodesDir} · agent ${config.agent} (${config.model}) · rythme outils ${config.toolPacingMs} ms`,
   );
 
   const shutdown = (): void => {
     log('arrêt');
-    runner.stop();
     http.close();
-    void hub.close().then(() => process.exit(0));
+    void Promise.all([stop(), hub.close()]).then(() => process.exit(0));
   };
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);
