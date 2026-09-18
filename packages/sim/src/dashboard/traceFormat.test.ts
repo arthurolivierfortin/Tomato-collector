@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  PHASE_LABEL, episodeEndTitle, episodeStartTitle, eventTitle, firstLine, formatClock, formatCost, formatDuration,
+  PHASE_LABEL, episodeEndTitle, episodeStartTitle, eventTitle, firstLine, formatAge, formatClock, formatCost, formatDuration,
   formatNum, formatSigned, phaseTitle, snapshotTitle, toolTitle, viewsTitle,
 } from './traceFormat';
 
@@ -72,5 +72,15 @@ describe('event, phase and episode titles', () => {
       episodeEndTitle({ type: 'episode_end', episodeId: 'e1', outcome: 'harvested', note: '', toolCalls: 7, costUsd: 0.0421, durationMs: 3900 }),
     ).toBe('Épisode terminé : récoltée, 7 appels, 3,9 s, 0,0421 $');
     expect(viewsTitle(['top', 'front'])).toBe('Vues rendues : top, front');
+  });
+});
+
+describe('formatAge', () => {
+  it('tells how old an image is, in French, from « à l\u2019instant » to minutes', () => {
+    expect(formatAge(1000, 1400)).toBe("à l'instant");
+    expect(formatAge(1000, 4200)).toBe('il y a 3 s');
+    expect(formatAge(1000, 66_000)).toBe('il y a 1 min');
+    expect(formatAge(1000, 200_000)).toBe('il y a 3 min');
+    expect(formatAge(null, 5000)).toBe('en attente');
   });
 });

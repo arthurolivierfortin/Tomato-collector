@@ -16,12 +16,14 @@ interface Props {
   onToggleControls: () => void;
   onToggleAgentView: () => void;
   onToggleCameraGizmos: () => void;
+  /** Ouvre la loupe plein écran sur la vue mise en avant (touche z). */
+  onOpenLightbox: () => void;
   /** Le panneau de replay, rendu dans la même barre. */
   children?: ReactNode;
 }
 
 /** Contrôles de tournage : agissent sur la sim locale via `runtime.apply` (aucun passage par le serveur). */
-export function Controls({ runtime, paused, timeScale, agentView, cameraGizmosVisible, onToggleControls, onToggleAgentView, onToggleCameraGizmos, children }: Props) {
+export function Controls({ runtime, paused, timeScale, agentView, cameraGizmosVisible, onToggleControls, onToggleAgentView, onToggleCameraGizmos, onOpenLightbox, children }: Props) {
   const off = runtime === null;
   const apply = (action: SimAction): void => {
     runtime?.apply(action);
@@ -50,6 +52,9 @@ export function Controls({ runtime, paused, timeScale, agentView, cameraGizmosVi
       </button>
       <button type="button" className={BTN} aria-pressed={cameraGizmosVisible} onClick={onToggleCameraGizmos}>
         Caméras (c)
+      </button>
+      <button type="button" className={BTN} onClick={onOpenLightbox}>
+        Zoomer la vue (z)
       </button>
       <button type="button" className={BTN} onClick={onToggleControls}>
         Masquer les contrôles (h)

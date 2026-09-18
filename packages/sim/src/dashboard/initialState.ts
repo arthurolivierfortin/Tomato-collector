@@ -13,11 +13,13 @@ export function initialDashboardState(model: string | null = DEFAULT_MODEL): Das
     trace: [],
     nextTraceId: 1,
     views: { top: null, front: null, side: null },
+    viewsAt: { top: null, front: null, side: null },
+    featured: 'front',
     lastViewsAt: null,
     blocks: { active: null, flow: null, atMs: null },
     costUsd: 0,
     model,
     sim: { simTimeS: 0, timeScale: 1, paused: false },
-    ui: { controlsHidden: false, agentView: false, diagramOpen: true, enlarged: null },
+    ui: { controlsHidden: false, agentView: false, diagramOpen: true, lightbox: null, traceOverrides: {} },
   };
 }

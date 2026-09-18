@@ -1,73 +1,102 @@
-import { useEffect } from 'react';
 import { CAMERA_IDS, type CameraId, type ViewImage } from '@tomato/shared';
-import { AgentViews } from '../cameras/AgentViews';
-import { BTN } from './ui';
+import { formatAge } from './traceFormat';
 import { useFlash } from './useFlash';
+import { useNow } from './useNow';
 
 /** Durée du flash du cadre à chaque message `views`. */
 export const VIEWS_FLASH_MS = 400;
 
 const CAMERA_AXES: Record<CameraId, string> = { top: 'X → droite, Y → haut', front: 'X → droite, Z → haut', side: 'Y → droite, Z → haut' };
 
-interface Props {
-  views: Record<CameraId, ViewImage | null>;
-  lastViewsAt: number | null;
-  enlarged: CameraId | null;
-  onEnlarge: (camera: CameraId | null) => void;
+const src = (img: ViewImage): string => `data:image/png;base64,${img.pngBase64}`;
+
+interface TileProps {
+  camera: CameraId;
+  image: ViewImage | null;
+  age: string;
+  big: boolean;
+  onClick: () => void;
 }
 
 /**
- * « Ce que voit l'agent ». Tant qu'aucun message `views` n'est arrivé (page seule, sans serveur ni replay),
- * le composant `AgentViews` de M3 est affiché tel quel (rendu local + bouton « Rafraîchir les vues »).
- * Dès qu'un pont fournit des vues, elles sont affichées telles que reçues par l'agent, clic pour agrandir.
+ * Une vue : l'image telle que reçue par l'agent, son nom, ses axes et l'âge de l'image.
+ * Sans image (tout premier chargement de cette caméra seulement), la tuile dit « en attente ».
  */
-export function ViewsPanel({ views, lastViewsAt, enlarged, onEnlarge }: Props) {
+function Tile({ camera, image, age, big, onClick }: TileProps) {
+  return (
+    <figure
+      data-testid={big ? 'view-featured' : `view-thumb-${camera}`}
+      data-camera={camera}
+      className={`flex min-h-0 min-w-0 flex-col gap-1 ${big ? 'flex-1' : ''}`}
+    >
+      <button
+        type="button"
+        aria-label={big ? `Ouvrir la vue ${camera} en plein écran` : `Mettre la vue ${camera} en avant`}
+        onClick={onClick}
+        className={`relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-sm border border-line bg-black focus-visible:outline focus-visible:outline-stem ${big ? '' : 'hover:border-stem'}`}
+      >
+        {image ? (
+          <img alt={`vue ${camera}`} src={src(image)} className="h-full w-full object-contain" />
+        ) : (
+          <span className="p-2 text-[12px] text-ink-dim">en attente…</span>
+        )}
+      </button>
+      <figcaption className="flex shrink-0 items-baseline justify-between gap-2 text-[11px] text-ink-dim">
+        <span>
+          <span className={big ? 'text-[13px] text-ink' : 'text-ink'}>{camera}</span> {CAMERA_AXES[camera]}
+        </span>
+        <span className="shrink-0 font-mono tabular-nums">{age}</span>
+      </figcaption>
+    </figure>
+  );
+}
+
+interface Props {
+  views: Record<CameraId, ViewImage | null>;
+  viewsAt: Record<CameraId, number | null>;
+  featured: CameraId;
+  lastViewsAt: number | null;
+  /** Mode « ce que voit l'agent » (touche v) : les trois vues en grand, côte à côte. */
+  agentView: boolean;
+  onFeature: (camera: CameraId) => void;
+  onOpen: (camera: CameraId) => void;
+  /** Horloge figée (tests, captures). */
+  nowMs?: number;
+}
+
+/**
+ * « Ce que voit l'agent » : la vue demandée en dernier par l'agent en grand, les deux autres en vignettes
+ * dessous (clic pour permuter), l'âge de chaque image, et un flash à chaque nouveau message `views`.
+ */
+export function ViewsPanel({ views, viewsAt, featured, lastViewsAt, agentView, onFeature, onOpen, nowMs }: Props) {
   const flash = useFlash(lastViewsAt, VIEWS_FLASH_MS);
-  const fromBridge = CAMERA_IDS.some((id) => views[id] !== null);
-
-  useEffect(() => {
-    if (enlarged === null) return;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onEnlarge(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [enlarged, onEnlarge]);
-
-  const big = enlarged === null ? null : views[enlarged];
+  const now = useNow(nowMs);
+  const others = CAMERA_IDS.filter((id) => id !== featured);
 
   return (
-    <section data-testid="views" data-flash={flash ? 'true' : undefined} aria-label="Ce que voit l'agent" className={`shrink-0 border-b border-line p-3 ${flash ? 'views-flash' : ''}`}>
-      {fromBridge ? (
-        <div className="grid grid-cols-3 gap-2">
-          {CAMERA_IDS.map((id) => {
-            const img = views[id];
-            return (
-              <figure key={id} className="flex flex-col gap-1">
-                {img ? (
-                  <button type="button" aria-label={`Agrandir la vue ${id}`} onClick={() => onEnlarge(id)} className="block w-full focus-visible:outline focus-visible:outline-stem">
-                    <img alt={`vue ${id}`} src={`data:image/png;base64,${img.pngBase64}`} className="aspect-square w-full bg-black" />
-                  </button>
-                ) : (
-                  <div className="aspect-square w-full bg-panel-2" />
-                )}
-                <figcaption className="text-[11px] text-ink-dim">
-                  <span className="text-ink">{id}</span> {CAMERA_AXES[id]}
-                </figcaption>
-              </figure>
-            );
-          })}
+    <section
+      data-testid="views"
+      data-flash={flash ? 'true' : undefined}
+      aria-label="Ce que voit l'agent"
+      className={`flex h-full min-h-0 min-w-0 flex-col gap-2 border-l border-line p-3 ${flash ? 'views-flash' : ''}`}
+    >
+      {agentView ? (
+        <div className="grid min-h-0 flex-1 grid-cols-3 gap-3">
+          {CAMERA_IDS.map((id) => (
+            <Tile key={id} camera={id} image={views[id]} age={formatAge(viewsAt[id], now)} big onClick={() => onOpen(id)} />
+          ))}
         </div>
       ) : (
-        <AgentViews />
-      )}
-      {big && enlarged && (
-        <div role="dialog" aria-modal="true" aria-label={`Vue ${enlarged} agrandie`} className="fixed inset-0 z-50 flex items-center justify-center bg-black/85" onClick={() => onEnlarge(null)}>
-          <img alt={`vue ${enlarged} agrandie`} src={`data:image/png;base64,${big.pngBase64}`} className="max-h-[96vh] max-w-[96vw]" />
-          <button type="button" className={`${BTN} absolute right-4 top-4`} onClick={() => onEnlarge(null)}>
-            Fermer (Échap)
-          </button>
-        </div>
+        <>
+          <Tile camera={featured} image={views[featured]} age={formatAge(viewsAt[featured], now)} big onClick={() => onOpen(featured)} />
+          <div className="grid shrink-0 grid-cols-2 gap-2">
+            {others.map((id) => (
+              <div key={id} className="h-[11.5rem]">
+                <Tile camera={id} image={views[id]} age={formatAge(viewsAt[id], now)} big={false} onClick={() => onFeature(id)} />
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </section>
   );
