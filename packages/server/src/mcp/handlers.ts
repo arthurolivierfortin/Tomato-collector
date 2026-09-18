@@ -60,8 +60,14 @@ export function createToolHandlers(deps: ToolDeps): Record<ToolName, ToolHandler
   async function views(cameras: CameraId[]): Promise<{ result: ViewsResult; blocks: ContentBlock[] } | null> {
     const raw = await deps.sim.renderViews(cameras);
     if (raw.images.length === 0) return null;
-    const result: ViewsResult = { images: raw.images, json: { ...raw.json, phase: deps.session.get().phase } };
-    deps.hub.broadcast({ type: 'views', episodeId: deps.session.get().episodeId, result });
+    // La phase et la cible font foi côté session : une page sim rechargée en cours d'épisode
+    // revient sans `targetTomatoId`, alors que l'épisode, lui, sait toujours quelle tomate viser.
+    const s = deps.session.get();
+    const result: ViewsResult = {
+      images: raw.images,
+      json: { ...raw.json, phase: s.phase, targetTomatoId: raw.json.targetTomatoId ?? s.targetTomatoId },
+    };
+    deps.hub.broadcast({ type: 'views', episodeId: s.episodeId, result });
     deps.hub.broadcast({ type: 'block_activity', from: 'simulation', to: 'server', label: `vues ${cameras.join(', ')}` });
     return { result, blocks: result.images.flatMap((img) => [text(viewHeader(img, result.json.cameras[img.camera])), png(img)]) };
   }

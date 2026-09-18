@@ -145,7 +145,7 @@ describe('createAgentRunner', () => {
     // Garde-fou : si la régression revient, le runner reboucle. On l'arrête au 2e épisode
     // pour que le test échoue par assertion (`2 to be 1`) plutôt qu'en bloquant le worker.
     const query: QueryFn = (prompt, options) => {
-      if (calls.length >= 1) runner.stop();
+      if (calls.length >= 1) void runner.stop();
       return base(prompt, options);
     };
     // M5 : `session.startEpisode` prévient ses abonnés `onWake`, qui rappellent `runner.wake`.
@@ -266,13 +266,72 @@ describe('createAgentRunner', () => {
     expect(lines.some((l) => l.includes('[claude stderr]'))).toBe(true);
   });
 
+  /**
+   * Flux factice qui s'arrête juste après le `report` : `result` (le coût) arrive après
+   * `resultDelayMs`, ou jamais si `null`. `reached` retombe quand le `report` est consommé.
+   */
+  function reportThenResult(resultDelayMs: number | null) {
+    let atReport: () => void = () => undefined;
+    const reached = new Promise<void>((r) => (atReport = r));
+    const query: QueryFn = async function* (_prompt, options) {
+      yield init('s1');
+      yield report('harvested');
+      atReport();
+      if (resultDelayMs === null) {
+        await new Promise<void>((r) => options.abortController?.signal.addEventListener('abort', () => r()));
+        throw new Error('aborted');
+      }
+      await new Promise<void>((r) => setTimeout(r, resultDelayMs));
+      if (options.abortController?.signal.aborted) throw new Error('aborted');
+      yield result('s1');
+    };
+    return { query, reached };
+  }
+
+  function stoppableRunner(query: QueryFn, stopDrainMs: number) {
+    const out: ServerToDashboard[] = [];
+    const s = fakeSession();
+    const runner = createAgentRunner({
+      hub: { broadcast: (m) => out.push(m) },
+      session: s.session,
+      mcpUrl: 'http://localhost:7331/mcp',
+      model: 'claude-opus-5',
+      systemPrompt: 'SYS',
+      query,
+      stopDrainMs,
+    });
+    return { runner, out };
+  }
+
+  it('stop() lets the SDK deliver its result after a report, so the cost is journalled', async () => {
+    const { query, reached } = reportThenResult(100);
+    const t = stoppableRunner(query, 5000);
+    t.runner.wake(wake(1));
+    await reached;
+    await t.runner.stop();
+    expect(t.out.at(-1)).toMatchObject({ type: 'episode_end', outcome: 'harvested', costUsd: 0.1, durationMs: 500 });
+  });
+
+  it('stop() gives the hand back after the drain delay when the stream never answers', async () => {
+    const { query, reached } = reportThenResult(null);
+    const t = stoppableRunner(query, 60);
+    t.runner.wake(wake(1));
+    await reached;
+    const startedAt = Date.now();
+    await t.runner.stop();
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(50);
+    await t.runner.whenIdle();
+    // L'épisode est bien clos, mais sans message `result` : aucun coût à journaliser.
+    expect(t.out.at(-1)).toMatchObject({ type: 'episode_end', costUsd: 0 });
+  });
+
   it('stop() aborts the current episode, clears the queue and refuses new wakes', async () => {
     let release: () => void = () => undefined;
     const gate = new Promise<void>((r) => (release = r));
     const t = setup([[init('s1'), text('a'), text('b'), report('harvested'), result('s1')]], () => gate);
     t.runner.wake(wake(1));
     t.runner.wake(wake(2));
-    t.runner.stop();
+    await t.runner.stop();
     release();
     await t.runner.whenIdle();
     expect(t.calls.length).toBe(1);

@@ -28,6 +28,27 @@ export interface AgentRunnerDeps {
   log?: (line: string) => void;
   /** Fragments de texte en continu (console). */
   onDelta?: (text: string) => void;
+  /** Délai d'attente de `stop()` après un `report` ; défaut `STOP_DRAIN_MS` (les tests le raccourcissent). */
+  stopDrainMs?: number;
+}
+
+/**
+ * Délai laissé au SDK pour livrer son message `result` — et donc le coût de l'épisode — après le
+ * `report` final. Sans lui, un arrêt juste après `report` coupe le flux avant ce message et le
+ * journal garde `costUsd: 0` (relevé sur l'épisode de validation du 2026-09-18).
+ */
+export const STOP_DRAIN_MS = 5000;
+
+/** `p`, mais jamais plus de `ms` ; le minuteur est annulé dès que `p` retombe, et rien ne rejette. */
+function atMost(p: Promise<unknown>, ms: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    const done = (): void => {
+      clearTimeout(timer);
+      resolve();
+    };
+    void p.then(done, done);
+  });
 }
 
 /**
@@ -44,9 +65,13 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
   let abort: AbortController | null = null;
   let sessionId: string | null = null;
   let idle: Promise<void> = Promise.resolve();
+  /** État du flux en cours, lu par `stop()` pour savoir si un `report` est déjà passé. */
+  let streamState: StreamState | null = null;
+  const stopDrainMs = deps.stopDrainMs ?? STOP_DRAIN_MS;
 
   async function consumeStream(prompt: string, state: StreamState): Promise<{ state: StreamState; error: string | null }> {
     abort = new AbortController();
+    streamState = state;
     const options = buildQueryOptions({
       mcpUrl: deps.mcpUrl,
       model: deps.model,
@@ -62,6 +87,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       for await (const msg of queryFn(prompt, options)) {
         const step = reduceStreamMessage(state, msg);
         state = step.state;
+        streamState = state;
         for (const out of step.out) deps.hub.broadcast(out);
         if (step.delta !== null) deps.onDelta?.(step.delta);
         if (msg.type === 'system') log(`session ${msg.session_id} model ${msg.model} robot MCP ${state.mcpStatus ?? '?'} auth ${msg.apiKeySource}`);
@@ -71,6 +97,7 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       return { state, error: err instanceof Error ? err.message : String(err) };
     } finally {
       abort = null;
+      streamState = null;
     }
   }
 
@@ -156,9 +183,12 @@ export function createAgentRunner(deps: AgentRunnerDeps): AgentRunner {
       if (!running) idle = drain();
     },
     busy: () => running,
-    stop() {
+    async stop() {
       stopped = true;
       queue.length = 0;
+      // Un `report` est passé : le SDK livre son message `result` juste après, et c'est lui qui porte
+      // le coût. On lui laisse `stopDrainMs` pour arriver — l'épisode se clôt tout seul — avant de couper.
+      if (abort !== null && streamState !== null && streamState.report !== null) await atMost(idle, stopDrainMs);
       abort?.abort();
     },
     whenIdle: () => idle,

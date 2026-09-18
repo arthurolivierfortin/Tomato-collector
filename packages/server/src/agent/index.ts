@@ -84,10 +84,13 @@ export function createAgentRunner(deps: ServerAgentRunnerDeps): ServerAgentRunne
     ...runner,
     whenIdle: () => runner.whenIdle(),
     stop() {
-      runner.stop();
+      // `closed` est posé tout de suite : `whenClosed()` reste utilisable sans attendre `stop()`,
+      // qui peut, lui, laisser quelques secondes au SDK pour livrer le coût de l'épisode.
+      const drained = runner.stop();
       closed = server.then(async (s) => {
         if (s !== null) await s.close();
       });
+      return drained;
     },
     whenReady: async () => ({ wakePort: (await server)?.port ?? null }),
     whenClosed: () => closed,

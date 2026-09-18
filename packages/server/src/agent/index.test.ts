@@ -74,7 +74,7 @@ describe('createAgentRunner (contrat M5 : src/agent/index.ts)', () => {
       expect(out.map((m) => m.type)).toEqual(['agent_wake', 'episode_start', 'agent_raw', 'episode_end']);
       expect(await runner.whenReady()).toEqual({ wakePort: null });
     } finally {
-      runner.stop();
+      await runner.stop();
     }
   });
 
@@ -88,7 +88,7 @@ describe('createAgentRunner (contrat M5 : src/agent/index.ts)', () => {
       expect(recorded[0]?.systemPrompt).toBe('FROM M5');
       expect(recorded[0]?.prompt).toContain('no simulation state received yet');
     } finally {
-      runner.stop();
+      await runner.stop();
     }
   });
 
@@ -102,7 +102,7 @@ describe('createAgentRunner (contrat M5 : src/agent/index.ts)', () => {
     expect(r.status).toBe(202);
     await runner.whenIdle();
     expect(recorded.length).toBe(1);
-    runner.stop();
+    await runner.stop();
     await runner.whenClosed();
     await expect(fetch(`http://127.0.0.1:${String(wakePort)}/wake`)).rejects.toThrow();
   });

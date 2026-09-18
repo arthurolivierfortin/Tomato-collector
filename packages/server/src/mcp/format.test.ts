@@ -87,8 +87,21 @@ describe('bladeAnglesForStem', () => {
     }
   });
 
+  it('takes the yaw + 180 branch when the stem points into the -X -Y quadrant', () => {
+    // d retournée vers le haut : (-0,58, -0,58, 0,58) → lacet brut -135°, hors de ±90°.
+    // La pose retenue est donc (-135 + 180, -arccos(dz)) = (45, -54,74), lames vers -X.
+    const a = bladeAnglesForStem([1, 1, -1])!;
+    expect(a.yawDeg).toBeCloseTo(45, 6);
+    expect(a.pitchDeg).toBeCloseTo(-54.7356, 3);
+    expect(vectorsFromAngles(a.yawDeg, a.pitchDeg, 0).bladeAxis[0]).toBeLessThan(0);
+    // Miroir en -Y : lacet brut +135°, donc la branche lacet - 180.
+    const b = bladeAnglesForStem([1, -1, -1])!;
+    expect(b.yawDeg).toBeCloseTo(-45, 6);
+    expect(b.pitchDeg).toBeCloseTo(-54.7356, 3);
+  });
+
   it('gives a blade normal parallel to the stem, blades pointing towards the plant', () => {
-    const samples: Vec3[] = [[-0.563, 0.298, 0.771], [0.655, 0.546, 0.523], [-0.451, 0.612, 0.65], [1, 0, 0], [0, -3, -3], [-2, 5, -1]];
+    const samples: Vec3[] = [[-0.563, 0.298, 0.771], [0.655, 0.546, 0.523], [-0.451, 0.612, 0.65], [1, 0, 0], [0, -3, -3], [-2, 5, -1], [1, 1, -1], [1, -1, -1]];
     for (const d of samples) {
       const a = bladeAnglesForStem(d)!;
       const { bladeAxis, bladeNormal } = vectorsFromAngles(a.yawDeg, a.pitchDeg, 0);

@@ -85,8 +85,12 @@ export interface AgentRunner {
   wake(event: WakeEvent): void;
   /** true pendant un épisode. */
   busy(): boolean;
-  /** Interrompt l'épisode en cours, vide la file, refuse les réveils suivants. */
-  stop(): void;
+  /**
+   * Interrompt l'épisode en cours, vide la file, refuse les réveils suivants. Résolue quand le flux
+   * est coupé — après un court délai si un `report` vient de passer, le temps que le SDK livre son
+   * message `result` et donc le coût de l'épisode.
+   */
+  stop(): Promise<void>;
   /** Résolue quand la file est vide et qu'aucun épisode n'est en cours (tests, script wake). */
   whenIdle(): Promise<void>;
 }
