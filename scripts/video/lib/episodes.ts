@@ -22,7 +22,8 @@ export interface EpisodeFile {
 export interface EndCardData {
   readonly outcome: string;
   readonly toolCalls: number;
-  readonly cost: string;
+  /** `null` quand le journal ne donne pas de coût : le carton n'annonce alors aucun chiffre. */
+  readonly cost: string | null;
   readonly durationS: number;
 }
 
@@ -59,7 +60,7 @@ export function endCardFrom(file: EpisodeFile): EndCardData {
   return {
     outcome: OUTCOME_LABEL[file.outcome] ?? file.outcome,
     toolCalls: file.toolCalls ?? countToolCalls(file),
-    cost: formatCostUsd(file.costUsd ?? 0),
+    cost: file.costUsd === undefined || file.costUsd === 0 ? null : formatCostUsd(file.costUsd),
     durationS: durationS(file),
   };
 }

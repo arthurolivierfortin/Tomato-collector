@@ -5,7 +5,7 @@ filmé à l'écran : la page est pilotée par Playwright et ffmpeg assemble le r
 
     npm run video:record -- --scenario concepts --mode replay --take concepts
     npm run video:record -- --scenario cycle    --mode live   --take cycle
-    npm run video:montage
+    npm run video:montage -- --episode latest
 
     npm run video:all        # les trois d'affilée
 
@@ -27,26 +27,38 @@ Le découpage des séquences, les textes et les arrêts sur image sont dans
 
 ## Enregistrer une prise en direct
 
-Dans un terminal, la démo complète sur ses ports par défaut (serveur 7331/7332/7333, page 5173) :
+**Le serveur seul, aucun onglet de simulation ouvert.** La page du pilote *est* une simulation :
+si une autre page sim est connectée, le hub remplace l'ancienne par celle du pilote, l'ancienne se
+reconnecte deux secondes plus tard et reprend la main — les deux se volent la connexion pendant
+toute la prise. `record.ts` le vérifie avant de commencer (`GET <api>/health`, champ `simConnected`)
+et refuse de démarrer sinon.
 
-    npm run demo
+Dans un terminal, le serveur :
 
-Attendre **serveur connecté** dans le bandeau du haut — la page `npm run demo` doit rester ouverte,
-c'est elle qui possède la géométrie. Puis, dans un second terminal :
+    npm run start -w @tomato/server      # ou npm run dev:server pendant le développement
+
+Dans un second, la page (Vite n'ouvre aucun onglet tout seul, et il ne faut pas en ouvrir un) :
+
+    npm run dev:sim
+
+Dans un troisième, la prise :
 
     npm run video:record -- --scenario cycle --mode live --take cycle
 
-Le pilote ouvre **sa propre page** (headless, invisible) sur la même URL et attend
-« serveur connecté » avant de commencer. Il masque les contrôles (`h`), laisse la première tomate
-mûrir toute seule — depuis l'issue #23 elle démarre sa rampe 3 s après le chargement du plant —
-puis suit les phases réelles jusqu'au rapport de l'agent, en posant un marqueur à chaque étape.
+Le pilote ouvre sa propre page (headless, invisible), attend « serveur connecté », masque les
+contrôles (`h`), laisse la première tomate mûrir toute seule — depuis l'issue #23 elle démarre sa
+rampe 3 s après le chargement du plant — puis suit les phases réelles jusqu'au rapport de l'agent,
+en posant un marqueur à chaque étape.
 
-> N'ouvrez pas la page vous-même : la première page connectée est celle qui possède la géométrie.
-> Laissez le pilote être cette page-là, sinon il n'est qu'un dashboard en lecture seule.
+> La sim doit tourner en mode développement (`npm run dev:sim`) : le pont simulé utilisé pour les
+> replays n'est exposé par Vite qu'en `import.meta.env.DEV`. Un `vite preview` ne marche pas.
 
-> La sim doit tourner en mode développement (`npm run demo` ou `npm run dev:sim`) : le pont simulé
-> utilisé pour les replays n'est exposé par Vite qu'en `import.meta.env.DEV`. Un `vite preview` ne
-> marche pas.
+### Quand une étape échoue
+
+La prise n'est pas perdue : la vidéo est renommée, `<prise>.markers.json` est écrit avec les
+marqueurs déjà posés, les marqueurs manquants et l'étape fautive, et le code de sortie est non nul.
+Le montage relit ce fichier, prévient que la prise est incomplète, et refuse les segments qui
+citent un marqueur absent.
 
 ### Options de `record.ts`
 
@@ -57,8 +69,7 @@ puis suit les phases réelles jusqu'au rapport de l'agent, en posant un marqueur
 | `--mode <live\|replay>` | `replay` | direct (serveur + agent) ou replay d'un journal |
 | `--take <nom>` | nom du scénario | nom des fichiers de sortie |
 | `--page <url>` | `http://localhost:5173` | page à piloter |
-| `--api <url>` | `http://localhost:7331` | HTTP du serveur (`/health`, `/episodes`) |
-| `--ws <url>` | `ws://localhost:7332` | hub WebSocket, noté dans la prise |
+| `--api <url>` | `http://localhost:7331` | HTTP du serveur ; en direct, `/health` doit dire `simConnected: false` |
 | `--episode <id\|chemin>` | — | journal à rejouer en mode `replay` |
 | `--episodes-dir <dossier>` | `data/episodes` | où chercher `<id>.json` |
 | `--out <dossier>` | `data/video/takes` | dossier des prises |
@@ -68,13 +79,14 @@ puis suit les phases réelles jusqu'au rapport de l'agent, en posant un marqueur
 
 | Option | Défaut | Rôle |
 |---|---|---|
+| `--episode <journal\|latest>` | — | **obligatoire** : journal d'où sont lus les cartons de fin ; `latest` prend le plus récent de `--episodes-dir` |
+| `--episodes-dir <dossier>` | `data/episodes` | où `latest` cherche |
 | `--takes <dossier>` | `data/video/takes` | prises à monter |
 | `--out <fichier>` | `data/video/tomato-demo.mp4` | film produit |
 | `--work <dossier>` | `data/video/work` | sous-plans intermédiaires |
 | `--plan-file <json>` | — | plan de montage maison |
 | `--frames <n>` `--frames-dir` `--frames-prefix` | `0`, `<out>/frames`, `frame-` | images extraites pour relecture |
 | `--skip-missing` | — | monte même si une prise citée par le plan manque |
-| `--outcome` `--calls` `--cost` `--episode-duration` | `récoltée`, `10`, `≈ 0,35 $`, `58` | cartons de fin |
 
 ## Comment la prise est capturée, et pourquoi
 
@@ -130,6 +142,13 @@ image, produit un fichier par sous-plan puis les concatène :
 - **mise en évidence** : quand un arrêt sur image montre un élément précis, le sous-titre ne bouge
   pas ; un cadre bleu clair entoure la zone visée, dont les coordonnées viennent du plan
   (`ZONE` dans `plans/demo.ts`) ;
+- **durée minimale d'un sous-titre** : 2,5 s. Un segment plus court est fusionné avec le suivant de
+  la même prise et les deux légendes deviennent une phrase — « Coupe, puis chute dans le panier » ;
+- **cartons de fin** : résultat, nombre d'appels d'outils, durée et coût **lus dans le journal de
+  l'épisode** (`--episode`). Rien n'est inventé : quand le journal ne porte pas de coût, le carton
+  n'en annonce pas ;
+- **police** : Segoe UI, sinon Arial, sinon DejaVu Sans ; l'absence des trois est une erreur au
+  lancement, pas un échec au premier carton ;
 - **sortie** : 1920×1080, 30 img/s, H.264, piste audio silencieuse (AAC), `+faststart`.
 
 L'encodeur est `h264_nvenc` si la carte **et le pilote** le permettent, `libx264` sinon. Le test
@@ -159,6 +178,7 @@ sous-titre dépasse deux lignes.
     plans/demo.ts          le même découpage, exécutable
     scenarios/             concepts.ts, cycle.ts — ce que le pilote fait sur la page
     lib/browser.ts         ouverture de Chromium, mesures GPU et cadence
+    lib/health.ts          GET /health et la règle « aucune autre sim connectée »
     lib/recorder.ts        déroulé d'une prise, écriture vidéo + marqueurs
     lib/steps.ts           exécution d'une étape de scénario
     lib/scenario.ts        types et validation d'un scénario
@@ -178,8 +198,9 @@ Les fonctions pures — filtres, échappement, découpes, résolution des marque
 
     npm run video:record -- --scenario concepts --mode replay --take concepts --page http://localhost:5313
     npm run video:record -- --scenario cycle --mode replay --take cycle --page http://localhost:5313 \
-      --episode 2026-09-18T01-44-11-275Z-t3
-    npm run video:montage -- --out data/video/dry-run.mp4 --frames 6 --frames-prefix dry-
+      --episode 2026-09-18T15-18-32-951Z-t1
+    npm run video:montage -- --episode data/episodes/2026-09-18T15-18-32-951Z-t1.json \
+      --out data/video/dry-run.mp4 --frames 6 --frames-prefix dry-
 
 Puis regarder les six images de `data/video/frames/`. Une répétition ne demande ni serveur ni
 agent : les deux prises sont en replay.
@@ -193,5 +214,7 @@ agent : les deux prises sont en replay.
   pour monter ce qui existe.
 - **Un arrêt sur image tombe à côté** : ajuster l'`offsetS` du plan, relancer `npm run video:montage`
   (sans réenregistrer), puis regarder l'image extraite.
-- **Port occupé** : le pilote n'ouvre aucun port ; c'est `npm run demo` qu'il faut arrêter
+- **« une page de simulation est déjà connectée »** : fermer l'onglet ouvert sur la page de la sim.
+  En direct, seuls le serveur et Vite doivent tourner ; la page du pilote est la sim.
+- **Port occupé** : le pilote n'ouvre aucun port ; c'est le serveur ou Vite qu'il faut arrêter
   (7331, 7332, 7333, 5173).

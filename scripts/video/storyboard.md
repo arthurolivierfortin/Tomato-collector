@@ -1,7 +1,7 @@
 # Storyboard de la vidéo de démo
 
 Deux prises, un montage. Aucune voix : tout passe par des **cartons de titre** (fond bleu nuit,
-Segoe UI) et des **sous-titres** en bandeau semi-transparent. Durée visée : 6 à 7 minutes.
+Segoe UI) et des **sous-titres** en bandeau semi-transparent. Durée visée : 4 à 7 minutes, selon la durée de l’épisode filmé en direct.
 
 **Règle de placement, sans exception : un sous-titre ne masque jamais une information de l'app.**
 Il vit toujours au même endroit, dans le bas de la colonne spectateur (x 0–800, y 859–935 en
@@ -10,7 +10,9 @@ est vide dès que les contrôles sont masqués — d'où la touche `h` au tout d
 Le bandeau de statuts (y 0–84) et le schéma bloc (y 960–1080) ne sont donc jamais recouverts.
 Quand un arrêt sur image veut montrer un élément précis, le sous-titre **ne bouge pas** : c'est un
 **cadre bleu clair** (`drawbox`) qui entoure la zone visée, dont les coordonnées sont dans le plan
-(`ZONE` de `plans/demo.ts`). Les cartons plein écran, eux, restent centrés.
+(`ZONE` de `plans/demo.ts`). En mode « ce que voit l'agent » (touche `v`) la colonne spectateur se
+réduit à 450 px : le segment concerné le déclare (`captionWidth: 450`) et le bandeau se rétrécit
+d'autant. Les cartons plein écran, eux, restent centrés.
 
 - Prise **`concepts`** — scénario `scripts/video/scenarios/concepts.ts`, mode `replay` : la page
   seule (sans serveur ni agent), avec l'épisode scripté de la page (`buildDemoScript`) injecté à
@@ -18,7 +20,7 @@ Quand un arrêt sur image veut montrer un élément précis, le sous-titre **ne 
   Première touche pressée : `h`.
 - Prise **`cycle`** — scénario `scripts/video/scenarios/cycle.ts`, mode `live` pour les prises
   finales (l'agent réel joue l'épisode), `replay` pour les répétitions (un journal de
-  `data/episodes/` rejoué à ×1).
+  `data/episodes/` rejoué à ×1). Première touche pressée : `h`.
 
 Le plan de montage correspondant est `scripts/video/plans/demo.ts` : mêmes sections, mêmes
 marqueurs, mêmes textes. Ce fichier-ci est la version lisible ; le plan est la version exécutable.
@@ -137,6 +139,10 @@ que rien n'est truqué ni accéléré.
 | `positionnement` | `coupe` | Positionnement : le panier sous la tomate, les ciseaux au milieu de la tige |
 | `coupe` | `chute` | Coupe |
 | `chute` | `rapport` | Chute dans le panier |
+
+Un sous-titre affiché moins de 2,5 s est illisible : le montage fusionne alors le segment avec le
+suivant et joint les deux légendes. Sur un épisode où la coupe et la chute se suivent de près,
+« Coupe » et « Chute dans le panier » deviennent « Coupe, puis chute dans le panier ».
 | `rapport` | `fin` | Rapport : l'agent clôt l'épisode et note ce qu'il ferait autrement |
 
 Marqueurs posés par le scénario, dans l'ordre : `debut` (juste après la touche `h`), `murissement`,
@@ -148,9 +154,10 @@ Marqueurs posés par le scénario, dans l'ordre : `debut` (juste après la touch
 
 | Durée | Carton |
 |---|---|
-| 4 s | **Résultat : récoltée** — *`--calls` appels d'outils · `--cost` · `--episode-duration` s* |
+| 4 s | **Résultat : tomate récoltée** — *12 appels d'outils · 68 s (chiffres du journal)* |
 | 4,5 s | **Un LLM peut piloter un robot** — *à condition de lui donner des outils et des images qui se lisent comme du texte* |
 
-Les trois valeurs du premier carton viennent de la ligne de commande du montage
-(`--outcome`, `--calls`, `--cost`, `--episode-duration`) : elles se lisent dans le journal
-d'épisode de la prise finale (`data/episodes/<id>.json` : `outcome`, `toolCalls`, `costUsd`).
+Les valeurs du premier carton sont **lues dans le journal de l'épisode filmé**
+(`montage.ts --episode <fichier>` ou `--episode latest`) : `outcome`, `toolCalls`, `costUsd`, et la
+durée déduite de `startedAt` / `endedAt`. Aucune n'est saisie à la main. Quand le journal ne porte
+pas de coût, le carton n'en annonce pas.

@@ -76,6 +76,13 @@ describe('endCardFrom', () => {
     });
   });
 
+  it('n’annonce pas de coût quand le journal n’en a pas', () => {
+    expect(endCardFrom({ ...journal, costUsd: 0 }).cost).toBeNull();
+    const sansCout: Omit<typeof journal, 'costUsd'> & { costUsd?: number } = { ...journal };
+    delete sansCout.costUsd;
+    expect(endCardFrom(sansCout).cost).toBeNull();
+  });
+
   it('refuse d’inventer un résultat absent', () => {
     expect(() => endCardFrom({ episodeId: 'x', messages: [] })).toThrow(/outcome/);
   });

@@ -15,6 +15,8 @@ export interface FreezeSpec {
   readonly caption: string;
   /** Zone de l'image à entourer d'un cadre, en pixels (schéma bloc, trace, vue mise en avant). */
   readonly highlight?: Rect;
+  /** Largeur du bandeau de sous-titre, quand la mise en page rétrécit la colonne spectateur. */
+  readonly captionWidth?: number;
 }
 
 export interface TitleSpec {
@@ -33,6 +35,8 @@ export interface SegmentSpec {
   readonly caption?: string;
   /** Cadre gardé pendant tout le segment ; un arrêt sur image peut le remplacer par le sien. */
   readonly highlight?: Rect;
+  /** Largeur du bandeau de sous-titre pour ce segment (défaut : celle du style). */
+  readonly captionWidth?: number;
   readonly freezeAt?: readonly FreezeSpec[];
 }
 
@@ -62,6 +66,7 @@ export interface ResolvedFreeze {
   readonly durationS: number;
   readonly caption: string;
   readonly highlight?: Rect;
+  readonly captionWidth?: number;
 }
 
 export interface ResolvedSegment {
@@ -72,6 +77,7 @@ export interface ResolvedSegment {
   readonly title?: TitleSpec;
   readonly caption?: string;
   readonly highlight?: Rect;
+  readonly captionWidth?: number;
   readonly freezes: readonly ResolvedFreeze[];
 }
 
@@ -90,7 +96,14 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
   const freezes = [...(spec.freezeAt ?? [])]
     .map((f) => {
       const zone = f.highlight ?? spec.highlight;
-      return { atS: resolveTime(f.at, take), durationS: f.durationS, caption: f.caption, ...(zone === undefined ? {} : { highlight: zone }) };
+      const width = f.captionWidth ?? spec.captionWidth;
+      return {
+        atS: resolveTime(f.at, take),
+        durationS: f.durationS,
+        caption: f.caption,
+        ...(zone === undefined ? {} : { highlight: zone }),
+        ...(width === undefined ? {} : { captionWidth: width }),
+      };
     })
     .sort((a, b) => a.atS - b.atS);
   for (const f of freezes) {
@@ -105,6 +118,7 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
     toS,
     freezes,
     ...(spec.highlight === undefined ? {} : { highlight: spec.highlight }),
+    ...(spec.captionWidth === undefined ? {} : { captionWidth: spec.captionWidth }),
     ...(spec.title === undefined ? {} : { title: spec.title }),
     ...(spec.caption === undefined ? {} : { caption: spec.caption }),
   };

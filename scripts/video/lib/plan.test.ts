@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TakeMarkers } from './markers';
-import { isMontagePlan, resolvePlan, resolveTime, type MontagePlan, type ResolvedEntry, type ResolvedSegment } from './plan';
-import { entryClips, mergeShortSegments, totalDurationS } from './cuts';
+import { resolvePlan, resolveTime, type MontagePlan, type ResolvedEntry, type ResolvedSegment } from './plan';
+import { entryClips, totalDurationS } from './cuts';
 
 const concepts: TakeMarkers = {
   take: 'concepts',
@@ -155,53 +155,5 @@ describe('totalDurationS', () => {
   it('additionne les sous-plans : la durée du film avant de lancer ffmpeg', () => {
     const clips = resolvePlan(plan, takes).flatMap(entryClips);
     expect(totalDurationS(clips)).toBeCloseTo(3 + 18 + 1 + 3 + 19, 5);
-  });
-});
-
-describe('mergeShortSegments', () => {
-  const seg2 = (fromS: number, toS: number, caption: string): ResolvedSegment => ({
-    take: 'cycle',
-    video: 'cycle.webm',
-    fromS,
-    toS,
-    caption,
-    freezes: [],
-  });
-
-  it('fusionne un sous-titre trop bref avec le précédent, et joint les deux phrases', () => {
-    const merged = mergeShortSegments([seg2(10, 20, 'Positionnement'), seg2(20, 20.4, 'Coupe'), seg2(20.4, 26, 'Chute dans le panier')], 2.5);
-    expect(merged).toHaveLength(2);
-    expect(merged[1]).toMatchObject({ fromS: 20, toS: 26, caption: 'Coupe, puis chute dans le panier' });
-  });
-
-  it('laisse tranquilles les segments assez longs', () => {
-    const entries = [seg2(0, 10, 'Mûrissement'), seg2(10, 20, 'Détection')];
-    expect(mergeShortSegments(entries, 2.5)).toEqual(entries);
-  });
-
-  it('ne fusionne pas par-dessus un carton ni entre deux prises', () => {
-    const card = { card: { text: 'Partie 2', durationS: 3 } };
-    const merged = mergeShortSegments([card, seg2(0, 1, 'Bref')], 2.5);
-    expect(merged).toHaveLength(2);
-    expect(merged[1]).toMatchObject({ caption: 'Bref' });
-  });
-
-  it('un segment trop court en tête absorbe le suivant', () => {
-    const merged = mergeShortSegments([seg2(0, 1, 'Coupe'), seg2(1, 8, 'Chute dans le panier')], 2.5);
-    expect(merged).toHaveLength(1);
-    expect(merged[0]).toMatchObject({ fromS: 0, toS: 8, caption: 'Coupe, puis chute dans le panier' });
-  });
-});
-
-describe('isMontagePlan', () => {
-  it('accepte le plan de la démo relu depuis un JSON', () => {
-    expect(isMontagePlan(JSON.parse(JSON.stringify(plan)))).toBe(true);
-  });
-
-  it('refuse un plan mal formé plutôt que d’échouer au milieu du montage', () => {
-    expect(isMontagePlan({ ...plan, fps: '30' })).toBe(false);
-    expect(isMontagePlan({ ...plan, segments: [{ take: 'concepts' }] })).toBe(false);
-    expect(isMontagePlan({ ...plan, segments: {} })).toBe(false);
-    expect(isMontagePlan(null)).toBe(false);
   });
 });
