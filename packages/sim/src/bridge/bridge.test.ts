@@ -179,6 +179,27 @@ describe('sim bridge', () => {
     expect(seen).toEqual([{ type: 'phase', phase: 'detected', reason: 'x' }]);
   });
 
+  // Issue #31 : l'en-tête gravé dans les PNG lit `state.phase` de la sim ; sans cela il reste « idle »
+  // tout l'épisode alors que le bandeau de statuts suit la session.
+  it('writes the session phase from the server into the world store', () => {
+    socket().open();
+    expect(runtime.ctx.store.get().phase).toBe('idle');
+    socket().receive({ type: 'phase', phase: 'detected', reason: 'tomate 1 mûre' });
+    expect(runtime.ctx.store.get().phase).toBe('detected');
+    socket().receive({ type: 'phase', phase: 'harvesting', reason: 'get_views ok' });
+    expect(runtime.ctx.store.get().phase).toBe('harvesting');
+    // Le nouvel état repart vers le serveur : ce qui est gravé et ce que voit le serveur concordent.
+    vi.advanceTimersByTime(STATE_INTERVAL_MS);
+    expect(socket().sent.at(-1)).toMatchObject({ type: 'state', state: { phase: 'harvesting' } });
+  });
+
+  it('takes the phase of a snapshot too, without overwriting the geometry of the sim', () => {
+    socket().open();
+    socket().receive({ type: 'snapshot', state: createDefaultWorld(2), phase: 'cutting', episodeId: 'e1' });
+    expect(runtime.ctx.store.get().phase).toBe('cutting');
+    expect(runtime.ctx.store.get().seed).toBe(1);
+  });
+
   // Issue #23 partie C : le flux brut de la session agent et le réveil doivent atteindre le dashboard.
   it('republishes agent_wake and agent_raw', () => {
     socket().open();

@@ -1,4 +1,4 @@
-import { fail, parseMessage, type ActionResult, type CameraId, type ServerToDashboard, type ServerToSim, type SimToServer, type ViewsResult } from '@tomato/shared';
+import { fail, parseMessage, type ActionResult, type CameraId, type Phase, type ServerToDashboard, type ServerToSim, type SimToServer, type ViewsResult } from '@tomato/shared';
 import type { SimRuntime } from '../core/runtime';
 import { emptyViews } from './viewsFallback';
 
@@ -132,11 +132,24 @@ export function createBridge(opts: BridgeOptions): Bridge {
     );
   };
 
+  /**
+   * Issue #31 : la phase de session appartient au serveur, mais c'est la sim qui grave le bandeau des
+   * vues (`layerHeader` lit `state.phase`). Le pont la recopie donc dans le store monde dès qu'elle
+   * change — action locale immédiate, aucun champ ajouté au contrat `shared`.
+   */
+  const applyPhase = (phase: Phase): void => {
+    if (store.get().phase === phase) return;
+    store.update((s) => ({ ...s, phase }));
+  };
+
   const onMessage = (raw: unknown): void => {
     const m = parseMessage(String(raw));
     if (m === null) return;
     if (m.type === 'apply_action' || m.type === 'render_views') handleCommand(m);
-    else if (DASHBOARD_TYPES.has(m.type)) for (const fn of messageListeners) fn(m as ServerToDashboard);
+    else if (DASHBOARD_TYPES.has(m.type)) {
+      if (m.type === 'phase' || m.type === 'snapshot') applyPhase(m.phase);
+      for (const fn of messageListeners) fn(m as ServerToDashboard);
+    }
   };
 
   const connect = (): void => {
