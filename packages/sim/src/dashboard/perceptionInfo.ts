@@ -1,3 +1,6 @@
+import { detectorName } from '../perception/pipelineModel';
+import { DETECTOR_INPUT_PX } from '../perception/types';
+
 /** Sous-ensemble de `perceptionState()` exporté par M4 (contrat Étape 3). */
 export interface PerceptionInfo {
   opencvReady: boolean;
@@ -19,9 +22,13 @@ export async function loadPerceptionState(candidates: Record<string, ModuleLoade
   return null;
 }
 
-/** « détecteur/contours » affiché dans le bandeau ; sans M4 : « HSV/Sobel » (contrat Étape 3). */
+/**
+ * « détecteur / contours » affiché dans le bandeau. Issue #36 : le détecteur est nommé en entier
+ * (« YOLOv8n ONNX 640 » ou « seuillage HSV 640 ») pour qu'on ne puisse pas confondre le modèle appris
+ * et le repli par seuillage. Sans M4 : le repli HSV/Sobel (contrat Étape 3).
+ */
 export function detectorLabel(info: PerceptionInfo | null): string {
-  if (info === null) return 'HSV/Sobel';
-  const detector = info.lastDetector ?? (info.yoloReady ? 'yolo' : 'hsv');
-  return `${detector}/${info.opencvReady ? 'Canny' : 'Sobel'}`;
+  const detector = info === null ? 'hsv' : (info.lastDetector ?? (info.yoloReady ? 'yolo' : 'hsv'));
+  const edges = info?.opencvReady === true ? 'Canny' : 'Sobel';
+  return `${detectorName(detector, DETECTOR_INPUT_PX)} / ${edges}`;
 }

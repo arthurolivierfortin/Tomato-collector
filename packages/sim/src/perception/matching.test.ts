@@ -17,19 +17,21 @@ describe('matchDetections', () => {
       { bbox: [84, 78, 40, 40], score: 0.8, label: 'ripe' }, // centre (104, 98) → tomate 1
       { bbox: [480, 480, 40, 40], score: 0.9, label: 'ripe' }, // loin de tout
     ];
-    expect(matchDetections(dets, tomatoes, project)).toEqual([{ tomatoId: 1, score: 0.8, distancePx: expect.closeTo(Math.hypot(4, 2), 5) }]);
+    expect(matchDetections(dets, tomatoes, project)).toEqual([
+      { tomatoId: 1, score: 0.8, distancePx: expect.closeTo(Math.hypot(4, 2), 5), detectionIndex: 0 },
+    ]);
   });
 
-  it('keeps the best score per tomato and sorts by score', () => {
+  it('keeps the best score per tomato, sorts by score and points back at its box', () => {
     const dets: Detection[] = [
       { bbox: [280, 280, 40, 40], score: 0.5, label: 'ripe' },
       { bbox: [285, 282, 40, 40], score: 0.7, label: 'ripe' },
       { bbox: [80, 80, 40, 40], score: 0.6, label: 'ripe' },
     ];
     const m = matchDetections(dets, tomatoes, project);
-    expect(m.map((x) => [x.tomatoId, x.score])).toEqual([
-      [2, 0.7],
-      [1, 0.6],
+    expect(m.map((x) => [x.tomatoId, x.score, x.detectionIndex])).toEqual([
+      [2, 0.7, 1],
+      [1, 0.6, 2],
     ]);
   });
 

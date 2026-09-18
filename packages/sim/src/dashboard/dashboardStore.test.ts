@@ -225,9 +225,30 @@ describe('reduce — messages locaux', () => {
     s = reduce(s, { type: 'local_toggle_agent_view' });
     s = reduce(s, { type: 'local_toggle_diagram' });
     s = reduce(s, { type: 'local_toggle_session' });
+    s = reduce(s, { type: 'local_toggle_perception' });
     s = reduce(s, { type: 'local_feature', camera: 'side' });
-    expect(s.ui).toEqual({ controlsHidden: true, agentView: true, diagramOpen: false, sessionOpen: false, lightbox: null, traceOverrides: {} });
+    expect(s.ui).toEqual({
+      controlsHidden: true,
+      agentView: true,
+      diagramOpen: false,
+      sessionOpen: false,
+      perceptionOpen: true,
+      pipelineCamera: null,
+      lightbox: null,
+      traceOverrides: {},
+    });
     expect(s.featured).toBe('side');
+  });
+
+  // Issue #36 : mode « Pipeline de traitement » plein écran, une caméra à la fois.
+  it('opens the processing pipeline on a camera, switches camera and closes', () => {
+    let s = reduce(initialDashboardState(), { type: 'local_pipeline_open', camera: 'front' });
+    expect(s.ui.pipelineCamera).toBe('front');
+    s = reduce(s, { type: 'local_pipeline_open', camera: 'top' });
+    expect(s.ui.pipelineCamera).toBe('top');
+    s = reduce(s, { type: 'local_pipeline_close' });
+    expect(s.ui.pipelineCamera).toBeNull();
+    expect(reduce(s, { type: 'local_pipeline_close' })).toBe(s); // déjà fermé : même état, aucune notification
   });
 
   it('opens, moves and closes the lightbox with a bounded zoom', () => {

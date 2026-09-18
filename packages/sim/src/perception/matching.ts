@@ -13,6 +13,8 @@ export interface Match {
   tomatoId: number;
   score: number;
   distancePx: number;
+  /** Rang de la détection retenue dans le tableau d'entrée, pour retrouver sa boîte (mode pipeline, issue #36). */
+  detectionIndex: number;
 }
 
 /**
@@ -27,7 +29,8 @@ export function matchDetections(
 ): Match[] {
   const projected = tomatoes.map((t) => ({ id: t.id, px: project(t.positionCm) }));
   const best = new Map<number, Match>();
-  for (const d of detections) {
+  for (let index = 0; index < detections.length; index++) {
+    const d = detections[index]!;
     if (d.label !== 'ripe') continue;
     const [x, y, w, h] = d.bbox;
     const cx = x + w / 2;
@@ -39,7 +42,9 @@ export function matchDetections(
     }
     if (nearest === null || nearest.dist > MATCH_RADIUS_FACTOR * Math.max(w, h)) continue;
     const previous = best.get(nearest.id);
-    if (!previous || d.score > previous.score) best.set(nearest.id, { tomatoId: nearest.id, score: d.score, distancePx: nearest.dist });
+    if (!previous || d.score > previous.score) {
+      best.set(nearest.id, { tomatoId: nearest.id, score: d.score, distancePx: nearest.dist, detectionIndex: index });
+    }
   }
   return [...best.values()].sort((a, b) => b.score - a.score);
 }

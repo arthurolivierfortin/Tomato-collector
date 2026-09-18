@@ -1,4 +1,4 @@
-import { VIEW_SIZE_PX, type DetectorKind, type Vec2, type Vec3, type WorldState } from '@tomato/shared';
+import { VIEW_SIZE_PX, type CameraId, type DetectorKind, type Vec2, type Vec3, type WorldState } from '@tomato/shared';
 import type { EdgeFilter } from '../cameras/edges';
 import { projectToPixel } from '../cameras/ortho';
 import type { SimContext, SimModule } from '../core/module';
@@ -34,6 +34,13 @@ export interface PerceptionDeps {
   options?: Partial<PerceptionOptions>;
 }
 
+/** Résultat d'une analyse à la demande (mode pipeline, issue #36) : les boîtes et ce qui les a produites. */
+export interface AnalyzeResult {
+  detections: Detection[];
+  detector: DetectorKind;
+  inferenceMs: number;
+}
+
 export interface PerceptionModule extends SimModule {
   state(): PerceptionState;
   subscribe(fn: (state: PerceptionState) => void): () => void;
@@ -41,16 +48,23 @@ export interface PerceptionModule extends SimModule {
   idle(): Promise<void>;
   /** Résolue quand les chargements lancés par `init` (OpenCV, YOLO) sont terminés. */
   loaded(): Promise<void>;
+  /** Passe une image dans le détecteur actif sans toucher à la porte de réveil (mode pipeline). */
+  analyze(img: RgbaImage): Promise<AnalyzeResult>;
+}
+
+/** Projection monde → pixels d'une vue réduite de VIEW_SIZE_PX à sizePx, pour la caméra donnée. */
+export function viewProjector(camId: CameraId, world: WorldState, sizePx: number): (posCm: Vec3) => Vec2 {
+  const k = sizePx / VIEW_SIZE_PX;
+  const pose = world.cameras[camId];
+  return (posCm) => {
+    const [px, py] = projectToPixel(camId, pose, posCm);
+    return [px * k, py * k];
+  };
 }
 
 /** Projection monde → pixels de l'image du détecteur (vue front réduite de VIEW_SIZE_PX à sizePx). */
 export function frontProjector(world: WorldState, sizePx: number): (posCm: Vec3) => Vec2 {
-  const k = sizePx / VIEW_SIZE_PX;
-  const pose = world.cameras.front;
-  return (posCm) => {
-    const [px, py] = projectToPixel('front', pose, posCm);
-    return [px * k, py * k];
-  };
+  return viewProjector('front', world, sizePx);
 }
 
 export function createPerceptionModule(deps: PerceptionDeps): PerceptionModule {
@@ -92,11 +106,15 @@ export function createPerceptionModule(deps: PerceptionDeps): PerceptionModule {
     return { detections: await deps.hsv(img), detector: 'hsv' };
   }
 
-  async function tick(ctx: SimContext, img: RgbaImage): Promise<void> {
-    const world = ctx.store.get();
+  async function analyze(img: RgbaImage): Promise<AnalyzeResult> {
     const startedMs = performance.now();
     const { detections, detector } = await detect(img);
-    const inferenceMs = performance.now() - startedMs;
+    return { detections, detector, inferenceMs: performance.now() - startedMs };
+  }
+
+  async function tick(ctx: SimContext, img: RgbaImage): Promise<void> {
+    const world = ctx.store.get();
+    const { detections, detector, inferenceMs } = await analyze(img);
     const trusted = detector === 'yolo' ? detections.filter((d) => d.score >= opts.yoloScoreMin) : detections;
     // Issue #36 : l'association boîte → tomate est purement géométrique (centre projeté le plus proche).
     // La maturité vient du détecteur, jamais de `tomato.state` : aucune garde de vérité terrain ici.
@@ -150,5 +168,6 @@ export function createPerceptionModule(deps: PerceptionDeps): PerceptionModule {
     },
     idle: () => inFlight ?? Promise.resolve(),
     loaded: () => loading,
+    analyze,
   };
 }

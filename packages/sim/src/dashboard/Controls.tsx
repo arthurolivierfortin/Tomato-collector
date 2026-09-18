@@ -15,10 +15,15 @@ interface Props {
   cameraGizmosVisible: boolean;
   /** Panneau « Session agent (brut) » déplié (issue #23). */
   sessionOpen: boolean;
+  /** Panneau « Perception » déplié (issue #36). */
+  perceptionOpen: boolean;
   onToggleControls: () => void;
   onToggleAgentView: () => void;
   onToggleCameraGizmos: () => void;
   onToggleSession: () => void;
+  onTogglePerception: () => void;
+  /** Ouvre le mode « Pipeline de traitement » plein écran (issue #36). */
+  onOpenPipeline: () => void;
   /** Ouvre la loupe plein écran sur la vue mise en avant (touche z). */
   onOpenLightbox: () => void;
   /** Le panneau de replay, rendu dans la même barre. */
@@ -27,8 +32,8 @@ interface Props {
 
 /** Contrôles de tournage : agissent sur la sim locale via `runtime.applyNow` (immédiat, aucun passage par le serveur). */
 export function Controls({
-  runtime, paused, timeScale, agentView, cameraGizmosVisible, sessionOpen,
-  onToggleControls, onToggleAgentView, onToggleCameraGizmos, onToggleSession, onOpenLightbox, children,
+  runtime, paused, timeScale, agentView, cameraGizmosVisible, sessionOpen, perceptionOpen,
+  onToggleControls, onToggleAgentView, onToggleCameraGizmos, onToggleSession, onTogglePerception, onOpenPipeline, onOpenLightbox, children,
 }: Props) {
   const off = runtime === null;
   // Contrôles de tournage : effet immédiat attendu (pause, vitesse, plant) — jamais l'animation de `apply`.
@@ -65,6 +70,12 @@ export function Controls({
       </button>
       <button type="button" className={BTN} aria-pressed={sessionOpen} onClick={onToggleSession}>
         Session brute (t)
+      </button>
+      <button type="button" className={BTN} aria-pressed={perceptionOpen} onClick={onTogglePerception}>
+        Perception (p)
+      </button>
+      <button type="button" className={BTN} onClick={onOpenPipeline}>
+        Pipeline (x)
       </button>
       <button type="button" className={BTN} onClick={onToggleControls}>
         Masquer les contrôles (h)

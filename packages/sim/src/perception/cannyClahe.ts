@@ -49,6 +49,16 @@ export function edgesToWhiteRgba(edges: Uint8Array, pixelCount: number): Uint8Cl
   return out;
 }
 
+/** Plan de gris CV_8UC1 → RGBA opaque, pour afficher un tampon intermédiaire tel quel (issue #36). */
+export function grayToRgba(gray: Uint8Array, pixelCount: number): Uint8ClampedArray<ArrayBuffer> {
+  const out = new Uint8ClampedArray(pixelCount * 4);
+  for (let i = 0; i < pixelCount; i++) {
+    const v = gray[i] ?? 0;
+    out.set([v, v, v, 255], i * 4);
+  }
+  return out;
+}
+
 /** Niveaux de gris → CLAHE → Canny 50/150 ; libère chaque Mat même en cas d'erreur. */
 export function cannyClaheRgba(cv: CvApi, img: RgbaImage): Uint8ClampedArray<ArrayBuffer> {
   const src = cv.matFromImageData(img);
@@ -64,6 +74,24 @@ export function cannyClaheRgba(cv: CvApi, img: RgbaImage): Uint8ClampedArray<Arr
   } finally {
     clahe.delete();
     edges.delete();
+    equalized.delete();
+    gray.delete();
+    src.delete();
+  }
+}
+
+/** Le même pipeline arrêté après CLAHE : le gris égalisé qui entre dans Canny (mode pipeline, issue #36). */
+export function claheGrayRgba(cv: CvApi, img: RgbaImage): Uint8ClampedArray<ArrayBuffer> {
+  const src = cv.matFromImageData(img);
+  const gray = new cv.Mat();
+  const equalized = new cv.Mat();
+  const clahe = new cv.CLAHE(CLAHE_CLIP_LIMIT, new cv.Size(CLAHE_TILES, CLAHE_TILES));
+  try {
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    clahe.apply(gray, equalized);
+    return grayToRgba(equalized.data, img.width * img.height);
+  } finally {
+    clahe.delete();
     equalized.delete();
     gray.delete();
     src.delete();
