@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import type { CameraId } from '@tomato/shared';
+import { setCameraGizmosVisible } from '../cameras/agentCameras';
 import type { SimRuntime } from '../core/runtime';
 import { PerceptionBadge } from '../perception/PerceptionBadge';
 import type { SceneHandle } from '../three/createScene';
@@ -48,12 +49,16 @@ interface Props {
 
 /**
  * Mise en page de la spec (section 6) : bandeau haut, gauche 55 % vue spectateur (30 % en mode « ce que voit l'agent »),
- * droite vues puis trace, bandeau bas repliable. Touches : h contrôles, v mode agent, b schéma.
+ * droite vues puis trace, bandeau bas repliable. Touches : h contrôles, v mode agent, b schéma, c gizmos de caméra.
  */
 export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
   const state = useSyncExternalStore(store.subscribe, store.get);
   const clock = useWorldClock(runtime);
   const detector = useDetectorLabel();
+  /** Gizmos de caméra (issue #18) : masqués par défaut, hors du store (état de la scène Three, pas de la sim). */
+  const [gizmosVisible, setGizmosVisible] = useState(false);
+  const toggleCameraGizmos = useCallback(() => setGizmosVisible((v) => !v), []);
+  useEffect(() => setCameraGizmosVisible(gizmosVisible), [gizmosVisible]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -61,10 +66,11 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
       if (e.key === 'h') store.dispatch({ type: 'local_toggle_controls' });
       else if (e.key === 'v') store.dispatch({ type: 'local_toggle_agent_view' });
       else if (e.key === 'b') store.dispatch({ type: 'local_toggle_diagram' });
+      else if (e.key === 'c') toggleCameraGizmos();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [store]);
+  }, [store, toggleCameraGizmos]);
 
   const enlarge = useCallback((camera: CameraId | null) => store.dispatch({ type: 'local_enlarge', camera }), [store]);
   const { ui } = state;
@@ -90,8 +96,10 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
                 paused={sim.paused}
                 timeScale={sim.timeScale}
                 agentView={ui.agentView}
+                cameraGizmosVisible={gizmosVisible}
                 onToggleControls={() => store.dispatch({ type: 'local_toggle_controls' })}
                 onToggleAgentView={() => store.dispatch({ type: 'local_toggle_agent_view' })}
+                onToggleCameraGizmos={toggleCameraGizmos}
               >
                 <ReplayPanel slot={slot} />
               </Controls>

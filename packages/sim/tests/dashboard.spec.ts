@@ -35,6 +35,13 @@ test('dashboard replays a scripted episode and is captured at 1920×1080 in both
   mkdirSync(shotsDir, { recursive: true });
   await page.screenshot({ path: resolve(shotsDir, 'dashboard.png') });
 
+  // Issue #18 : gizmos de caméra discrets, masqués par défaut, affichés par la touche c.
+  await page.keyboard.press('c');
+  await expect(page.getByRole('button', { name: "Caméras (c)" })).toHaveAttribute('aria-pressed', 'true');
+  await page.screenshot({ path: resolve(shotsDir, 'dashboard-cameras.png') });
+  await page.keyboard.press('c');
+  await expect(page.getByRole('button', { name: "Caméras (c)" })).toHaveAttribute('aria-pressed', 'false');
+
   // Cadre de tournage : vues agrandies (v) et contrôles masqués (h).
   await page.keyboard.press('v');
   await expect(page.getByTestId('dashboard')).toHaveAttribute('data-layout', 'agent');
