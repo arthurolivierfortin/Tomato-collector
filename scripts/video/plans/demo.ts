@@ -13,7 +13,7 @@
  * Le découpage lui-même est dans `part1.ts` et `part2.ts`, la géographie de l'écran dans `zones.ts`.
  */
 import type { EndCardData } from '../lib/episodes';
-import { zoomLines, type MontagePlan, type PlanEntry } from '../lib/plan';
+import { zoomLines, type MontagePlan, type PlanEntry, type SplitSpec } from '../lib/plan';
 import { part1 } from './part1';
 import { part2 } from './part2';
 
@@ -46,8 +46,11 @@ export function burnedTexts(plan: MontagePlan): string[] {
     }
     if (entry.title !== undefined) out.push(entry.title.text, ...(entry.title.subtitle === undefined ? [] : [entry.title.subtitle]));
     if (entry.caption !== undefined) out.push(entry.caption);
+    // Le titre de la bande du haut d'un écran partagé est gravé lui aussi : même relecture.
+    if (entry.split !== undefined) out.push(entry.split.title);
     for (const f of entry.freezeAt ?? []) {
       out.push(f.caption);
+      if (f.split !== undefined) out.push(f.split.title);
       // Les trois éléments d'un agrandissement sont gravés eux aussi : ils passent donc la même
       // relecture que le reste (anglais, aucun tiret long).
       if (f.zoom !== undefined) out.push(...zoomLines(f.zoom));
@@ -59,4 +62,9 @@ export function burnedTexts(plan: MontagePlan): string[] {
 /** Toutes les zones d'incrustation que le plan emploie : le test de géométrie les parcourt. */
 export function planPips(plan: MontagePlan): PlanEntry[] {
   return plan.segments.filter((e) => !('card' in e) && e.pip !== undefined);
+}
+
+/** Tous les écrans partagés du plan, segment par segment : le test de géométrie les parcourt. */
+export function planSplits(plan: MontagePlan): SplitSpec[] {
+  return plan.segments.flatMap((e) => ('card' in e || e.split === undefined ? [] : [e.split]));
 }

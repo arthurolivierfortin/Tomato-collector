@@ -4,9 +4,10 @@ import { intersects } from '../lib/ffmpegFilters';
 import type { TakeMarkers } from '../lib/markers';
 import { resolvePlan, type ResolvedSegment } from '../lib/plan';
 import { isMontagePlan } from '../lib/plan';
+import { splitLayout } from '../lib/split';
 import { zoomLayout, type ZoomSpec } from '../lib/zoom';
-import { burnedTexts, demoPlan, planPips } from './demo';
-import { PIP, PROTECTED, pipelineTile } from './zones';
+import { burnedTexts, demoPlan, planPips, planSplits } from './demo';
+import { PERCEPTION_LIVE, PIP, PROTECTED, RIPENING_SPLIT, SPECTATOR_LIVE, pipelineTile } from './zones';
 
 const end: EndCardData = { outcome: 'tomato harvested', toolCalls: 12, cost: '$0.38', durationS: 61.1 };
 const plan = demoPlan(end);
@@ -190,16 +191,73 @@ describe('demoPlan', () => {
     for (const [i, zoom] of zooms.entries()) expect(zoom.source).toEqual(pipelineTile(i));
   });
 
-  it('agrandit aussi ce que le modèle voit, et la vue que l’agent relit avant de couper', () => {
-    // Trois arrêts sur la prise « detection » (avant, première boîte `ripe`, porte pleine) et un sur
-    // la vue `front` que l'agent redemande juste avant `cut`.
-    expect(zoomsOf('detection')).toHaveLength(3);
+  it('agrandit la vue que l’agent relit avant de couper, et plus rien sur la détection', () => {
+    // La v2.1 posait trois agrandissements sur la prise « detection ». Ils sont remplacés par
+    // l'écran partagé, qui montre la même chose **en lecture** : plus aucun ne doit rester, sinon
+    // le spectateur verrait deux fois le panneau agrandi, une fois figé et une fois en direct.
+    expect(zoomsOf('detection')).toHaveLength(0);
     expect(zoomsOf('concepts')).toHaveLength(1);
+  });
+
+  it('tient toute la détection en écran partagé, du mûrissement au réveil', () => {
+    const detection = plan.segments.filter((e) => !('card' in e) && e.take === 'detection');
+    expect(detection).toHaveLength(5);
+    for (const s of detection) expect('card' in s ? undefined : s.split).toBe(RIPENING_SPLIT);
+    // Les deux arrêts sur image gardent la même mise en page : ils héritent du segment.
+    for (const s of resolvedSegments().filter((x) => x.take === 'detection')) {
+      for (const f of s.freezes) {
+        expect(f.split).toBe(RIPENING_SPLIT);
+        expect(f.zoom).toBeUndefined();
+        expect(f.durationS).toBe(3);
+      }
+    }
+  });
+
+  it('donne à chaque sous-titre de la détection les deux secondes et demie qu’il faut pour le lire', () => {
+    // `MIN_CAPTION_S` du montage : un segment plus court est fusionné avec son voisin et les deux
+    // légendes deviennent une phrase. Les cinq légendes de la séquence doivent rester séparées.
+    for (const s of resolvedSegments().filter((x) => x.take === 'detection')) {
+      const onScreen = s.toS - s.fromS + s.freezes.reduce((sum, f) => sum + f.durationS, 0);
+      expect(onScreen).toBeGreaterThanOrEqual(2.5);
+    }
+  });
+
+  it('cadre l’écran partagé sur des rectangles qui tiennent dans l’image de la prise', () => {
+    const splits = planSplits(plan);
+    expect(splits).toHaveLength(5);
+    for (const split of splits) {
+      for (const rect of [split.left, split.right]) {
+        expect(rect.x).toBeGreaterThanOrEqual(0);
+        expect(rect.y).toBeGreaterThanOrEqual(0);
+        expect(rect.x + rect.w).toBeLessThanOrEqual(1920);
+        expect(rect.y + rect.h).toBeLessThanOrEqual(1080);
+      }
+      // Les deux rectangles sont disjoints : deux endroits de l'image, pas deux fois le même.
+      expect(intersects(split.left, split.right)).toBe(false);
+    }
+  });
+
+  it('laisse le sous-titre de l’écran partagé sur la vue spectateur, et le titre au-dessus', () => {
+    const layout = splitLayout(RIPENING_SPLIT, { width: 1920, height: 1080, fps: 30 });
+    const band = PROTECTED.captionBand;
+    expect(band.x).toBeGreaterThanOrEqual(layout.left.at.x);
+    expect(band.x + band.w).toBeLessThanOrEqual(layout.left.at.x + layout.left.scaled.w);
+    expect(band.y).toBeGreaterThan(layout.titleHeight);
+    // Et le panneau agrandi, lui, reste à droite du bandeau : jamais dessous.
+    expect(layout.right.at.x).toBeGreaterThan(band.x + band.w);
+  });
+
+  it('prend la colonne spectateur sous les statuts, et le panneau sans couper sa pastille', () => {
+    // Rectangles mesurés sur une image de la prise ; le test garde les bornes qui comptent.
+    expect(SPECTATOR_LIVE.y).toBeGreaterThanOrEqual(PROTECTED.statusBar.y + PROTECTED.statusBar.h);
+    expect(SPECTATOR_LIVE.y + SPECTATOR_LIVE.h).toBeLessThanOrEqual(PROTECTED.blockDiagram.y);
+    // La pastille « YOLOv8n ONNX 640 » commence à x 1164 : le recadrage s'arrête juste avant.
+    expect(PERCEPTION_LIVE.x + PERCEPTION_LIVE.w).toBeLessThanOrEqual(1164);
   });
 
   it('écrit les trois éléments de chaque agrandissement, et les tient hors de l’image agrandie', () => {
     const zooms = [...zoomsOf('pipeline'), ...zoomsOf('detection'), ...zoomsOf('concepts')];
-    expect(zooms).toHaveLength(14);
+    expect(zooms).toHaveLength(11);
     for (const zoom of zooms) {
       // Trois éléments écrits, trois éléments remplis : personne ne lit « Done by: ».
       expect(zoom.input.length).toBeGreaterThan(3);

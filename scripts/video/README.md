@@ -60,6 +60,23 @@ séquence ne coûte rien : la détection ouvre un épisode mis en scène, sans a
 réveil s'allume quand même dans le schéma bloc. Le film s'arrête là et reprend sur `concepts` pour
 le réveil et la session de l'agent, qui, eux, sont réels.
 
+**Et pourquoi elle est montée en écran partagé (v2.2).** La v2.1 montrait ce panneau en trois
+agrandissements, donc trois arrêts sur image. Le propriétaire a dit ce qui manquait : « la vue du
+modèle qui sait quand une tomate est prête ou non apparaît seulement une fois une tomate détectée ;
+on devrait la voir avant, pour voir que le modèle détecte la tomate qui est prête. » Un arrêt sur
+image ne peut pas montrer ça : ce qu'il faut voir, c'est la tomate qui rougit **et**, au même
+instant, les boîtes qui changent. Pendant la lecture, le panneau gardait sa taille réelle dans le
+dashboard — 358 × 352 px dans 1920 × 1080 — et personne ne le lisait.
+
+Toute la séquence est donc montée en **écran partagé continu**, de la tomate verte au réveil : la
+colonne spectateur à gauche (55 % de la largeur), le panneau recadré et agrandi 2,3 fois à droite
+(45 %), une bande de titre « What the model sees, live » en haut, le sous-titre habituel en bas. Les
+trois agrandissements sont retirés — ils montraient la même chose, plus tard et figée — et il reste
+deux arrêts sur image de 3 s **dans la même mise en page**, à la première boîte `ripe` et à la porte
+5/5, le temps de lire. La géométrie et les filtres sont dans `lib/split.ts`, purs et testés ; les
+deux rectangles sont **mesurés** sur une image extraite de la prise (`plans/zones.ts`,
+`SPECTATOR_LIVE` et `PERCEPTION_LIVE`), pas estimés.
+
 **Pourquoi `pipeline` est une prise à part.** L'écran de traitement des vues (touche `x`) ne montre
 que de l'image : il n'a besoin ni de l'agent ni du serveur. On la filme quand même en `live`, contre
 un serveur lancé avec `TOMATO_AGENT=off` : la détection ouvre alors un épisode mis en scène, sans
@@ -399,6 +416,13 @@ image, produit un fichier par sous-plan puis les concatène :
 - **mise en évidence** : quand un arrêt sur image montre un élément précis, le sous-titre ne bouge
   pas ; un cadre bleu clair entoure la zone visée, dont les coordonnées viennent du plan
   (`ZONE` dans `plans/zones.ts`) ;
+- **écran partagé** : quand il faut voir deux endroits de l'image **en même temps et en mouvement**,
+  le segment porte un `split`. La source est dédoublée, chaque volet est recadré et mis à l'échelle
+  de sa part de largeur (`hstack`), une bande de titre est réservée en haut (`pad`), et le volet de
+  droite est ceint du même liseré bleu que les cadres. Contrairement à l'agrandissement, rien n'est
+  figé : c'est la seule façon de montrer la tomate qui rougit et, au même instant, le compteur de
+  boîtes qui change. Un arrêt sur image posé dans un segment `split` en hérite et garde la mise en
+  page. La géométrie et les filtres sont dans `lib/split.ts`, purs et testés ;
 - **agrandissement** : quand le cadre ne suffit pas — une tuile du traitement des vues fait 368 × 496
   dans une image de 1920 × 1080, son texte quatre pixels de haut — l'arrêt sur image porte un `zoom`.
   La zone est recadrée, mise à 85 % de la hauteur en `lanczos`, posée sur le fond des cartons, ceinte
@@ -474,6 +498,7 @@ sous-titre dépasse deux lignes.
     lib/style.ts           rectangles, format de sortie, style des textes gravés
     lib/ffmpegFilters.ts   construction des filtres ffmpeg (pur, testé)
     lib/zoom.ts            géométrie et filtres d'un agrandissement (pur, testé)
+    lib/split.ts           géométrie et filtres d'un écran partagé (pur, testé)
     lib/ffmpegRun.ts       lancement de ffmpeg et ffprobe
     lib/render.ts          fabrication des sous-plans
     lib/renderOutput.ts    dossier de travail, concaténation, images extraites

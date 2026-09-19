@@ -27,9 +27,15 @@ function isZoom(x: unknown): boolean {
   return isRecord(x) && isRect(x['source']) && ['input', 'by', 'output'].every((k) => typeof x[k] === 'string');
 }
 
+/** Un écran partagé : deux rectangles de la prise, leur partage, et le titre de la bande du haut. */
+function isSplit(x: unknown): boolean {
+  return isRecord(x) && isRect(x['left']) && isRect(x['right']) && typeof x['leftRatio'] === 'number' && typeof x['title'] === 'string';
+}
+
 function isFreeze(f: unknown): boolean {
   if (!isRecord(f) || !isTimeRef(f['at']) || typeof f['durationS'] !== 'number' || typeof f['caption'] !== 'string') return false;
   if (f['captionFullWidth'] !== undefined && typeof f['captionFullWidth'] !== 'boolean') return false;
+  if (f['split'] !== undefined && !isSplit(f['split'])) return false;
   return f['zoom'] === undefined || isZoom(f['zoom']);
 }
 
@@ -40,6 +46,7 @@ function isEntry(x: unknown): boolean {
   if (x['title'] !== undefined && !isTitle(x['title'])) return false;
   if (x['optional'] !== undefined && typeof x['optional'] !== 'boolean') return false;
   if (x['captionFullWidth'] !== undefined && typeof x['captionFullWidth'] !== 'boolean') return false;
+  if (x['split'] !== undefined && !isSplit(x['split'])) return false;
   const freezes = x['freezeAt'];
   if (freezes === undefined) return true;
   return Array.isArray(freezes) && freezes.every(isFreeze);

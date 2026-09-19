@@ -9,6 +9,7 @@
  */
 import type { PipSpec, Rect } from '../lib/ffmpegFilters';
 import { DEFAULT_STYLE, bandHeight, CAPTION_MAX_LINES } from '../lib/ffmpegFilters';
+import type { SplitSpec } from '../lib/split';
 
 /**
  * Rectangles **mesurés** sur la page en 1920×1080, contrôles masqués (`getBoundingClientRect` des
@@ -43,6 +44,37 @@ export const ZONE = {
  * coûterait de l'agrandissement là où il sert.
  */
 export const PERCEPTION_ZOOM: Rect = { x: 806, y: 516, w: 474, h: 334 };
+
+/**
+ * Écran partagé du mûrissement : la scène à gauche, le panneau « Perception » à droite, tous deux
+ * **en lecture**, du début du mûrissement jusqu'au réveil.
+ *
+ * Les deux rectangles sont **mesurés** sur une image extraite de la prise `detection` en 1920×1080,
+ * contrôles masqués (`h` pressé dès la première étape du scénario, vérifié sur l'image : aucun
+ * bouton de tournage à l'écran) :
+ *
+ * - `SPECTATOR_LIVE` prend la colonne spectateur sous les deux rangées de statuts (elles s'arrêtent
+ *   à y 84) et s'arrête juste avant le pied de page, dont `PROTECTED.blockDiagram` fixe le haut à
+ *   y 951 : le recadrage descend donc à y 950, et le test le vérifie contre cette zone plutôt que
+ *   contre un nombre recopié. Le bandeau de réveil « Tomate 1 mûre détectée … le serveur réveille
+ *   l'agent » vit à y 125-167 : il est dedans, et c'est lui qui montre le réveil à la fin ;
+ * - `PERCEPTION_LIVE` s'arrête à x 1164, juste avant la pastille « YOLOv8n ONNX 640 » du coin haut
+ *   droit du panneau (x 1164–1268) : la couper en deux se verrait. Tout ce qui porte la décision
+ *   reste dedans — l'image d'entrée annotée (x 936–1145) et les cinq lignes `détecteur`, `boîtes`,
+ *   `inférence`, `porte`, `contours`, dont la plus longue s'arrête à x 1088.
+ *
+ * Le partage 55 / 45 agrandit le panneau 2,3 fois et la scène 1,1 fois : c'est le panneau qu'on
+ * vient lire, et la scène n'a besoin que de montrer une tomate qui rougit.
+ */
+export const SPECTATOR_LIVE: Rect = { x: 0, y: 84, w: 800, h: 866 };
+export const PERCEPTION_LIVE: Rect = { x: 806, y: 496, w: 358, h: 352 };
+
+export const RIPENING_SPLIT: SplitSpec = {
+  left: SPECTATOR_LIVE,
+  right: PERCEPTION_LIVE,
+  leftRatio: 0.55,
+  title: 'What the model sees, live',
+};
 
 /**
  * La ligne « top X → droite, Y → haut » / « side Y → droite, Z → haut » sous la rangée de vignettes

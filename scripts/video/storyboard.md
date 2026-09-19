@@ -95,25 +95,34 @@ Prise à part, gratuite (`TOMATO_AGENT=off`), panneau Perception ouvert du débu
 remplace l'ancien passage tiré de `concepts`, qui montrait la détection comme un bandeau qui
 s'allume : ici on voit la décision elle-même.
 
+**Écran partagé, de bout en bout (v2.2).** La v2.1 posait trois agrandissements du panneau, donc
+trois arrêts sur image, et le propriétaire a dit ce qui manquait : on voyait la vue du modèle
+seulement une fois la tomate détectée. Toute la séquence est maintenant montée en écran partagé
+continu (`RIPENING_SPLIT`) : à gauche la colonne spectateur (55 %), à droite le panneau recadré et
+agrandi 2,3 fois (45 %), bande de titre « What the model sees, live » en haut, sous-titre habituel
+en bas. Les deux volets bougent ensemble. Les agrandissements sont retirés ; il reste deux arrêts
+sur image de **3 s**, dans la même mise en page.
+
 - **Carton** (4 s) : **Perception decides, frame by frame** — *Before, during and after ripeness:
   what the model actually sees, and what it reports*.
-- **Segment 1** : `start` → `first_ripe_box` + 0,6 s, cadre sur le panneau (`ZONE.perceptionPanel`).
-  Sous-titre : « The Perception panel shows the frame the detector receives, and what it finds in
-  it ». Entre les deux agrandissements, la tomate rougit en lecture continue, sans coupe.
-  - **Agrandissement** — `start` + 1,5 s, **4,5 s** : « Before ripeness: the model sees 8 unripe
-    tomatoes and no ripe one ». *Input:* the raw camera frame, no annotation, 640 by 640 · *Done
-    by:* model YOLOv8n ONNX 640 · *Output:* 0 ripe, 8 unripe. The wake gate is empty and tracks no
-    tomato.
-  - **Agrandissement** — `first_ripe_box` + 0,6 s, **4,5 s** : « The first ripe box appears, with
-    its confidence ». *Input:* the same frame, with tomato 1 now red · *Done by:* model YOLOv8n ONNX
-    640 · *Output:* ripe 0.87 on tomato 1. The gate is already counting: 2 frames of 5.
-- **Segment 2** : `first_ripe_box` + 0,6 s → `gate_5` − 0,2 s. Sous-titre : « One frame is not
-  enough: the gate wants five in a row, on the same tomato ».
-  - **Agrandissement** — `gate_5` − 0,2 s, **4,5 s** : « Five consecutive frames: the gate is full
-    and the server is told ». *Input:* five detections in a row on tomato 1 · *Done by:* logic (the
-    wake gate) · *Output:* ripe 0.97, gate 5 of 5. This is what opens an episode.
-  - Le décalage de −0,2 s n'est pas décoratif : la porte tire à 5/5 puis retombe à 0/5 dans la
-    seconde qui suit, et le marqueur est posé une demi-seconde après l'affichage.
+- **Segment 1** : `start` → `ripening_20`. « The tomato is still green. The model reports 8 unripe,
+  0 ripe. » Le panneau est déjà ouvert : on voit le détecteur tourner avant qu'il y ait quoi que ce
+  soit à détecter.
+- **Segment 2** : `ripening_20` → `first_ripe_box`. « The tomato turns red. Watch the model's
+  boxes. » Dix secondes de lecture continue, sans coupe : la tomate rougit à gauche, le panneau
+  suit à droite.
+- **Segment 3** : `first_ripe_box` → `gate_5`. « First ripe box: ripe 0.76 on tomato 1. The gate
+  starts counting. »
+  - **Arrêt sur image** — `first_ripe_box`, **3 s**, dans l'écran partagé.
+- **Segment 4** : `gate_5` → `wake` − 0,8 s. « Five consecutive ripe frames: the server is
+  notified. »
+  - **Arrêt sur image** — `gate_5`, **3 s**, dans l'écran partagé. Vérifié sur les images extraites
+    à 20,75 s et 20,95 s : le panneau affiche bien « porte 5/5 · tomate 1 » des deux côtés du
+    marqueur.
+- **Segment 5** : `wake` − 0,8 s → `wake` + 2 s. « The server wakes the agent. » Le décalage négatif
+  n'est pas décoratif : ce qui montre le réveil dans le volet de gauche est le bandeau « Tomate 1
+  mûre détectée … le serveur réveille l'agent », et il s'éteint moins d'une seconde après le
+  marqueur.
 
 ### (d) Le serveur réveille l'agent
 
