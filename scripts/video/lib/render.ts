@@ -18,6 +18,7 @@ import {
   type Format,
   type TextStyle,
 } from './ffmpegFilters';
+import { splitComplex, splitLayout, type SplitSpec } from './split';
 import { lineCount, wrapText } from './text';
 import { zoomChain, zoomLayout, zoomLines, zoomWrapChars, type ZoomBlock, type ZoomSpec } from './zoom';
 import { terminalOffsetS } from './terminal';
@@ -124,9 +125,30 @@ function pipSource(ctx: RenderContext, clip: Extract<Clip, { kind: 'video' | 'fr
   return { path: track.path, atS };
 }
 
+/**
+ * Le graphe d'un écran partagé : une seule entrée, dédoublée, deux recadrages, un assemblage. Le
+ * titre de la bande du haut passe par un fichier UTF-8 comme tous les textes gravés.
+ */
+async function splitGraph(ctx: RenderContext, i: number, split: SplitSpec, overlays: readonly string[]): Promise<string> {
+  const layout = splitLayout(split, ctx.format);
+  const titlePath = await textFile(ctx, `split-${pad(i)}`, split.title);
+  return splitComplex(layout, ctx.style, ctx.format, TITLE_BACKGROUND, titlePath, overlays);
+}
+
 async function renderVideo(ctx: RenderContext, i: number, clip: Extract<Clip, { kind: 'video' }>, out: string): Promise<void> {
   const overlays = await overlayChain(ctx, i, clip);
   const durationS = (clip.toS - clip.fromS).toFixed(3);
+  if (clip.split !== undefined) {
+    await ffmpeg([
+      '-ss', clip.fromS.toFixed(3), '-i', sourceOf(ctx, clip.take),
+      '-t', durationS,
+      '-filter_complex', await splitGraph(ctx, i, clip.split, overlays),
+      '-map', '[out]',
+      ...encoderArgs(ctx.encoder, ctx.format.fps),
+      out,
+    ]);
+    return;
+  }
   const pip = pipSource(ctx, clip);
   if (pip !== null && clip.pip !== undefined) {
     await ffmpeg([
@@ -200,6 +222,18 @@ async function renderFreeze(ctx: RenderContext, i: number, clip: Extract<Clip, {
   await ffmpeg(['-ss', clip.atS.toFixed(3), '-i', sourceOf(ctx, clip.take), '-frames:v', '1', still]);
   if (clip.zoom !== undefined) {
     await renderZoom(ctx, i, clip, clip.zoom, still, out);
+    return;
+  }
+  if (clip.split !== undefined) {
+    // L'arrêt sur image garde exactement la mise en page de la lecture : seule l'image se fige.
+    await ffmpeg([
+      '-loop', '1', '-framerate', String(ctx.format.fps), '-t', String(clip.durationS), '-i', still,
+      '-t', String(clip.durationS),
+      '-filter_complex', await splitGraph(ctx, i, clip.split, await overlayChain(ctx, i, clip)),
+      '-map', '[out]',
+      ...encoderArgs(ctx.encoder, ctx.format.fps),
+      out,
+    ]);
     return;
   }
   const pip = pipSource(ctx, clip);

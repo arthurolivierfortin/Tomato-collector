@@ -5,6 +5,7 @@
  */
 import type { PipSpec, Rect } from './ffmpegFilters';
 import { markerS, type TakeMarkers } from './markers';
+import type { SplitSpec } from './split';
 import type { ZoomSpec } from './zoom';
 
 /** Un instant du plan : des secondes, un marqueur (avec décalage), ou la fin de la prise. */
@@ -24,6 +25,8 @@ export interface FreezeSpec {
   readonly captionFullWidth?: boolean;
   /** Zone où incruster la capture du terminal ; hérite de celle du segment quand elle est absente. */
   readonly pip?: PipSpec;
+  /** Écran partagé ; hérite de celui du segment quand il est absent. */
+  readonly split?: SplitSpec;
   /**
    * Agrandit une zone de l'image au lieu de montrer l'écran entier : le sous-titre du segment
    * devient le titre de l'agrandissement, et les trois éléments (entrée, qui fait le travail,
@@ -69,6 +72,13 @@ export interface SegmentSpec {
    */
   readonly pip?: PipSpec;
   /**
+   * Écran partagé pendant tout le segment : deux endroits de la même image, recadrés, agrandis et
+   * posés côte à côte, sans figer la prise. Un agrandissement (`zoom`) fige ; celui-ci laisse
+   * courir, ce qui est la seule façon de montrer la tomate qui rougit **et**, au même instant, les
+   * boîtes du détecteur qui changent. Un arrêt sur image du segment garde la même mise en page.
+   */
+  readonly split?: SplitSpec;
+  /**
    * Segment facultatif : s'il cite un marqueur que la prise n'a pas posé, il est retiré du plan
    * au lieu de faire échouer le montage. Réservé aux panneaux qu'une autre branche livre.
    */
@@ -106,6 +116,7 @@ export interface ResolvedFreeze {
   readonly captionBottom?: number;
   readonly captionFullWidth?: boolean;
   readonly pip?: PipSpec;
+  readonly split?: SplitSpec;
   readonly zoom?: ZoomSpec;
 }
 
@@ -121,6 +132,7 @@ export interface ResolvedSegment {
   readonly captionBottom?: number;
   readonly captionFullWidth?: boolean;
   readonly pip?: PipSpec;
+  readonly split?: SplitSpec;
   readonly freezes: readonly ResolvedFreeze[];
 }
 
@@ -143,6 +155,7 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
       const bottom = f.captionBottom ?? spec.captionBottom;
       const full = f.captionFullWidth ?? spec.captionFullWidth;
       const pip = f.pip ?? spec.pip;
+      const split = f.split ?? spec.split;
       return {
         atS: resolveTime(f.at, take),
         durationS: f.durationS,
@@ -152,6 +165,7 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
         ...(bottom === undefined ? {} : { captionBottom: bottom }),
         ...(full === undefined ? {} : { captionFullWidth: full }),
         ...(pip === undefined ? {} : { pip }),
+        ...(split === undefined ? {} : { split }),
         ...(f.zoom === undefined ? {} : { zoom: f.zoom }),
       };
     })
@@ -172,6 +186,7 @@ function resolveSegment(spec: SegmentSpec, take: TakeMarkers): ResolvedSegment {
     ...(spec.captionBottom === undefined ? {} : { captionBottom: spec.captionBottom }),
     ...(spec.captionFullWidth === undefined ? {} : { captionFullWidth: spec.captionFullWidth }),
     ...(spec.pip === undefined ? {} : { pip: spec.pip }),
+    ...(spec.split === undefined ? {} : { split: spec.split }),
     ...(spec.title === undefined ? {} : { title: spec.title }),
     ...(spec.caption === undefined ? {} : { caption: spec.caption }),
   };
@@ -208,4 +223,5 @@ export function resolvePlan(
 }
 
 export { isMontagePlan } from './planGuard';
+export { splitLayout, type SplitSpec } from './split';
 export { zoomLines, type ZoomSpec } from './zoom';

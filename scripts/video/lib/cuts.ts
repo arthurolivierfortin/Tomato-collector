@@ -5,6 +5,7 @@
  */
 import type { PipSpec, Rect } from './ffmpegFilters';
 import type { ResolvedEntry, ResolvedSegment } from './plan';
+import type { SplitSpec } from './split';
 import type { ZoomSpec } from './zoom';
 
 export type Clip =
@@ -20,6 +21,8 @@ export type Clip =
       readonly captionBottom?: number;
       readonly captionFullWidth?: boolean;
       readonly pip?: PipSpec;
+      /** Écran partagé : deux endroits de la même image, côte à côte, pendant toute la lecture. */
+      readonly split?: SplitSpec;
     }
   | {
       readonly kind: 'freeze';
@@ -32,6 +35,8 @@ export type Clip =
       readonly captionBottom?: number;
       readonly captionFullWidth?: boolean;
       readonly pip?: PipSpec;
+      /** Arrêt sur image posé dans l'écran partagé : la mise en page ne bouge pas, l'image se fige. */
+      readonly split?: SplitSpec;
       /** Arrêt sur image agrandi : la zone est recadrée et remplit le cadre, légendes à côté. */
       readonly zoom?: ZoomSpec;
     };
@@ -49,6 +54,7 @@ export function segmentClips(segment: ResolvedSegment): Clip[] {
     ...(segment.captionBottom === undefined ? {} : { captionBottom: segment.captionBottom }),
     ...(segment.captionFullWidth === undefined ? {} : { captionFullWidth: segment.captionFullWidth }),
     ...(segment.pip === undefined ? {} : { pip: segment.pip }),
+    ...(segment.split === undefined ? {} : { split: segment.split }),
   };
   let cursor = segment.fromS;
   for (const freeze of segment.freezes) {
@@ -66,6 +72,7 @@ export function segmentClips(segment: ResolvedSegment): Clip[] {
       ...(freeze.captionBottom === undefined ? {} : { captionBottom: freeze.captionBottom }),
       ...(freeze.captionFullWidth === undefined ? {} : { captionFullWidth: freeze.captionFullWidth }),
       ...(freeze.pip === undefined ? {} : { pip: freeze.pip }),
+      ...(freeze.split === undefined ? {} : { split: freeze.split }),
       ...(freeze.zoom === undefined ? {} : { zoom: freeze.zoom }),
     });
     cursor = freeze.atS;
@@ -118,6 +125,7 @@ function merge(a: ResolvedSegment, b: ResolvedSegment): ResolvedSegment {
   const captionWidth = a.captionWidth ?? b.captionWidth;
   const captionFullWidth = a.captionFullWidth ?? b.captionFullWidth;
   const pip = a.pip ?? b.pip;
+  const split = a.split ?? b.split;
   return {
     take: a.take,
     video: a.video,
@@ -131,6 +139,7 @@ function merge(a: ResolvedSegment, b: ResolvedSegment): ResolvedSegment {
     ...(captionBottom === undefined ? {} : { captionBottom }),
     ...(captionFullWidth === undefined ? {} : { captionFullWidth }),
     ...(pip === undefined ? {} : { pip }),
+    ...(split === undefined ? {} : { split }),
   };
 }
 
