@@ -305,3 +305,10 @@ Le serveur MCP écoute sur `http://localhost:7331/mcp`. Pour l'ajouter à Claude
     claude mcp add --transport http tomato-robot http://localhost:7331/mcp
 
 Puis, dans une session Claude Code, demander par exemple « regarde les trois vues et déplace le panier sous la tomate 2 ».
+
+`TOMATO_AGENT` a trois valeurs : `on` (défaut, le SDK dans un tuyau invisible), `off` (aucun agent,
+pilotage à la main comme ci-dessus) et `visible`. En `visible`, le serveur lance **le même Claude
+Code headless**, mais dans une vraie fenêtre de Windows Terminal, et relit sa sortie
+(`--output-format stream-json`) dans le fichier écrit par `Tee-Object` : le dashboard, le journal et
+le coût sont identiques, et la session peut être filmée. C'est le mode des prises vidéo finales ;
+la procédure complète est dans [`scripts/video/README.md`](scripts/video/README.md).
