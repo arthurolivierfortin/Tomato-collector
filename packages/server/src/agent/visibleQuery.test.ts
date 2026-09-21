@@ -297,3 +297,35 @@ describe('createVisibleAgent, épisode qui ne finit pas', () => {
     expect(launcher.closed).toEqual(['finished']);
   });
 });
+
+describe('createVisibleAgent, effacement impossible', () => {
+  /*
+   * Relevé sur le test réel : la fenêtre reste ouverte (`-NoExit`) et son `Tee-Object` garde le
+   * fichier `.jsonl` ouvert. `rm` échoue alors en EBUSY, et l'arrêt du serveur tombait avec lui.
+   * Un dossier qui survit une minute de plus est sans conséquence ; un serveur qui refuse de
+   * s'arrêter en a.
+   */
+  it.skipIf(process.platform !== 'win32')(
+    'ne fait pas tomber l’arrêt du serveur quand un autre processus tient un fichier',
+    async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'tomato-visible-'));
+      const agent = agentIn(dir, replayLauncher());
+      for await (const _ of agent.query('wake', options(null))) void _;
+      const target = join(agent.sessionDir, 'episode-1.jsonl');
+      // Comme `Tee-Object` dans la fenêtre : ouvert par un AUTRE processus, sans partage.
+      const { spawn } = await import('node:child_process');
+      const holder = spawn(
+        'powershell.exe',
+        ['-NoProfile', '-Command', `$f = [System.IO.File]::Open('${target}', 'Open', 'Read', 'None'); Start-Sleep -Seconds 8; $f.Close()`],
+        { stdio: 'ignore', windowsHide: true },
+      );
+      try {
+        await new Promise((r) => setTimeout(r, 1500));
+        await expect(agent.dispose()).resolves.toBeUndefined();
+      } finally {
+        holder.kill();
+      }
+    },
+    30_000,
+  );
+});
