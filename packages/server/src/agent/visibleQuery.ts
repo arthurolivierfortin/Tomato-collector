@@ -57,6 +57,8 @@ export interface VisibleQueryDeps {
   readonly initTimeoutMs?: number;
   /** Délai sans une seule ligne nouvelle ; au-delà, l'épisode est abandonné. */
   readonly idleTimeoutMs?: number;
+  /** Délai laissé au message `result` après une coupure ; défaut `RESULT_GRACE_MS`. */
+  readonly resultGraceMs?: number;
   readonly log?: Logger;
 }
 
@@ -86,6 +88,20 @@ const DEFAULT_INIT_TIMEOUT_MS = 180_000;
  * runner reste `busy` pour toujours et les tomates suivantes s'empilent dans la file.
  */
 const DEFAULT_IDLE_TIMEOUT_MS = 120_000;
+
+/**
+ * Délai laissé au message `result` **après** une coupure, et c'est une correction.
+ *
+ * Le coût de l'épisode n'est que là, et le CLI ne l'écrit qu'une fois son dernier tour de modèle
+ * fini : plusieurs secondes après le `report` qui clôt l'épisode côté serveur. La prise `concepts`
+ * du 2026-09-21 en a fait les frais — le serveur coupait le flux 5 s après le rapport, `claude`
+ * n'avait pas encore rendu son `result`, et le journal gardait `costUsd: 0`. Le README annonçait
+ * « plus de coût manquant à ce mode » : ce n'était vrai qu'une fois sur deux.
+ *
+ * Trente secondes, donc, et pas davantage : passé ce délai, `claude` est perdu ou bloqué, la
+ * fenêtre est coupée — sinon elle continue d'appeler un serveur MCP arrêté, et de dépenser.
+ */
+export const RESULT_GRACE_MS = 30_000;
 
 /** Combien de sessions ce processus a ouvertes : deux dans la même milliseconde auraient sinon le même nom. */
 let sessionsOpened = 0;
@@ -180,6 +196,7 @@ export function createVisibleAgent(deps: VisibleQueryDeps): VisibleAgent {
     idleTimeoutMs: deps.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS,
   };
   const log = deps.log ?? silentLogger;
+  const resultGraceMs = deps.resultGraceMs ?? RESULT_GRACE_MS;
   let episode = 0;
   /*
    * Un sous-dossier par démarrage de serveur, daté. Deux raisons, la seconde étant un bug vécu :
@@ -218,18 +235,29 @@ export function createVisibleAgent(deps: VisibleQueryDeps): VisibleAgent {
     log(`agent visible : fenêtre « ${deps.title} », flux suivi dans ${input.teePath}`);
     const window = deps.launcher.launch(args, visibleEnv(process.env), input.teePath);
 
-    // L'épisode est fini quand le message `result` est passé — c'est lui qui porte le coût — ou
-    // quand la prise est coupée. La fenêtre, elle, reste ouverte : `-NoExit`.
+    // L'épisode est fini quand le message `result` est passé — c'est lui qui porte le coût. Une
+    // coupure ne l'arrête donc pas net : elle ouvre un délai de grâce (`resultGraceMs`) pendant
+    // lequel le flux continue d'être relu, le temps que `claude` finisse son tour et rende son
+    // `result`. La fenêtre, elle, reste ouverte : `-NoExit`.
     let finished = false;
+    let abortedAt: number | null = null;
     const aborted = (): boolean => options.abortController?.signal.aborted === true;
+    const graceOver = (): boolean => {
+      if (!aborted()) return false;
+      abortedAt ??= Date.now();
+      return Date.now() - abortedAt >= resultGraceMs;
+    };
     try {
-      for await (const msg of followTee(input.teePath, pollMs, () => finished || aborted(), limits)) {
+      for await (const msg of followTee(input.teePath, pollMs, () => finished || graceOver(), limits)) {
         yield msg;
         if (msg.type === 'result') finished = true;
-        if (aborted()) return;
+        if (graceOver()) {
+          log(`agent visible : épisode coupé, aucun result en ${Math.round(resultGraceMs / 1000)} s, le coût de cet épisode manquera`);
+          return;
+        }
       }
     } finally {
-      // `finished` : `claude` s'est arrêté seul après son `result`, la fenêtre reste à l'image
+      // `finished` : `claude` a rendu son `result` et s'est arrêté seul, la fenêtre reste à l'image
       // jusqu'à la fin de la prise. Sinon il tourne encore : on le coupe, il dépense.
       await window.close(finished ? 'finished' : 'aborted');
     }

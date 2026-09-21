@@ -2,6 +2,7 @@ import { createDefaultWorld } from '@tomato/shared';
 import type { ServerToDashboard, Tomato } from '@tomato/shared';
 import { describe, expect, it } from 'vitest';
 import { createNoopRunner, loadAgentRunner, startRunner, type AgentRunnerDeps } from './agentRunner';
+import { RESULT_GRACE_MS } from './agent/visibleQuery';
 import { createSession } from './state/session';
 import { createFakeHub, createFakeSim, createMemoryJournal, type FakeHub, type FakeSim, type MemoryJournal } from './testing/fakes';
 
@@ -168,11 +169,34 @@ describe('startRunner, mode visible', () => {
     }
   });
 
+  /*
+   * Le `result` du CLI arrive après un tour de modèle complet, plusieurs secondes après le `report`.
+   * Avec les 5 s de `STOP_DRAIN_MS`, l'arrêt du serveur coupait le flux avant lui et le journal de
+   * l'épisode gardait `costUsd: 0` : c'est ce qui est arrivé à la prise `concepts` du 2026-09-21.
+   */
+  it('laisse trente secondes au result avant de couper, parce que le CLI est lent à le rendre', async () => {
+    const handle = await startRunner(deps(), {
+      agent: 'visible',
+      wakePort: -1,
+      module: './testing/fakeAgent.js',
+      visible: { title: 'Claude Code headless', cols: 110, rows: 32, x: 20, y: 20, dir: 'C:/tmp/cli', cwd: 'C:/repo', keep: false },
+    });
+    try {
+      const { lastDeps } = await import('./testing/fakeAgent.js');
+      expect(lastDeps?.stopDrainMs).toBe(RESULT_GRACE_MS);
+      expect(RESULT_GRACE_MS).toBe(30_000);
+    } finally {
+      await handle.stop();
+    }
+  });
+
   it('laisse le mode « on » sans flux injecté : c’est le SDK qui parle', async () => {
     const handle = await startRunner(deps(), { agent: 'on', wakePort: -1, module: './testing/fakeAgent.js' });
     try {
       const { lastDeps } = await import('./testing/fakeAgent.js');
       expect(lastDeps?.query).toBeUndefined();
+      // Le SDK rend son `result` tout de suite : le délai par défaut de M6 suffit.
+      expect(lastDeps?.stopDrainMs).toBeUndefined();
     } finally {
       await handle.stop();
     }

@@ -166,6 +166,13 @@ describe('terminalArgs', () => {
     expect(args[args.length - 1]).toBe('C:/data/video/cli/launch.ps1');
     expect(args[args.length - 2]).toBe('-File');
   });
+
+  // La banniere « Windows PowerShell / Copyright (C) Microsoft Corporation » occupait les trois
+  // premieres lignes de la fenetre filmee : ce n'est pas nous qui l'imprimions, mais elle etait
+  // dans le film, au-dessus du flux de `claude`, et elle n'a rien a y faire.
+  it('coupe la banniere de PowerShell : la fenetre ne montre que la sortie de claude', () => {
+    expect(args).toContain('-NoLogo');
+  });
 });
 
 describe('psLiteral', () => {

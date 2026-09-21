@@ -166,6 +166,11 @@ export function launchScript(title: string, input: VisibleCommandInput): string 
  * logiques) ; `-NoExit` la laisse ouverte après la fin de l'épisode, jusqu'à la fin de la prise.
  *
  * `powershell`, pas `pwsh` : PowerShell 7 n'est pas installé sur cette machine.
+ *
+ * `-NoLogo` supprime la bannière « Windows PowerShell / Copyright (C) Microsoft Corporation. Tous
+ * droits réservés. » que le shell imprime avant de lire le script. Ce n'est pas le pipeline qui
+ * l'écrivait — le script de lancement n'imprime toujours rien, `visibleCommand.test.ts` le vérifie
+ * —, mais elle était dans le film, trois lignes au-dessus du flux de `claude`.
  */
 export function terminalArgs(geometry: WindowGeometry, scriptPath: string): string[] {
   return [
@@ -178,6 +183,7 @@ export function terminalArgs(geometry: WindowGeometry, scriptPath: string): stri
     '-d',
     geometry.cwd,
     'powershell',
+    '-NoLogo',
     '-NoProfile',
     '-NoExit',
     '-ExecutionPolicy',

@@ -92,6 +92,31 @@ describe('createAgentRunner (contrat M5 : src/agent/index.ts)', () => {
     }
   });
 
+  /*
+   * Le mode visible a besoin de bien plus que les 5 s par défaut : le `result` du CLI, qui porte le
+   * coût, arrive après un tour de modèle complet. M5 le sait et passe la valeur ; ce module doit la
+   * transmettre au runner, sinon elle se perd entre les deux et le coût avec elle.
+   */
+  it('passes the stop drain delay through to the runner, for the visible mode', async () => {
+    const out: ServerToDashboard[] = [];
+    let reached = (): void => undefined;
+    const atReport = new Promise<void>((r) => (reached = r));
+    const query: QueryFn = async function* (_prompt, options) {
+      yield {
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id: 't', name: 'mcp__robot__report', input: { outcome: 'harvested', note: 'n' } }] },
+      };
+      reached();
+      await new Promise<void>((r) => options.abortController?.signal.addEventListener('abort', () => r()));
+    };
+    const runner = createAgentRunner({ ...base([], out), query, systemPrompt: 'SYS', wakePort: -1, stopDrainMs: 120 });
+    runner.wake({ tomatoId: 4, positionCm: [11, -3, 39], detector: 'yolo', confidence: 0.6 });
+    await atReport;
+    const startedAt = Date.now();
+    await runner.stop();
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(100);
+  });
+
   it('serves the manual wake endpoint on its own port and closes it on stop', async () => {
     const recorded: Recorded[] = [];
     const out: ServerToDashboard[] = [];
