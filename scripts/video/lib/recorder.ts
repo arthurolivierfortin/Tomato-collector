@@ -8,7 +8,7 @@ import { createMarkerLog, type MarkerLog, type TakeMarkers } from './markers';
 import { scenarioMarkers, type Scenario } from './scenario';
 import { runStep } from './steps';
 import { insetRect, startPageCapture, startRegionCapture, startTerminalCapture, type TerminalCapture, type TerminalMode } from './terminal';
-import { closeWindow, waitForWindow, type WindowProbe } from './windowRect';
+import { closeWindow, keepOnTop, waitForWindow, type WindowProbe } from './windowRect';
 
 export interface RecordOptions {
   readonly scenario: Scenario;
@@ -58,6 +58,14 @@ const WINDOW_TIMEOUT_MS = 180_000;
  * position, plus par son titre.
  */
 const WINDOW_POLL_MS = 250;
+
+/**
+ * Rappel de la fenêtre au premier plan. Une seule mise au-dessus ne tient pas : `wt.exe` applique
+ * `--pos` et `--size` après coup et la fenêtre repasse derrière (mesuré : la capture filmait
+ * l'éditeur de code). La capture étant une capture d'écran, ce rappel est ce qui garantit qu'on
+ * filme bien la fenêtre et pas ce qui la couvre.
+ */
+const WINDOW_TOP_MS = 3000;
 
 /**
  * Largeur maximale du fichier de capture. La fenêtre fait près de 2 900 pixels physiques de large
@@ -130,9 +138,13 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
   markerLog.startAt(videoStartMs);
   let terminal: TerminalCapture | null = null;
   let terminalVideo: (() => Promise<string>) | null = null;
-  /** Mode `window` : l'attente de la fenêtre, et la fenêtre trouvée (pour la refermer). */
+  /**
+   * Mode `window` : l'attente de la fenêtre, la fenêtre trouvée (pour la refermer) et le rappel au
+   * premier plan. Rassemblés dans un objet : ils sont posés depuis une tâche de fond, et le
+   * contrôle de flux ne peut pas le savoir.
+   */
   let windowWatch: Promise<void> = Promise.resolve();
-  let windowProbe: WindowProbe | null = null;
+  const win: { probe: WindowProbe | null; onTop: { stop(): void } | null } = { probe: null, onTop: null };
   let stepsDone = false;
   const startedAt = new Date().toISOString();
   let renderer = 'inconnu';
@@ -164,7 +176,7 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
           log,
         });
         if (found === null) return;
-        windowProbe = found;
+        win.probe = found;
         const region = insetRect(found.rect, options.terminalInset);
         terminal = startRegionCapture(
           { region, fps: TERMINAL_FPS, outPath: join(outAbs, terminalName), maxWidth: TERMINAL_MAX_WIDTH },
@@ -172,6 +184,7 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
           (line) => log(`  [ffmpeg terminal] ${line}`),
         );
         log(`terminal : fenêtre « ${options.terminalWindow} » à ${region.x},${region.y} (${region.w}×${region.h} px), filmée dans ${terminalName} (+${terminal.startMs} ms)`);
+        win.onTop = keepOnTop(options.windowScript, options.terminalWindow, found.handle, WINDOW_TOP_MS);
       })();
       log(`terminal : attente de la fenêtre « ${options.terminalWindow} » (ouverte par le serveur au réveil de l’agent).`);
     } else if (options.terminalMode === 'page') {
@@ -199,12 +212,13 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
     stepsDone = true;
     // L'attente de la fenêtre est coupée par `stepsDone` : elle rend la main tout de suite.
     await windowWatch;
+    win.onTop?.stop();
     // Le contexte du terminal doit être fermé avant qu'on demande son fichier : Playwright n'écrit
     // l'index de la vidéo qu'à la fermeture.
     await terminal?.stop();
     // La fenêtre de l'agent reste ouverte tant que la prise dure (`-NoExit`) ; c'est ici qu'elle
     // se referme, une fois la dernière image écrite.
-    if (windowProbe !== null) await closeWindow(options.windowScript, options.terminalWindow);
+    if (win.probe !== null) await closeWindow(options.windowScript, options.terminalWindow, win.probe.handle);
     if (terminal !== null && terminal.failed()) log('ATTENTION : la capture du terminal s’est arrêtée (fenêtre introuvable ?) ; la prise n’aura pas d’incrustation.');
     markers = markerLog.snapshot({
       take,

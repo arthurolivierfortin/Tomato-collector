@@ -22,6 +22,11 @@ export interface WindowProbeOptions {
   readonly topmost?: boolean;
   /** Ferme la fenêtre au lieu de rendre son rectangle (fin de prise). */
   readonly close?: boolean;
+  /**
+   * Poignée connue de la fenêtre. Dès qu'on la tient, on ne la cherche plus par son titre :
+   * Claude Code reprend celui de la fenêtre quelques secondes après son démarrage.
+   */
+  readonly handle?: number;
 }
 
 /** Arguments de `powershell` pour interroger `window-rect.ps1`. */
@@ -34,6 +39,7 @@ export function windowProbeArgs(script: string, title: string, options: WindowPr
     script,
     '-Title',
     title,
+    ...(options.handle === undefined ? [] : ['-Handle', String(options.handle)]),
     ...(options.topmost === true ? ['-Topmost'] : []),
     ...(options.close === true ? ['-Close'] : []),
   ];
@@ -108,8 +114,24 @@ export async function waitForWindow(script: string, title: string, options: Wait
 }
 
 /** Referme la fenêtre à la fin de la prise. Le serveur, lui, l'a laissée ouverte (`-NoExit`). */
-export async function closeWindow(script: string, title: string): Promise<void> {
-  await probeWindow(script, title, { close: true });
+export async function closeWindow(script: string, title: string, handle: number): Promise<void> {
+  await probeWindow(script, title, { close: true, handle });
+}
+
+/**
+ * Remet la fenêtre au-dessus de tout, à intervalle régulier, tant que la prise dure.
+ *
+ * Une seule mise au premier plan ne tient pas : `wt.exe` applique `--pos` et `--size` après coup,
+ * et la fenêtre repasse derrière (mesuré : la capture filmait l'éditeur de code). Comme la capture
+ * est une capture d'**écran**, une fenêtre passée devant entrerait dans le film. Le rappel se fait
+ * par la poignée, le titre ayant pu changer entre-temps.
+ */
+export function keepOnTop(script: string, title: string, handle: number, everyMs: number): { stop(): void } {
+  const timer = setInterval(() => {
+    void probeWindow(script, title, { topmost: true, handle });
+  }, everyMs);
+  timer.unref?.();
+  return { stop: () => clearInterval(timer) };
 }
 
 /**

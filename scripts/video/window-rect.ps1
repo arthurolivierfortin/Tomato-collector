@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Trouve la fenetre de l'agent headless visible par son titre, et rend son rectangle en pixels
   physiques. Peut aussi la mettre au-dessus de tout, ou la fermer.
@@ -25,6 +25,8 @@
 #>
 param(
   [Parameter(Mandatory = $true)][string]$Title,
+  # Poignee deja connue : on ne cherche plus par le titre, que Claude Code reprend au demarrage.
+  [long]$Handle = 0,
   [switch]$Topmost,
   [switch]$Close
 )
@@ -49,7 +51,7 @@ public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
 [void][TomatoRect.Api]::SetProcessDPIAware()
 
 $script:wanted = $Title
-$script:found = [IntPtr]::Zero
+$script:found = if ($Handle -ne 0) { [IntPtr]$Handle } else { [IntPtr]::Zero }
 $cb = [TomatoRect.Api+EnumWindowsProc] {
   param($h, $l)
   if ([TomatoRect.Api]::IsWindowVisible($h)) {
@@ -59,7 +61,7 @@ $cb = [TomatoRect.Api+EnumWindowsProc] {
   }
   return $true
 }
-[void][TomatoRect.Api]::EnumWindows($cb, [IntPtr]::Zero)
+if ($Handle -eq 0) { [void][TomatoRect.Api]::EnumWindows($cb, [IntPtr]::Zero) }
 $handle = $script:found
 
 if ($handle -eq [IntPtr]::Zero) {
