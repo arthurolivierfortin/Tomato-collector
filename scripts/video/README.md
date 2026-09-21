@@ -206,6 +206,10 @@ prompt système, avant la première approche) ; s'il la saute, la prise garde to
 | `--terminal-log <fichier>` | `data/video/server.log` | mode `page` : le fichier écrit par `TOMATO_LOG_FILE` |
 | `--terminal-window <titre>` | `Claude Code headless` | modes `gdigrab` et `window` : titre exact de la fenêtre |
 | `--terminal-inset <px>` | `0` | mode `window` : pixels rognés sur les quatre bords de la fenêtre |
+
+Côté serveur, le mode `visible` se règle par l'environnement : `TOMATO_VISIBLE_TITLE`,
+`TOMATO_VISIBLE_COLS`, `TOMATO_VISIBLE_ROWS`, `TOMATO_VISIBLE_X`, `TOMATO_VISIBLE_Y`,
+`TOMATO_VISIBLE_DIR`, `TOMATO_VISIBLE_CWD` et `TOMATO_VISIBLE_KEEP`.
 | `--episode <id\|chemin>` | — | journal à rejouer en mode `replay` |
 | `--episodes-dir <dossier>` | `data/episodes` | où chercher `<id>.json` |
 | `--out <dossier>` | `data/video/takes` | dossier des prises |
@@ -331,6 +335,23 @@ et `visibleCommand.test.ts` le vérifie. Trois écarts, assumés et commentés d
 7. **Ne plus toucher à la fenêtre** : ne pas la déplacer, ne pas la réduire, ne pas y taper. Le
    rectangle filmé est mesuré une fois, au moment où elle apparaît.
 
+#### Ce que la fenêtre garde, et ce qu'elle jette
+
+Chaque démarrage de serveur ouvre son propre sous-dossier daté sous `data/video/cli` : le message
+de réveil, le prompt système, la configuration MCP, le script de lancement et le `.jsonl` de chaque
+épisode. Il est **effacé à l'arrêt du serveur** ; `TOMATO_VISIBLE_KEEP=on` le garde, pour relire un
+épisode après coup. Ce dossier par session n'est pas un confort : le compteur d'épisode repart à 1
+à chaque serveur, et `Tee-Object` ne tronque son fichier qu'une seconde plus tard, le temps que la
+fenêtre s'ouvre. Dans un dossier commun, le serveur relisait alors le `episode-1.jsonl` du serveur
+précédent et concluait l'épisode en quelques millisecondes, avec le coût et la session d'avant.
+
+Deux garde-fous ferment l'épisode quand la fenêtre ne répond plus : **180 s** sans le moindre
+message (démarrage de `claude` en échec, invite de confiance laissée sans réponse) et **120 s** de
+silence une fois le flux commencé (fenêtre fermée à la main, `claude` tué). L'épisode est alors
+clos en `aborted`, le journal le dit, et le runner reprend la file au lieu de rester bloqué. Un
+épisode coupé tue aussi le `claude` de la fenêtre : sans cela il continuerait d'appeler un serveur
+MCP arrêté, et de dépenser.
+
 Un dernier détail de mise en scène : la **taille de la police** vient du profil de Windows Terminal,
 `wt.exe` n'a pas d'option pour la fixer. 110 colonnes dans une fenêtre d'environ 1 050 points donnent
 une quinzaine de pixels par caractère, ce qui se lit dans le demi-écran du montage. Si Windows
@@ -370,7 +391,17 @@ Quatre autres pièges, tous mesurés, tous commentés dans le code :
   l'intérieur, et le pilote scrute toutes les 250 ms parce que Claude Code reprend ce titre quelques
   secondes après son démarrage ;
 - Windows Terminal coupe sa ligne de commande sur les `;` : la commande passe donc par un fichier
-  `launch-<n>.ps1`, jamais par un `-Command` en ligne.
+  `launch-<n>.ps1`, jamais par un `-Command` en ligne ;
+- **deux encodages** tordaient le texte, et aucun ne se voit sans le mesurer. `Get-Content -Raw`
+  lit un fichier UTF-8 sans nomenclature en **ANSI** : « pitch -13.59° — occultée », 29 caractères,
+  en arrivait 33, et le prompt système — qui a neuf lignes non ASCII — n'était donc pas celui du
+  SDK. Et `[Console]::OutputEncoding` vaut **IBM437** dans un `powershell -NoProfile` : la sortie
+  UTF-8 de `claude` était décodée en cp437 avant `Tee-Object`, et « 58.4° » arrivait en
+  « 58.4┬░ » dans le fichier, donc à l'écran, dans le dashboard et dans le journal. D'où
+  `-Encoding UTF8` sur les lectures et `[Console]::OutputEncoding = UTF8` en tête du script ;
+- une sonde de fenêtre lancée d'un coup coûte **530 ms** (compilation du type `Add-Type`). Répétée
+  toutes les 250 ms, elle occupait 212 % d'un cœur pendant l'enregistrement. Le script boucle
+  maintenant à l'intérieur, dans un seul processus : 4,1 % d'un cœur, mesuré.
 
 ### `--terminal gdigrab`, l'option
 
@@ -627,7 +658,11 @@ sous-titre dépasse deux lignes.
     lib/health.ts          GET /health, serveur neuf et aucune autre sim
     lib/recorder.ts        déroulé d'une prise, écriture vidéo + marqueurs
     lib/terminal.ts        capture du terminal : page filmée, fenêtre gdigrab, ou zone d'écran
-    lib/windowRect.ts      la fenêtre de l'agent visible : attente, rectangle, premier plan, fermeture
+    lib/windowRect.ts      la fenêtre de l'agent visible : arguments, rectangle, consignes (pur, testé)
+    lib/windowWatcher.ts   le processus unique qui la surveille et la garde au premier plan
+    lib/windowTrack.ts     la piste d'une prise : attendre la fenêtre, la filmer, la refermer
+    lib/regionCapture.ts   géométrie et arguments ffmpeg d'une capture de zone d'écran (pur, testé)
+    lib/play.ts            ce que le pilote fait de la page : attentes et étapes du scénario
     lib/termServer.ts      serveur local qui sert la page terminal et lui donne les lignes
     lib/ansi.ts            codes ANSI du serveur → HTML coloré (pur, testé)
     terminal/index.html    la page « terminal », sans bibliothèque ni CDN

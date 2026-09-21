@@ -243,7 +243,17 @@ export function createVisibleAgent(deps: VisibleQueryDeps): VisibleAgent {
         log(`agent visible : dossier de session gardé (${sessionDir})`);
         return;
       }
-      await rm(sessionDir, { recursive: true, force: true });
+      /*
+       * La fenêtre reste ouverte après l'épisode (`-NoExit`) et son `Tee-Object` garde le fichier
+       * `.jsonl` ouvert sans partage : `rm` échoue alors en EBUSY. Relevé sur une vraie session.
+       * Un dossier qui survit quelques minutes de plus est sans conséquence ; un serveur qui
+       * refuse de s'arrêter en a une.
+       */
+      try {
+        await rm(sessionDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+      } catch (e) {
+        log(`agent visible : dossier de session non effacé, un fichier est encore ouvert (${String(e)})`);
+      }
     },
   };
 }
