@@ -1,5 +1,5 @@
 /**
- * La fenêtre de l'agent headless visible, vue par le pilote de la prise.
+ * La fenêtre de l'agent headless visible, telle que le pilote de la prise la désigne et la lit.
  *
  * Le serveur (`TOMATO_AGENT=visible`) ouvre cette fenêtre au réveil de l'agent et y lance
  * `claude -p … --output-format stream-json`. Le pilote, lui, ne fait que deux choses : la
@@ -14,8 +14,10 @@
  * Deux conséquences, toutes deux prises en charge : la fenêtre est mise **au-dessus de tout**
  * (`-Topmost`), et le rectangle est demandé en **pixels physiques** — l'écran de la machine est à
  * 250 %, et `gdigrab` ne connaît que les pixels physiques.
+ *
+ * Tout ici est pur ; le processus de surveillance vit dans `windowWatcher.ts`.
  */
-import type { ScreenRect } from './terminal';
+import type { ScreenRect } from './regionCapture';
 
 export interface WindowProbeOptions {
   /** Met la fenêtre au-dessus de toutes les autres, pour que rien ne la couvre pendant la prise. */
@@ -27,9 +29,20 @@ export interface WindowProbeOptions {
    * Claude Code reprend celui de la fenêtre quelques secondes après son démarrage.
    */
   readonly handle?: number;
+  /**
+   * Boucle dans le script : une ligne JSON par tour, jusqu'à ce que le pilote ferme le processus.
+   *
+   * Une sonde d'un coup coûte **530 ms** sur cette machine (mesuré), presque entièrement passée à
+   * compiler le type `Add-Type`. Répétée toutes les 250 ms pendant l'attente de la fenêtre puis
+   * pendant toute la prise, elle occupait plus de deux cœurs — au moment même où un navigateur
+   * headless enregistre du 1920 × 1080 à 25 images par seconde. Un seul processus qui boucle
+   * ramène ce coût à une compilation unique.
+   */
+  readonly watch?: boolean;
+  readonly intervalMs?: number;
 }
 
-/** Arguments de `powershell` pour interroger `window-rect.ps1`. */
+/** Arguments de `powershell` pour `window-rect.ps1`. */
 export function windowProbeArgs(script: string, title: string, options: WindowProbeOptions): string[] {
   return [
     '-NoProfile',
@@ -42,6 +55,8 @@ export function windowProbeArgs(script: string, title: string, options: WindowPr
     ...(options.handle === undefined ? [] : ['-Handle', String(options.handle)]),
     ...(options.topmost === true ? ['-Topmost'] : []),
     ...(options.close === true ? ['-Close'] : []),
+    ...(options.watch === true ? ['-Watch'] : []),
+    ...(options.intervalMs === undefined ? [] : ['-IntervalMs', String(options.intervalMs)]),
   ];
 }
 
@@ -76,62 +91,11 @@ export function parseWindowProbe(stdout: string): WindowProbe | null {
   return { rect: { x, y, w, h }, handle };
 }
 
-/** Interroge le script une fois. Jamais d'exception : une fenêtre absente est un `null`. */
-export async function probeWindow(script: string, title: string, options: WindowProbeOptions = {}): Promise<WindowProbe | null> {
-  const { execFile } = await import('node:child_process');
-  return new Promise<WindowProbe | null>((done) => {
-    execFile('powershell.exe', windowProbeArgs(script, title, options), { windowsHide: true }, (error, stdout) => {
-      done(error !== null ? null : parseWindowProbe(stdout));
-    });
-  });
-}
-
-export interface WaitForWindowOptions {
-  readonly timeoutMs: number;
-  readonly pollMs: number;
-  /** Arrête l'attente avant la fin du délai : la prise s'est terminée sans que la fenêtre vienne. */
-  readonly cancelled?: () => boolean;
-  readonly log?: (line: string) => void;
-}
-
-/**
- * Attend que la fenêtre apparaisse. Le délai est volontairement long : au premier lancement dans
- * un dossier, Claude Code demande s'il faut faire confiance à son contenu, et c'est le
- * propriétaire qui répond, à la main, pendant que le pilote patiente.
- */
-export async function waitForWindow(script: string, title: string, options: WaitForWindowOptions): Promise<WindowProbe | null> {
-  const deadline = Date.now() + options.timeoutMs;
-  for (;;) {
-    if (options.cancelled?.() === true) return null;
-    const found = await probeWindow(script, title, { topmost: true });
-    if (found !== null) return found;
-    if (Date.now() >= deadline) {
-      options.log?.(`fenêtre « ${title} » toujours absente après ${Math.round(options.timeoutMs / 1000)} s : la prise continue sans incrustation.`);
-      return null;
-    }
-    await new Promise((r) => setTimeout(r, options.pollMs));
-  }
-}
-
-/** Referme la fenêtre à la fin de la prise. Le serveur, lui, l'a laissée ouverte (`-NoExit`). */
-export async function closeWindow(script: string, title: string, handle: number): Promise<void> {
-  await probeWindow(script, title, { close: true, handle });
-}
-
-/**
- * Remet la fenêtre au-dessus de tout, à intervalle régulier, tant que la prise dure.
- *
- * Une seule mise au premier plan ne tient pas : `wt.exe` applique `--pos` et `--size` après coup,
- * et la fenêtre repasse derrière (mesuré : la capture filmait l'éditeur de code). Comme la capture
- * est une capture d'**écran**, une fenêtre passée devant entrerait dans le film. Le rappel se fait
- * par la poignée, le titre ayant pu changer entre-temps.
- */
-export function keepOnTop(script: string, title: string, handle: number, everyMs: number): { stop(): void } {
-  const timer = setInterval(() => {
-    void probeWindow(script, title, { topmost: true, handle });
-  }, everyMs);
-  timer.unref?.();
-  return { stop: () => clearInterval(timer) };
+/** Les lignes complètes d'un morceau de sortie, et ce qu'il faut garder pour la lecture suivante. */
+export function splitProbeLines(chunk: string): { lines: string[]; rest: string } {
+  const parts = chunk.split(/\r?\n/);
+  const rest = parts.pop() ?? '';
+  return { lines: parts.filter((l) => l.trim() !== ''), rest };
 }
 
 /**
