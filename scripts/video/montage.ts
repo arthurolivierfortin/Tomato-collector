@@ -46,7 +46,7 @@ async function loadTakes(dir: string): Promise<Map<string, TakeMarkers>> {
       // Le carton de la partie 1 annonce « Claude Code, headless, live output » : il ne doit pas
       // se retrouver au-dessus d'une page qui suit un journal.
       if (source !== 'window') {
-        log(`  ATTENTION : la prise « ${name} » a filmé « ${source} », pas la fenêtre de l’agent ; le carton du terminal serait faux.`);
+        log(`  ATTENTION : la prise « ${parsed.take} » a filmé « ${source} », pas la fenêtre de l’agent ; le carton du terminal serait faux.`);
       }
     }
   }
