@@ -1,141 +1,91 @@
 /**
- * La fenêtre de terminal où tourne le **vrai Claude Code interactif** pendant une prise
- * `--agent cli`, et la poignée de main qui la met sur l'horloge de la prise.
+ * La fenêtre de l'agent headless visible, vue par le pilote de la prise.
  *
- * Le pilote ne tape rien dans cette fenêtre : il l'ouvre, `claude` y démarre avec le message de
- * réveil passé en argument, et tout ce qui s'y affiche ensuite est l'interface du CLI. La capture
- * est une capture d'écran de cette fenêtre — aucune ligne n'est reformatée par nous.
+ * Le serveur (`TOMATO_AGENT=visible`) ouvre cette fenêtre au réveil de l'agent et y lance
+ * `claude -p … --output-format stream-json`. Le pilote, lui, ne fait que deux choses : la
+ * **trouver par son titre**, et la **filmer**. Il n'y écrit jamais rien.
  *
- * `claude-window.ps1` est le seul chemin, automatique ou manuel : il pose le titre, la taille et la
- * position, écrit le rectangle de la fenêtre dans `RectFile`, efface l'écran, puis lance `claude`
- * avec les arguments du fichier JSON. Le pilote attend `RectFile`, puis démarre ffmpeg sur cette
- * zone. Quand `Start-Process` ne donne pas de fenêtre visible, le propriétaire lance exactement la
- * même ligne à la main et la suite ne change pas.
+ * Filmer une zone de l'écran plutôt que la fenêtre par son titre n'est pas un choix de confort :
+ * `ffmpeg -f gdigrab -i title=<titre>` trouve bien la fenêtre de Windows Terminal, mais n'en
+ * ramène que du **noir** — elle se dessine en DirectX, et un `BitBlt` sur son contexte ne rend
+ * rien (mesuré : 75 images capturées, toutes noires et identiques). Le bureau composé, lui, la
+ * porte telle qu'elle s'affiche.
+ *
+ * Deux conséquences, toutes deux prises en charge : la fenêtre est mise **au-dessus de tout**
+ * (`-Topmost`), et le rectangle est demandé en **pixels physiques** — l'écran de la machine est à
+ * 250 %, et `gdigrab` ne connaît que les pixels physiques.
  */
-import { shellArg } from './claudeCli';
 import type { ScreenRect } from './terminal';
 
-export interface WindowParams {
-  /** Chemin de `scripts/video/claude-window.ps1`. */
-  readonly script: string;
-  /** Titre posé sur la fenêtre, le temps que le pilote la trouve. */
-  readonly title: string;
-  readonly cols: number;
-  readonly rows: number;
-  /** Coin haut gauche voulu, en pixels physiques de l'écran. */
-  readonly x: number;
-  readonly y: number;
-  /** Fichier JSON des arguments de `claude` (un tableau de chaînes). */
-  readonly argsFile: string;
-  /** Fichier JSON que la fenêtre écrit avec son rectangle, une fois placée. */
-  readonly rectFile: string;
+export interface WindowProbeOptions {
+  /** Met la fenêtre au-dessus de toutes les autres, pour que rien ne la couvre pendant la prise. */
+  readonly topmost?: boolean;
+  /** Ferme la fenêtre au lieu de rendre son rectangle (fin de prise). */
+  readonly close?: boolean;
 }
 
-/** Arguments de `powershell` pour ouvrir la fenêtre ; même liste en automatique et à la main. */
-export function windowLaunchArgs(p: WindowParams): string[] {
+/** Arguments de `powershell` pour interroger `window-rect.ps1`. */
+export function windowProbeArgs(script: string, title: string, options: WindowProbeOptions): string[] {
   return [
     '-NoProfile',
-    '-NoExit',
     '-ExecutionPolicy',
     'Bypass',
     '-File',
-    p.script,
+    script,
     '-Title',
-    p.title,
-    '-Cols',
-    String(p.cols),
-    '-Rows',
-    String(p.rows),
-    '-X',
-    String(p.x),
-    '-Y',
-    String(p.y),
-    '-ArgsFile',
-    p.argsFile,
-    '-RectFile',
-    p.rectFile,
+    title,
+    ...(options.topmost === true ? ['-Topmost'] : []),
+    ...(options.close === true ? ['-Close'] : []),
   ];
 }
 
-/** La même commande, en une ligne collable dans un terminal. */
-export function windowLaunchLine(p: WindowParams): string {
-  return ['powershell', ...windowLaunchArgs(p).map(shellArg)].join(' ');
-}
-
-/** Un argument tel que `CreateProcess` le veut : entre guillemets, guillemets internes échappés. */
-function windowsQuoted(arg: string): string {
-  return `"${arg.replace(/(\\*)"/g, '$1$1\\"')}"`;
-}
-
-/** Une chaîne littérale PowerShell : entre apostrophes, apostrophes internes doublées. */
-function psLiteral(text: string): string {
-  return `'${text.replace(/'/g, "''")}'`;
-}
-
-/**
- * Commande `Start-Process` qui ouvre une vraie fenêtre de console.
- *
- * C'est le seul moyen qui donne une fenêtre **visible** depuis un processus Node : un `spawn`
- * direct de `powershell`, même `detached`, n'en ouvre aucune (mesuré ici). Et Windows PowerShell
- * 5.1 **ne cite pas** les éléments de `-ArgumentList` : il les concatène tels quels. Un titre
- * contenant une espace était donc coupé en plusieurs arguments, la liaison des paramètres du
- * script échouait, et la fenêtre se refermait dans la seconde — exactement le symptôme d'un
- * lancement « qui ne marche pas ». On cite donc chaque argument nous-mêmes.
- */
-export function startProcessCommand(exe: string, args: readonly string[]): string {
-  const list = args.map((a) => psLiteral(windowsQuoted(a))).join(',');
-  return `Start-Process ${psLiteral(exe)} -ArgumentList ${list}`;
-}
-
-/** Commande PowerShell qui ferme une fenêtre par sa poignée, sans tuer le processus au couteau. */
-export function closeWindowCommand(handle: number): string {
-  return (
-    'Add-Type -Namespace TomatoClose -Name Api -MemberDefinition ' +
-    `'[DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);'; ` +
-    `[void][TomatoClose.Api]::PostMessage([IntPtr]${handle}, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)`
-  );
+export interface WindowProbe {
+  readonly rect: ScreenRect;
+  /** Poignée de la fenêtre, telle que Windows la connaît ; sert à la refermer. */
+  readonly handle: number;
 }
 
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null;
 }
 
-/** Poignée de la fenêtre, de quoi la refermer à la fin de la prise ; `null` si elle est introuvable. */
-export function parseWindowHandle(x: unknown): number | null {
-  if (!isRecord(x)) return null;
-  const handle = x['handle'];
-  return typeof handle === 'number' && handle !== 0 ? handle : null;
-}
-
 /**
- * Rectangle rendu par la fenêtre. Tout ce qui n'est pas quatre nombres avec une surface non nulle
- * est refusé : mieux vaut une prise sans incrustation qu'une capture d'un morceau de bureau.
+ * Ce que le script a rendu. Tout ce qui n'est pas une fenêtre trouvée avec une surface non nulle
+ * rend `null` : mieux vaut une prise sans incrustation qu'une capture d'un morceau de bureau.
  */
-export function parseWindowRect(x: unknown): ScreenRect | null {
-  if (!isRecord(x)) return null;
-  const { x: left, y: top, w, h } = x;
-  if (typeof left !== 'number' || typeof top !== 'number' || typeof w !== 'number' || typeof h !== 'number') return null;
+export function parseWindowProbe(stdout: string): WindowProbe | null {
+  const text = stdout.replace(/^﻿/, '').trim();
+  if (text === '') return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!isRecord(parsed)) return null;
+  const { handle, x, y, w, h } = parsed;
+  if (typeof handle !== 'number' || handle === 0) return null;
+  if (typeof x !== 'number' || typeof y !== 'number' || typeof w !== 'number' || typeof h !== 'number') return null;
   if (w <= 0 || h <= 0) return null;
-  return { x: left, y: top, w, h };
+  return { rect: { x, y, w, h }, handle };
 }
 
 /**
- * Ce que `record.ts` affiche quand la fenêtre ne s'est pas ouverte toute seule : la ligne exacte,
- * ce que le pilote attend, et la seule règle de la prise. La commande `claude` construite est
- * montrée aussi, pour que le propriétaire voie sur quoi la session va se brancher.
+ * Ce que `record.ts` affiche pendant qu'il attend la fenêtre. Elle peut tarder : au premier
+ * lancement dans un dossier, Claude Code demande s'il faut faire confiance à son contenu, et
+ * c'est le propriétaire qui répond — d'où une attente longue et un message qui le dit.
  */
-export function manualLaunchNotice(p: WindowParams, commandLine: string): string {
+export function manualWindowNotice(title: string, timeoutS: number): string {
   return [
     '',
-    'La fenêtre de terminal ne s’est pas ouverte toute seule. Ouvre-la à la main, dans Windows Terminal :',
+    `En attente de la fenêtre « ${title} », ouverte par le serveur au réveil de l’agent.`,
+    `Le pilote patiente jusqu’à ${timeoutS} s, puis filme la prise sans incrustation.`,
     '',
-    `    ${windowLaunchLine(p)}`,
+    'Si elle ne vient pas, ou si elle s’ouvre et attend :',
+    '  - une invite de confiance du dossier (« Do you trust the files in this folder? ») se',
+    '    valide à la main, dans la fenêtre. C’est la seule frappe permise de toute la prise ;',
+    '  - le serveur doit tourner avec TOMATO_AGENT=visible ; sans cela, aucune fenêtre ne s’ouvre.',
     '',
-    'Elle pose son titre, se place, efface son écran, puis lance exactement :',
-    '',
-    `    ${commandLine}`,
-    '',
-    `Le pilote attend le fichier ${p.rectFile}, écrit par la fenêtre dès qu’elle est placée, puis la filme.`,
     'Pendant toute la prise : ne rien poser par-dessus la fenêtre, ne pas la réduire, ne pas y taper.',
     '',
   ].join('\n');

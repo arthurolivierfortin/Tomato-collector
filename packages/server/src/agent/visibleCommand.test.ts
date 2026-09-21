@@ -8,7 +8,7 @@ import {
   teeShellCommand,
   terminalArgs,
   visibleClaudeArgs,
-  windowCommand,
+  launchScript,
   visibleEnv,
   type VisibleCommandInput,
 } from './visibleCommand';
@@ -91,23 +91,25 @@ describe('teeShellCommand', () => {
   });
 });
 
-describe('windowCommand', () => {
-  // `wt.exe --title` est sans effet sur cette version : la fenetre ne s'ouvre meme pas (mesure,
-  // aux deux positions possibles de l'option). Le titre se pose donc depuis l'interieur — une
-  // affectation, qui n'imprime rien a l'ecran — et c'est par lui que le pilote trouve la fenetre.
+describe('launchScript', () => {
+  const script = launchScript('Claude Code headless', INPUT);
+  const lines = script.split(/\r?\n/).filter((l) => l !== '');
+
+  // `wt.exe --title` est sans effet sur cette version : la fenetre ne s'ouvre meme pas. Le titre
+  // se pose donc depuis l'interieur — une affectation, qui n'imprime rien a l'ecran — et c'est
+  // par lui que le pilote trouve la fenetre.
   it('pose le titre par lequel le pilote trouvera la fenêtre, sans rien imprimer', () => {
-    const command = windowCommand('Claude Code headless', INPUT);
-    expect(command.startsWith("$Host.UI.RawUI.WindowTitle = 'Claude Code headless'; claude -p ")).toBe(true);
+    expect(lines[0]).toBe("$Host.UI.RawUI.WindowTitle = 'Claude Code headless'");
   });
 
-  it('n’ajoute rien d’autre : le reste de la ligne est la commande claude', () => {
-    const command = windowCommand('T', INPUT);
-    expect(command.slice(command.indexOf('claude'))).toBe(teeShellCommand(INPUT));
+  it('n’exécute rien d’autre que la commande claude : deux lignes, pas une de plus', () => {
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toBe(teeShellCommand(INPUT));
   });
 });
 
 describe('terminalArgs', () => {
-  const args = terminalArgs({ cols: 110, rows: 32, x: 20, y: 20 }, 'CMD');
+  const args = terminalArgs({ cols: 110, rows: 32, x: 20, y: 20 }, 'C:/data/video/cli/launch.ps1');
 
   it('ouvre une fenêtre neuve de Windows Terminal, dimensionnée et placée', () => {
     expect(args[0]).toBe('-w');
@@ -117,12 +119,16 @@ describe('terminalArgs', () => {
     expect(args[args.indexOf('--pos') + 1]).toBe('20,20');
   });
 
-  it('y lance PowerShell, qui reste ouvert après la fin de l’épisode', () => {
+  // Windows Terminal coupe sa ligne de commande sur les `;`, qui y separent ses sous-commandes :
+  // avec un `-Command` en ligne, la fenetre ne s'ouvrait pas du tout. Un fichier n'a pas ce
+  // probleme, ni celui des guillemets a faire traverser trois analyseurs.
+  it('y joue un fichier de script, pas une commande en ligne', () => {
     expect(args).toContain('powershell');
     expect(args).toContain('-NoExit');
     expect(args).toContain('-NoProfile');
-    expect(args[args.length - 1]).toBe('CMD');
-    expect(args[args.length - 2]).toBe('-Command');
+    expect(args).not.toContain('-Command');
+    expect(args[args.length - 1]).toBe('C:/data/video/cli/launch.ps1');
+    expect(args[args.length - 2]).toBe('-File');
   });
 });
 

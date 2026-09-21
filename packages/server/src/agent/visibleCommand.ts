@@ -110,16 +110,24 @@ export interface WindowGeometry {
 }
 
 /**
- * La commande jouée dans la fenêtre, précédée de la pose du titre.
+ * Le script PowerShell joué dans la fenêtre : deux lignes, le titre puis la commande.
  *
- * `wt.exe --title` est sans effet sur la version installée ici : avec cette option, la fenêtre ne
- * s'ouvre pas du tout — mesuré aux deux positions admises (avant et après `new-tab`), alors que la
- * même ligne sans `--title` ouvre bien la fenêtre. Le titre se pose donc depuis l'intérieur. C'est
- * une **affectation**, elle n'écrit rien à l'écran ; et c'est par ce titre que le pilote trouve la
- * fenêtre à filmer.
+ * Pourquoi un **fichier** et pas un `-Command` en ligne : Windows Terminal coupe sa ligne de
+ * commande sur les `;`, qui y séparent ses propres sous-commandes. La commande `claude` en
+ * contient — ne serait-ce que celui qui suit la pose du titre — et la fenêtre ne s'ouvrait pas du
+ * tout (mesuré : aucune fenêtre, aucun message). Un fichier n'a ni `;`, ni guillemets, ni `$` à
+ * faire traverser trois analyseurs.
+ *
+ * Le titre se pose depuis l'intérieur parce que `wt.exe --title` est sans effet sur la version
+ * installée ici : avec cette option, la fenêtre ne s'ouvre pas non plus. C'est une **affectation**,
+ * elle n'écrit rien à l'écran, et c'est par ce titre que le pilote trouve la fenêtre à filmer.
+ *
+ * Ces deux lignes sont tout ce que la fenêtre exécute : ce qui y défile est la sortie de `claude`.
  */
-export function windowCommand(title: string, input: VisibleCommandInput): string {
-  return `$Host.UI.RawUI.WindowTitle = ${psLiteral(title)}; ${teeShellCommand(input)}`;
+export function launchScript(title: string, input: VisibleCommandInput): string {
+  return `$Host.UI.RawUI.WindowTitle = ${psLiteral(title)}
+${teeShellCommand(input)}
+`;
 }
 
 /**
@@ -129,7 +137,7 @@ export function windowCommand(title: string, input: VisibleCommandInput): string
  *
  * `powershell`, pas `pwsh` : PowerShell 7 n'est pas installé sur cette machine.
  */
-export function terminalArgs(geometry: WindowGeometry, command: string): string[] {
+export function terminalArgs(geometry: WindowGeometry, scriptPath: string): string[] {
   return [
     '-w',
     'new',
@@ -140,8 +148,10 @@ export function terminalArgs(geometry: WindowGeometry, command: string): string[
     'powershell',
     '-NoProfile',
     '-NoExit',
-    '-Command',
-    command,
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    scriptPath,
   ];
 }
 

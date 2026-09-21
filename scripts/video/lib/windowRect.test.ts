@@ -1,130 +1,65 @@
 import { describe, expect, it } from 'vitest';
-import {
-  closeWindowCommand,
-  manualLaunchNotice,
-  parseWindowHandle,
-  parseWindowRect,
-  startProcessCommand,
-  windowLaunchArgs,
-  windowLaunchLine,
-  type WindowParams,
-} from './cliTerminal';
+import { manualWindowNotice, parseWindowProbe, windowProbeArgs } from './windowRect';
 
-const PARAMS: WindowParams = {
-  script: 'C:/Tomato-collector/scripts/video/claude-window.ps1',
-  title: 'Claude Code · Tomato Collector',
-  cols: 110,
-  rows: 32,
-  x: 20,
-  y: 20,
-  argsFile: 'C:/tmp/cli/args.json',
-  rectFile: 'C:/tmp/cli/window.json',
-};
+const SCRIPT = 'C:/Tomato-collector/scripts/video/window-rect.ps1';
 
-describe('windowLaunchArgs', () => {
-  const args = windowLaunchArgs(PARAMS);
-
-  it('ouvre une fenêtre qui reste ouverte après la session', () => {
+describe('windowProbeArgs', () => {
+  it('interroge le script par le titre exact de la fenêtre', () => {
+    const args = windowProbeArgs(SCRIPT, 'Claude Code headless', {});
     expect(args).toContain('-NoProfile');
-    expect(args).toContain('-NoExit');
-    expect(args[args.indexOf('-File') + 1]).toBe(PARAMS.script);
+    expect(args[args.indexOf('-File') + 1]).toBe(SCRIPT);
+    expect(args[args.indexOf('-Title') + 1]).toBe('Claude Code headless');
   });
 
-  it('passe le titre, la taille et la position en paramètres nommés', () => {
-    expect(args[args.indexOf('-Title') + 1]).toBe('Claude Code · Tomato Collector');
-    expect(args[args.indexOf('-Cols') + 1]).toBe('110');
-    expect(args[args.indexOf('-Rows') + 1]).toBe('32');
-    expect(args[args.indexOf('-X') + 1]).toBe('20');
-    expect(args[args.indexOf('-Y') + 1]).toBe('20');
+  // La capture filme une zone de l'écran : tout ce qui passerait devant la fenêtre serait dans le
+  // film. Mesuré pendant la mise au point : la fenêtre s'était ouverte derrière l'éditeur et la
+  // capture a filmé l'éditeur.
+  it('peut mettre la fenêtre au-dessus de tout, pour que rien ne la couvre pendant la prise', () => {
+    expect(windowProbeArgs(SCRIPT, 'T', { topmost: true })).toContain('-Topmost');
+    expect(windowProbeArgs(SCRIPT, 'T', {})).not.toContain('-Topmost');
   });
 
-  it('passe les deux fichiers de la poignée de main : arguments de claude, et rectangle rendu', () => {
-    expect(args[args.indexOf('-ArgsFile') + 1]).toBe('C:/tmp/cli/args.json');
-    expect(args[args.indexOf('-RectFile') + 1]).toBe('C:/tmp/cli/window.json');
-  });
-});
-
-describe('windowLaunchLine', () => {
-  it('rend une ligne collable, les valeurs à espaces entre guillemets', () => {
-    const line = windowLaunchLine(PARAMS);
-    expect(line.startsWith('powershell ')).toBe(true);
-    expect(line).toContain('-Title "Claude Code · Tomato Collector"');
-    expect(line).toContain('-Cols 110');
-    expect(line).toContain(`-File "${PARAMS.script}"`);
+  it('sait aussi demander la fermeture de la fenêtre, à la fin de la prise', () => {
+    expect(windowProbeArgs(SCRIPT, 'T', { close: true })).toContain('-Close');
   });
 });
 
-describe('parseWindowRect', () => {
-  it('lit le rectangle rendu par la fenêtre, en pixels physiques', () => {
-    expect(parseWindowRect({ x: 33, y: 20, w: 2848, h: 1524 })).toEqual({ x: 33, y: 20, w: 2848, h: 1524 });
+describe('parseWindowProbe', () => {
+  it('lit le rectangle rendu par le script, en pixels physiques', () => {
+    expect(parseWindowProbe('{"title":"T","handle":2163430,"x":33,"y":20,"w":2848,"h":1524}')).toEqual({
+      rect: { x: 33, y: 20, w: 2848, h: 1524 },
+      handle: 2163430,
+    });
   });
 
-  it('refuse un rectangle incomplet plutôt que de filmer n’importe où', () => {
-    expect(parseWindowRect({ x: 33, y: 20, w: 2848 })).toBeNull();
-    expect(parseWindowRect({ x: 33, y: 20, w: '2848', h: 1524 })).toBeNull();
-    expect(parseWindowRect(null)).toBeNull();
-    expect(parseWindowRect('33,20')).toBeNull();
+  it('accepte la nomenclature que PowerShell peut mettre en tête de sa sortie', () => {
+    expect(parseWindowProbe('\uFEFF{"handle":7,"x":0,"y":0,"w":100,"h":50}')?.handle).toBe(7);
   });
 
-  it('refuse une fenêtre de taille nulle : ffmpeg y capturerait zéro pixel', () => {
-    expect(parseWindowRect({ x: 0, y: 0, w: 0, h: 600 })).toBeNull();
-    expect(parseWindowRect({ x: 0, y: 0, w: 900, h: -1 })).toBeNull();
+  it('rend null quand la fenêtre n’est pas là : le pilote attend, il ne filme pas le bureau', () => {
+    expect(parseWindowProbe('{"handle":0,"x":0,"y":0,"w":0,"h":0,"error":"window not found by title"}')).toBeNull();
+    expect(parseWindowProbe('')).toBeNull();
+    expect(parseWindowProbe('pas du json')).toBeNull();
+  });
+
+  it('refuse une fenêtre de surface nulle : ffmpeg y capturerait zéro pixel', () => {
+    expect(parseWindowProbe('{"handle":7,"x":0,"y":0,"w":0,"h":600}')).toBeNull();
   });
 });
 
-describe('manualLaunchNotice', () => {
-  const notice = manualLaunchNotice(PARAMS, 'claude --mcp-config "C:/tmp/cli/mcp.json" …');
+describe('manualWindowNotice', () => {
+  const notice = manualWindowNotice('Claude Code headless', 120);
 
-  it('donne la commande exacte à lancer et dit ce que le pilote attend', () => {
-    expect(notice).toContain('powershell');
-    expect(notice).toContain(PARAMS.script);
-    expect(notice).toContain(PARAMS.rectFile);
+  it('nomme la fenêtre attendue et le temps laissé pour la faire apparaître', () => {
+    expect(notice).toContain('Claude Code headless');
+    expect(notice).toContain('120');
+  });
+
+  it('rappelle l’invite de confiance du dossier, que le propriétaire valide à la main', () => {
+    expect(notice.toLowerCase()).toContain('confiance');
   });
 
   it('rappelle la seule règle de la prise : ne rien poser par-dessus la fenêtre', () => {
     expect(notice.toLowerCase()).toContain('par-dessus');
-  });
-
-  it('montre la commande claude réellement construite', () => {
-    expect(notice).toContain('claude --mcp-config');
-  });
-});
-
-describe('startProcessCommand', () => {
-  // Windows PowerShell 5.1 concatène `-ArgumentList` sans rien citer : un argument à espaces est
-  // coupé en morceaux et le script ne démarre pas. Mesuré ici : la fenêtre s'ouvrait et se
-  // refermait aussitôt dès que le titre contenait une espace.
-  it('cite chaque argument, sinon un titre à espaces casse la liaison des paramètres', () => {
-    const cmd = startProcessCommand('powershell', ['-File', 'C:/a b/x.ps1', '-Title', 'Claude Code']);
-    expect(cmd).toBe(`Start-Process 'powershell' -ArgumentList '"-File"','"C:/a b/x.ps1"','"-Title"','"Claude Code"'`);
-  });
-
-  it('double les apostrophes : une chaîne PowerShell entre apostrophes les échappe ainsi', () => {
-    expect(startProcessCommand('powershell', ["l'agent"])).toContain(`'"l''agent"'`);
-  });
-
-  it('échappe les guillemets d’un argument', () => {
-    expect(startProcessCommand('powershell', ['dit "oui"'])).toContain('\\"oui\\"');
-  });
-});
-
-describe('closeWindowCommand', () => {
-  it('ferme la fenêtre par sa poignée, proprement (WM_CLOSE)', () => {
-    const cmd = closeWindowCommand(123456);
-    expect(cmd).toContain('123456');
-    expect(cmd).toContain('0x0010');
-    expect(cmd).toContain('PostMessage');
-  });
-});
-
-describe('parseWindowHandle', () => {
-  it('lit la poignée écrite par la fenêtre, de quoi la refermer à la fin de la prise', () => {
-    expect(parseWindowHandle({ handle: 2163430, x: 33, y: 20, w: 2848, h: 1524 })).toBe(2163430);
-  });
-
-  it('rend null quand la fenêtre n’a pas été trouvée', () => {
-    expect(parseWindowHandle({ handle: 0 })).toBeNull();
-    expect(parseWindowHandle({})).toBeNull();
-    expect(parseWindowHandle(null)).toBeNull();
   });
 });
