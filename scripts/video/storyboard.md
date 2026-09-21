@@ -150,19 +150,31 @@ les mêmes secondes.
   - **Arrêt sur image** — `perception_panel` + 2,6 s, **4,5 s** : « Ripeness is decided from the
     camera frames, not from simulation state ». Le panneau se referme quatre secondes après son
     ouverture : au-delà de +2,6 s l'arrêt tomberait sur un panneau replié.
-- **Segment** : `views_first` − 0,7 s → +1,5 s, cadre sur la trace. Sous-titre : « The agent is
-  awake and asks for its views ».
-  - **Arrêt sur image** — `views_first` + 1,5 s, **4,5 s** : « First tool call of the episode:
-    get_views on all three cameras ».
+- **Segment** : `views_first` → +0,4 s, cadre sur la trace, **sans sous-titre à lui**. Le marqueur
+  est posé quand la trace affiche « Vues demandées » : un segment parti 0,7 s avant annonçait l'appel
+  avant que la ligne existe.
+  - **Arrêt sur image** — `views_first` + 0,4 s, **4,5 s** : « The agent is awake: first tool call
+    of the episode, get_views on all three cameras ».
 
 ### (d bis) L'agent est une vraie session Claude Code
 
-- **Carton** (3,5 s) : **The agent is a real Claude Code session** — *The server console, live: init, text, tool_use, tool_result, result*.
-- **Segment** : `views_first` + 1,5 s → `lightbox_front` − 1,5 s, **terminal incrusté sur la moitié
+- **Carton** (4,5 s) : **Claude Code, headless, live output** — *Screen capture of the terminal it
+  runs in: init, assistant, tool_use, tool_result, result*.
+- **Segment** : `views_first` + 0,4 s → `lightbox_front` − 1,2 s, **terminal incrusté sur la moitié
   droite** (`PIP.half`, 912×570). C'est le moment où le tout premier `tool_use` de la session
-  s'inscrit dans la console.
-- **Sous-titre** : « On the right, the server console: the SDK stream as it arrives ».
-- **Arrêt sur image** — `views_first` + 2,5 s, **4 s** : « The first tool_use of the session: get_views, and the tool_result that answers it ».
+  s'inscrit dans la fenêtre.
+- **Sous-titre** : « On the right, the real process: one JSON message per line, as it arrives ».
+- **Deux arrêts sur image**, et c'est une correction de la v3.1. Un `tool_result` de `get_views`
+  porte trois PNG de 800 × 800 encodés en base64 **sur la même ligne JSON** : la console en fait
+  défiler des centaines d'écrans en moins d'un cinquième de seconde. Mesuré image par image sur
+  `concepts.terminal.mp4` : la ligne `tool_use` est à l'écran de 9,6 s à 11,0 s, le base64 passe
+  entre 11,0 s et 11,2 s, et de 11,2 s à 16,4 s l'écran porte le `tool_result` en JSON sous ses
+  dernières lignes. Il n'existe aucun instant où les deux sont ensemble ; l'arrêt unique de la v3,
+  à `views_first` + 2,5 s, tombait sur huit lignes de base64 avant la première accolade.
+  - `views_first` + 0,7 s, **4,5 s** (capture à 10,2 s) : « The first tool_use of the session
+    (get_views), raw stream-json ».
+  - `lightbox_front` − 1,4 s, **4,5 s** (capture à 15,5 s) : « Its tool_result: the scene as JSON.
+    Image payloads are base64 and scroll by as noise. »
 - Sans capture de terminal, le montage prévient et monte le segment sans incrustation.
 
 ### (e) Les trois vues de l'agent
@@ -236,27 +248,37 @@ dessus** la bande, pour que l'arête inférieure des tuiles de la rangée du bas
 
 ### (f ter) Ce que l'agent reçoit vraiment
 
-- **Segment** : `agent_view` − 1 s → `agent_view` + 3,5 s, `captionWidth: 450`.
+- **Segment** : `agent_view` − 1 s → `agent_view` + 6,3 s, `captionWidth: 450`. Le mode dure de
+  `agent_view` − 1,2 s à `agent_view` + 6,1 s : le segment le suit jusqu'au bout.
 - **Sous-titre** : « Agent view (key v) ».
-- **Arrêt sur image** — `agent_view` + 1 s, **3 s** : « Three images and JSON. Nothing else. »
+- **Arrêt sur image** — `agent_view` + 1 s, **4 s** : « Three images and JSON. Nothing else. »
+- **Agrandissement** — `agent_view` + 4,9 s, **4,5 s**, sur la vue `front` (`ZONE.agentFrontView`) :
+  « The front view the agent works from, until it asks for a fresh one ». *Input:* the views from
+  the first get_views of the episode, header t = 29.8 s, phase detected · *Done by:* the simulation,
+  rendering an orthographic camera and annotating it for the agent · *Output:* numbered tomatoes,
+  the cyan target stem, the magenta blades and their normal, the basket and the fall point.
+
+  La v3 gravait ici « the blades closed on the stem midpoint (12.3, -5.3, 61.5) » et « magenta cut
+  point on the cyan stem » : relevé sur la prise du 2026-09-18, faux sur celle du 2026-09-21. À
+  70,1 s, l'en-tête de la vue dit **t = 29,8 s, phase detected** — ce sont les images du tout
+  premier `get_views`, les seules que l'agent ait — et les ciseaux magenta sont à une vingtaine de
+  centimètres de la tige.
 
 ### (g) La vérification avant la coupe
 
-L'agent ne coupe pas au jugé. Dans le journal de l'épisode filmé
-(`2026-09-18T20-14-09-255Z-t1.json`) : `move_scissors` au point exact, puis « Let me verify the cut
-point sits on the cyan stem in the front and side views before cutting », puis
-`get_views {"cameras":["front","side"]}`, puis `cut`. **Deux caméras, pas trois** : le sous-titre le
-dit comme c'est.
+L'agent ne coupe pas au jugé. Sur la prise du 2026-09-21 : « 4.7 cm from the stem midpoint. Let me
+check the front and side views before the last approach. », puis
+`get_views {"cameras":["front","side"]}`, puis l'ouverture des lames, deux approches courtes et
+`cut`. **Deux caméras, pas trois** : le sous-titre le dit comme c'est.
 
-- **Carton** (4 s) : **Before cutting, the agent checks** — *It asks for the views again and reads
-  the cut point on the stem before it calls cut*.
-- **Segment** : `agent_view` + 3,5 s → `normal_view`, `captionWidth: 450` (toujours en mode « ce que
-  voit l'agent »). Sous-titre : « The agent asks for its views again ».
-- **Agrandissement** — `agent_view` + 4,9 s, **4,5 s**, sur la vue `front` fraîchement rendue
-  (`ZONE.agentFrontView`) : « Before cutting, the agent asks for the front and side views again and
-  checks that the blades sit on the stem ». *Input:* the blades closed on the stem midpoint (12.3,
-  -5.3, 61.5) · *Done by:* the agent, reading the two views it just asked for · *Output:* magenta
-  cut point on the cyan stem, blade normal along it. Only then does it cut.
+- **Carton** (4 s) : **Before cutting, the agent checks** — *It asks for the front and side views
+  again and reads the cut point on the stem before it calls cut*.
+- **Segment** : `agent_view` + 6,3 s → `normal_view`, cadre sur la trace, sous-titre rétréci
+  (`TOOL_CAM_CAPTION`), **sans sous-titre à lui**. Pas plus tôt : la trace n'est pas à l'écran tant
+  que le mode « ce que voit l'agent » est allumé, et la ligne « Vues demandées : front, side » n'y a
+  été relevée qu'à 71,5 s.
+- **Arrêt sur image** — `normal_view`, **4,5 s** : « Views requested again: front and side, read
+  before the cut ».
 
 ### (h) La coupe et la chute dans le panier
 
@@ -265,32 +287,51 @@ le scénario au marqueur `rotate`) et la **caméra outil** s'est allumée toute 
 droit de la colonne. Le sous-titre se range à sa gauche pendant tout le segment
 (`TOOL_CAM_CAPTION`) : de sa largeur habituelle, il passerait juste dessus.
 
-- **Carton** (3,5 s) : **Cut, fall, basket**.
-- **Segment** : `normal_view` → `end`. Cadre sur la colonne de trace, sous-titre rétréci.
-- **Sous-titre** : « The stem is cut, the tomato falls into the basket ».
+**Trois entrées et non une, et c'est la correction principale de la v3.1.** La v3 tenait
+`normal_view` → `end` en un seul segment sous-titré « The stem is cut, the tomato falls into the
+basket » — posé à 72,5 s pour une coupe à 100,4 s. Vingt-six secondes de texte qui annonce ce qui
+n'est pas encore arrivé, parce que le plan avait été réglé sur un épisode où l'agent coupait deux
+secondes après le retour en vue spectateur. Le découpage suit maintenant les marqueurs : aucune de
+ces bornes n'est un chiffre.
+
+**(h1) La dernière approche** — `normal_view` → `cut`. Cadre sur la trace, sous-titre rétréci.
+
+- **Carton** (3,5 s) : **The last approach** — *The blades open, then a few short steps until the
+  cut point sits on the stem midpoint*.
+- **Sous-titre** : « The agent closes the last centimetres, step by step ».
 - **Arrêts sur image** :
   - `normal_view` + 0,9 s, **4 s**, *agrandissement de l'incrustation* (`ZONE.toolCamera`) :
-    « The tool camera rides on the scissors: both blades around the stem, nothing else ».
+    « The tool camera rides on the scissors: the blades, the target stem, the ripe tomato ».
     *Input:* the scissors pose the agent just set, seen from a camera bolted 17 cm behind the pivot ·
     *Done by:* the simulation, rendering a second pass of the spectator layer into the inset ·
-    *Output:* the open V of the blades, the stem between them, the ripe tomato under it.
+    *Output:* the closed blades, the stem they are aiming at, and the ripe tomato hanging under it.
+    À cet instant les lames sont **fermées** et à 4,7 cm du milieu de la tige : elles ne s'ouvrent
+    qu'à 84 s. La v3 disait « both blades around the stem » et « the open V of the blades ».
   - `normal_view` + 1,8 s, **4,5 s** : « The trace follows every call, as the agent makes it ».
     La légende ne cite aucun chiffre : ce que la trace montre à cet instant dépend de la vitesse
-    de l'épisode. Elle annonçait « In the trace: 0.1 cm from the stem midpoint, cutting », vrai
-    le 2026-09-18 ; le 2026-09-21 la trace portait « Vues demandées : front, side » et la coupe
-    est arrivée vingt-six secondes plus tard. Le chiffre de la coupe a son arrêt à `cut` + 1 s.
-    Une seule image porte toute la vérification : l'appel `Coupe` en haut, la phrase de l'agent juste
-    dessous, et sous elle les vues redemandées avec leurs arguments et leur résultat.
-  - `cut` + 0,4 s, **4 s**, *agrandissement de l'incrustation* :
+    de l'épisode.
+
+**(h2) La coupe et la chute** — `cut` → `report`. Cadre sur la trace, sous-titre rétréci.
+
+- **Carton** (3,5 s) : **Cut, fall, basket**.
+- **Sous-titre** : « The stem is cut, the tomato falls into the basket ». Il est posé **sur le
+  marqueur `cut`** : c'est là que la trace affiche « Coupe », donc là que la phrase devient vraie.
+- **Arrêts sur image** :
+  - `cut` + 0,16 s, **4 s**, *agrandissement de l'incrustation* :
     « Blades closed, stem severed, and the tomato starts to fall ».
-    *Input:* the cut call, once the blades sat within 0.5 cm of the stem midpoint ·
+    *Input:* the cut call, once the cut point sat on the stem midpoint ·
     *Done by:* the simulation: the stem constraint is released and physics takes over ·
     *Output:* the closed blades, the cut stem, and the fruit already leaving the frame.
+    +0,16 s et non +0,4 s : mesuré image par image, le fruit quitte le cadre de la caméra outil
+    entre 100,44 s et 100,52 s, soit moins d'une demi-seconde après le marqueur.
   - `cut` + 1 s, **4 s** : « cut returns the distance to the stem and the blade angle »
   - `landed` + 1,6 s, **4,5 s** : « The tomato lands in the basket: harvest confirmed »
 
-Deux secondes après la chute, le scénario represse `k` : le cadrage large revient au moment même où
-l'incrustation s'éteint d'elle-même, et le rapport se lit sur le robot entier.
+**(h3) Le rapport** — `report` → `end`, cadre sur la trace, bandeau de largeur normale (deux
+secondes après la chute, le scénario represse `k` : le cadrage large revient au moment même où
+l'incrustation s'éteint d'elle-même, et le rapport se lit sur le robot entier).
+
+- **Sous-titre** : « The agent reports the harvest and the episode closes ».
 
 ---
 
