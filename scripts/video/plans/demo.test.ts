@@ -6,7 +6,8 @@ import { resolvePlan, type ResolvedSegment } from '../lib/plan';
 import { isMontagePlan } from '../lib/plan';
 import { splitLayout } from '../lib/split';
 import { zoomLayout, type ZoomSpec } from '../lib/zoom';
-import { burnedTexts, demoPlan, planPips, planSplits } from './demo';
+import { signatureBlocks } from '../lib/titleCard';
+import { AUTHOR, BYLINE, PROJECT, burnedTexts, demoPlan, openingCard, planPips, planSplits, signOffCard } from './demo';
 import { PERCEPTION_LIVE, PIP, PROTECTED, RIPENING_SPLIT, SPECTATOR_LIVE, pipelineTile } from './zones';
 
 const end: EndCardData = { outcome: 'tomato harvested', toolCalls: 12, cost: '$0.38', durationS: 61.1 };
@@ -80,6 +81,56 @@ function zoomsOf(take: string): ZoomSpec[] {
 describe('demoPlan', () => {
   it('rend un plan de montage valide, relisible depuis un JSON', () => {
     expect(isMontagePlan(JSON.parse(JSON.stringify(plan)))).toBe(true);
+  });
+
+  it('ouvre le film sur le carton de signature, avant tout le reste', () => {
+    const first = plan.segments[0];
+    expect(first).toEqual(openingCard());
+    expect(first !== undefined && 'card' in first ? first.card : undefined).toMatchObject({
+      text: PROJECT,
+      byline: BYLINE,
+      durationS: 4,
+      subtitle: 'A Claude agent harvests tomatoes in a 3D simulation',
+    });
+    expect(first !== undefined && 'card' in first ? (first.card.fadeS ?? 0) : 0).toBeGreaterThan(0);
+  });
+
+  it('ferme le film sur la même signature, en fondu au noir, après le carton des résultats', () => {
+    const last = plan.segments[plan.segments.length - 1];
+    expect(last).toEqual(signOffCard());
+    expect(last !== undefined && 'card' in last ? last.card : undefined).toMatchObject({ text: PROJECT, byline: BYLINE, durationS: 4 });
+    expect(last !== undefined && 'card' in last ? (last.card.fadeS ?? 0) : 0).toBeGreaterThan(0);
+    // Le dernier carton ne porte pas de sous-texte : la signature reste seule à l'image.
+    expect(last !== undefined && 'card' in last ? last.card.subtitle : 'x').toBeUndefined();
+    const results = plan.segments.findIndex((e) => 'card' in e && e.card.text.startsWith('Result: '));
+    expect(results).toBeGreaterThan(0);
+    expect(results).toBeLessThan(plan.segments.length - 1);
+  });
+
+  it('n’annonce le titre du projet qu’aux deux cartons de signature', () => {
+    const titled = plan.segments.filter((e) => 'card' in e && e.card.text === PROJECT);
+    expect(titled).toHaveLength(2);
+  });
+
+  it('écrit le nom de l’auteur tel qu’il s’écrit, avec un trait d’union court', () => {
+    expect(AUTHOR).toBe('Arthur-Olivier Fortin');
+    expect(BYLINE).toBe('By Arthur-Olivier Fortin');
+    // U+002D et rien d'autre : ni cadratin, ni demi-cadratin, ni trait d'union insécable.
+    expect([...BYLINE].filter((c) => /\p{Pd}/u.test(c))).toEqual(['-']);
+    expect(burnedTexts(plan)).toContain(BYLINE);
+  });
+
+  it('tient chaque ligne des cartons de signature sur une seule ligne de 1920 px', () => {
+    for (const card of [openingCard().card, signOffCard().card]) {
+      const blocks = signatureBlocks(
+        { title: card.text, byline: card.byline ?? '', ...(card.subtitle === undefined ? {} : { subtext: card.subtitle }) },
+        { width: 1920, height: 1080, fps: 30 },
+      );
+      for (const block of blocks) {
+        // Largeur estimée au corps du bloc ; large marge, la police est étroite.
+        expect(block.text.length * block.size * 0.55).toBeLessThan(1920);
+      }
+    }
   });
 
   it('écrit les cartons de fin avec les chiffres du journal, sans rien inventer', () => {

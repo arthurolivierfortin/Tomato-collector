@@ -10,15 +10,14 @@ import { PIP, ZONE } from './zones';
 
 const CONCEPTS = 'concepts';
 
-/** Partie 1 « Les concepts » : prise en direct, avec l'agent réel. */
+/**
+ * Partie 1 « Les concepts » : prise en direct, avec l'agent réel.
+ *
+ * Le carton du titre n'est plus ici : c'est le carton de signature d'ouverture (`demo.ts`), qui dit
+ * la même chose et porte en plus le nom de l'auteur. Deux cartons « Tomato Collector » de suite se
+ * regardaient mal.
+ */
 export const part1: PlanEntry[] = [
-  {
-    card: {
-      text: 'Tomato Collector',
-      durationS: 4.5,
-      subtitle: 'A Claude agent harvests tomatoes in a 3D simulation, using MCP tools and three annotated 2D views',
-    },
-  },
   {
     card: {
       text: 'Part 1: the concepts',
