@@ -34,10 +34,12 @@ function replayLauncher(
    * `launch()` — c'est cette fenetre-la qui laissait relire le flux du serveur precedent.
    */
   startDelayMs = 120,
-): WindowLauncher & { seen: string[][] } {
+): WindowLauncher & { seen: string[][]; closed: string[] } {
   const seen: string[][] = [];
+  const closed: string[] = [];
   return {
     seen,
+    closed,
     launch(args, _env, teePath) {
       seen.push([...args]);
       let timer: NodeJS.Timeout | null = null;
@@ -62,7 +64,8 @@ function replayLauncher(
         }, tickMs);
       })();
       return {
-        close: () => {
+        close: (reason) => {
+          closed.push(reason);
           if (timer !== null) clearInterval(timer);
           return Promise.resolve();
         },
@@ -215,5 +218,82 @@ describe('createVisibleAgent, fichiers de session', () => {
     for await (const _ of agent.query('wake', options(null))) void _;
     await agent.dispose();
     expect(existsSync(agent.sessionDir)).toBe(true);
+  });
+});
+
+describe('createVisibleAgent, épisode qui ne finit pas', () => {
+  /** Fenêtre qui s'ouvre et n'écrit rien : `claude` bloqué, ou fermé à la main par le propriétaire. */
+  function silentLauncher(lines: readonly string[] = []): WindowLauncher & { closed: string[] } {
+    const closed: string[] = [];
+    return {
+      closed,
+      launch(_args, _env, teePath) {
+        if (lines.length > 0) writeFileSync(teePath, `${lines.join('\n')}\n`, 'utf8');
+        return {
+          close: (reason) => {
+            closed.push(reason);
+            return Promise.resolve();
+          },
+        };
+      },
+    };
+  }
+
+  const INIT_LINE =
+    '{"type":"system","subtype":"init","session_id":"s1","model":"m","mcp_servers":[{"name":"robot","status":"connected"}],"apiKeySource":"none"}';
+
+  async function drain(agent: ReturnType<typeof createVisibleAgent>): Promise<AgentMessage[]> {
+    const seen: AgentMessage[] = [];
+    for await (const msg of agent.query('wake', options(null))) seen.push(msg);
+    return seen;
+  }
+
+  it('abandonne quand aucun init n’arrive : sans cela l’épisode reste ouvert pour toujours', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tomato-visible-'));
+    const agent = createVisibleAgent({
+      workDir: dir,
+      title: 'T',
+      geometry: { cols: 110, rows: 32, x: 0, y: 0, cwd: 'C:/repo' },
+      launcher: silentLauncher(),
+      pollMs: 5,
+      initTimeoutMs: 120,
+      idleTimeoutMs: 5000,
+    });
+    await expect(drain(agent)).rejects.toThrow(/init|démarr/i);
+  });
+
+  it('abandonne quand le flux se tait après avoir commencé : fenêtre fermée à la main', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tomato-visible-'));
+    const agent = createVisibleAgent({
+      workDir: dir,
+      title: 'T',
+      geometry: { cols: 110, rows: 32, x: 0, y: 0, cwd: 'C:/repo' },
+      launcher: silentLauncher([INIT_LINE]),
+      pollMs: 5,
+      initTimeoutMs: 5000,
+      idleTimeoutMs: 150,
+    });
+    await expect(drain(agent)).rejects.toThrow(/muet|silence|plus rien/i);
+  });
+
+  it('prévient la fenêtre que l’épisode a été coupé, pour qu’elle tue le processus', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tomato-visible-'));
+    const launcher = silentLauncher();
+    const agent = createVisibleAgent({
+      workDir: dir,
+      title: 'T',
+      geometry: { cols: 110, rows: 32, x: 0, y: 0, cwd: 'C:/repo' },
+      launcher,
+      pollMs: 5,
+      initTimeoutMs: 100,
+      idleTimeoutMs: 5000,
+    });
+    await drain(agent).catch(() => undefined);
+    expect(launcher.closed).toEqual(['aborted']);
+  });
+
+  it('laisse la fenêtre tranquille quand l’épisode va jusqu’au result', async () => {
+    const { launcher } = await collect();
+    expect(launcher.closed).toEqual(['finished']);
   });
 });

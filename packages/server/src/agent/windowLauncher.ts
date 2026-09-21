@@ -25,12 +25,18 @@ export function startProcessCommand(exe: string, args: readonly string[]): strin
   return `Start-Process ${psLiteral(exe)} -ArgumentList ${args.map((a) => psLiteral(windowsQuoted(a))).join(',')}`;
 }
 
-/** La commande PowerShell qui referme une fenêtre par sa poignée, sans tuer le processus au couteau. */
-export function closeWindowCommand(handle: number): string {
+/**
+ * La commande PowerShell qui tue le shell de la fenêtre **et son `claude`**, retrouvés par le
+ * chemin du script de lancement — unique à l'épisode. `taskkill /T` prend l'arbre : sans lui, le
+ * `claude` fils survivrait au shell et continuerait d'appeler un serveur MCP arrêté.
+ *
+ * `.Contains(…)` et non `-like` : un chemin peut contenir des crochets, que `-like` lirait comme
+ * un motif. Et `-ne $null` d'abord : certaines lignes de commande ne sont pas lisibles.
+ */
+export function killByScriptCommand(scriptPath: string): string {
   return (
-    'Add-Type -Namespace TomatoClose -Name Api -MemberDefinition ' +
-    `'[DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);'; ` +
-    `[void][TomatoClose.Api]::PostMessage([IntPtr]${handle}, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)`
+    `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -ne $null -and $_.CommandLine.Contains(${psLiteral(scriptPath)}) } ` +
+    '| ForEach-Object { taskkill /T /F /PID $_.ProcessId }'
   );
 }
 
@@ -45,7 +51,25 @@ export function createWindowLauncher(log: Logger = silentLogger): WindowLauncher
       const command = startProcessCommand('wt.exe', [...args]);
       const child = spawn('powershell.exe', ['-NoProfile', '-Command', command], { env, stdio: 'ignore' });
       child.once('error', (e) => log(`agent visible : ouverture de la fenêtre impossible (${e.message})`));
-      return { close: () => Promise.resolve() };
+      // Le chemin du script de lancement est le dernier argument de `wt.exe`, et il est unique à
+      // l'épisode : c'est par lui qu'on retrouvera le shell et son `claude` s'il faut les couper.
+      const scriptPath = args[args.length - 1] ?? '';
+      return {
+        close(reason) {
+          // Fin normale : `claude` s'est arrêté seul après son `result`, et la fenêtre doit rester
+          // à l'image jusqu'à la fin de la prise (`-NoExit`). Rien à faire.
+          if (reason === 'finished') return Promise.resolve();
+          log(`agent visible : épisode coupé, arrêt du processus de la fenêtre (${scriptPath})`);
+          return new Promise<void>((done) => {
+            const killer = spawn('powershell.exe', ['-NoProfile', '-Command', killByScriptCommand(scriptPath)], { stdio: 'ignore' });
+            killer.once('error', (e) => {
+              log(`agent visible : arrêt du processus impossible (${e.message})`);
+              done();
+            });
+            killer.once('exit', () => done());
+          });
+        },
+      };
     },
   };
 }
