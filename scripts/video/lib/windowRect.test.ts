@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { manualWindowNotice, parseWindowProbe, windowProbeArgs } from './windowRect';
+import { manualWindowNotice, parseWindowProbe, splitProbeLines, windowProbeArgs } from './windowRect';
 
 const SCRIPT = 'C:/Tomato-collector/scripts/video/window-rect.ps1';
 
@@ -29,6 +29,40 @@ describe('windowProbeArgs', () => {
     const args = windowProbeArgs(SCRIPT, 'Claude Code headless', { handle: 2035468, topmost: true });
     expect(args[args.indexOf('-Handle') + 1]).toBe('2035468');
     expect(args).toContain('-Topmost');
+  });
+
+  /*
+   * Mesure sur cette machine : une sonde d'un coup coute 530 ms, presque entierement passee a
+   * compiler le type Add-Type. A 250 ms d'intervalle pendant l'attente de la fenetre puis toute
+   * la prise, les sondes se chevauchaient et occupaient plus de deux coeurs — pendant qu'un
+   * navigateur headless enregistre 1920x1080 a 25 img/s. Un seul processus, qui boucle a
+   * l'interieur, ramene ce cout a une compilation unique.
+   */
+  it('sait boucler dans un seul processus, une ligne par tour', () => {
+    const args = windowProbeArgs(SCRIPT, 'T', { watch: true, intervalMs: 250, topmost: true });
+    expect(args).toContain('-Watch');
+    expect(args[args.indexOf('-IntervalMs') + 1]).toBe('250');
+  });
+});
+
+describe('splitProbeLines', () => {
+  it('rend les lignes complètes et garde le reste pour la lecture suivante', () => {
+    expect(splitProbeLines('{"a":1}\n{"b":2}\n')).toEqual({ lines: ['{"a":1}', '{"b":2}'], rest: '' });
+  });
+
+  it('garde une ligne coupée en deux', () => {
+    expect(splitProbeLines('{"a":1}\n{"b"')).toEqual({ lines: ['{"a":1}'], rest: '{"b"' });
+  });
+
+  it('accepte les fins de ligne de Windows et ignore les lignes vides', () => {
+    expect(splitProbeLines('{"a":1}\r\n\r\n').lines).toEqual(['{"a":1}']);
+  });
+});
+
+describe('splitProbeLines, ancien reste', () => {
+  it('recolle le reste de la lecture précédente', () => {
+    const first = splitProbeLines('{"a"');
+    expect(splitProbeLines(`${first.rest}:1}\n`).lines).toEqual(['{"a":1}']);
   });
 });
 

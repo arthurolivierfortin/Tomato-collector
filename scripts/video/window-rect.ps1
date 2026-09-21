@@ -28,7 +28,12 @@ param(
   # Poignee deja connue : on ne cherche plus par le titre, que Claude Code reprend au demarrage.
   [long]$Handle = 0,
   [switch]$Topmost,
-  [switch]$Close
+  [switch]$Close,
+  # Boucle : une ligne JSON par tour, jusqu'a ce que le pilote ferme le processus. Un seul
+  # powershell pour toute la prise, au lieu d'un par sonde : une sonde coute 530 ms sur cette
+  # machine (mesure), dont la quasi-totalite en compilation du type Add-Type.
+  [switch]$Watch,
+  [int]$IntervalMs = 250
 )
 
 $ErrorActionPreference = 'Stop'
@@ -54,7 +59,6 @@ public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
 [void][TomatoRect.Api]::SetProcessDPIAware()
 
 $script:wanted = $Title
-$script:found = if ($Handle -ne 0) { [IntPtr]$Handle } else { [IntPtr]::Zero }
 $cb = [TomatoRect.Api+EnumWindowsProc] {
   param($h, $l)
   if ([TomatoRect.Api]::IsWindowVisible($h)) {
@@ -64,44 +68,76 @@ $cb = [TomatoRect.Api+EnumWindowsProc] {
   }
   return $true
 }
-if ($Handle -eq 0) { [void][TomatoRect.Api]::EnumWindows($cb, [IntPtr]::Zero) }
-$handle = $script:found
 
-if ($handle -eq [IntPtr]::Zero) {
-  $out = @{ title = $Title; handle = 0; x = 0; y = 0; w = 0; h = 0; error = 'window not found by title' }
-  [Console]::Out.Write(($out | ConvertTo-Json -Compress))
-  exit 0
+function Find-Window([long]$known) {
+  if ($known -ne 0) { return [IntPtr]$known }
+  $script:found = [IntPtr]::Zero
+  [void][TomatoRect.Api]::EnumWindows($cb, [IntPtr]::Zero)
+  return $script:found
 }
+
+function Get-Rect([IntPtr]$h) {
+  # DWMWA_EXTENDED_FRAME_BOUNDS = 9 : le cadre visible, sans la bordure de saisie invisible de
+  # Windows 11. C'est la zone utile de la fenetre, celle qu'il faut filmer.
+  $frame = New-Object TomatoRect.Api+RECT
+  $dwm = [TomatoRect.Api]::DwmGetWindowAttribute($h, 9, [ref]$frame, 16)
+  $rect = New-Object TomatoRect.Api+RECT
+  [void][TomatoRect.Api]::GetWindowRect($h, [ref]$rect)
+  $use = if ($dwm -eq 0) { $frame } else { $rect }
+  return @{
+    title  = $Title
+    handle = [int64]$h
+    x      = $use.Left
+    y      = $use.Top
+    w      = ($use.Right - $use.Left)
+    h      = ($use.Bottom - $use.Top)
+  }
+}
+
+function Raise-Window([IntPtr]$h) {
+  # SW_SHOW = 5, HWND_TOPMOST = -1, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE = 0x0013.
+  # Pas de SetForegroundWindow : HWND_TOPMOST suffit a ce que rien ne passe devant, et voler le
+  # focus a chaque tour genait le proprietaire sans rien apporter a la capture.
+  [void][TomatoRect.Api]::ShowWindow($h, 5)
+  [void][TomatoRect.Api]::SetWindowPos($h, [IntPtr](-1), 0, 0, 0, 0, 0x0013)
+}
+
+$missing = @{ title = $Title; handle = 0; x = 0; y = 0; w = 0; h = 0; error = 'window not found by title' }
 
 if ($Close) {
-  # WM_CLOSE : la fenetre se ferme comme si on avait clique sur la croix.
-  [void][TomatoRect.Api]::PostMessage($handle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
-  [Console]::Out.Write((@{ title = $Title; handle = [int64]$handle; closed = $true; x = 0; y = 0; w = 0; h = 0 } | ConvertTo-Json -Compress))
+  $h = Find-Window $Handle
+  if ($h -ne [IntPtr]::Zero) {
+    # WM_CLOSE : la fenetre se ferme comme si on avait clique sur la croix.
+    [void][TomatoRect.Api]::PostMessage($h, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+    [Console]::Out.Write((@{ title = $Title; handle = [int64]$h; closed = $true; x = 0; y = 0; w = 0; h = 0 } | ConvertTo-Json -Compress))
+  } else {
+    [Console]::Out.Write(($missing | ConvertTo-Json -Compress))
+  }
   exit 0
 }
 
-if ($Topmost) {
-  # SW_SHOW = 5, HWND_TOPMOST = -1, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE = 0x0013.
-  [void][TomatoRect.Api]::ShowWindow($handle, 5)
-  [void][TomatoRect.Api]::SetWindowPos($handle, [IntPtr](-1), 0, 0, 0, 0, 0x0013)
-  [void][TomatoRect.Api]::SetForegroundWindow($handle)
-  Start-Sleep -Milliseconds 300
+if (-not $Watch) {
+  $h = Find-Window $Handle
+  if ($h -eq [IntPtr]::Zero) { [Console]::Out.Write(($missing | ConvertTo-Json -Compress)); exit 0 }
+  if ($Topmost) { Raise-Window $h; Start-Sleep -Milliseconds 300 }
+  [Console]::Out.Write(((Get-Rect $h) | ConvertTo-Json -Compress))
+  exit 0
 }
 
-# DWMWA_EXTENDED_FRAME_BOUNDS = 9 : le cadre visible, sans la bordure de saisie invisible de
-# Windows 11. C'est la zone utile de la fenetre, celle qu'il faut filmer.
-$frame = New-Object TomatoRect.Api+RECT
-$dwm = [TomatoRect.Api]::DwmGetWindowAttribute($handle, 9, [ref]$frame, 16)
-$rect = New-Object TomatoRect.Api+RECT
-[void][TomatoRect.Api]::GetWindowRect($handle, [ref]$rect)
-$use = if ($dwm -eq 0) { $frame } else { $rect }
-
-$out = @{
-  title  = $Title
-  handle = [int64]$handle
-  x      = $use.Left
-  y      = $use.Top
-  w      = ($use.Right - $use.Left)
-  h      = ($use.Bottom - $use.Top)
+# Boucle de surveillance : une ligne JSON par tour. Des que la fenetre est trouvee, on garde sa
+# poignee — Claude Code reprend le titre quelques secondes apres son demarrage — et on la remet
+# au-dessus a chaque tour, parce que wt.exe applique --pos et --size apres coup et qu'elle repasse
+# derriere. Le pilote ferme ce processus quand la prise est finie.
+$known = [long]$Handle
+while ($true) {
+  $h = Find-Window $known
+  if ($h -eq [IntPtr]::Zero) {
+    [Console]::Out.WriteLine(($missing | ConvertTo-Json -Compress))
+  } else {
+    $known = [long]$h
+    if ($Topmost) { Raise-Window $h }
+    [Console]::Out.WriteLine(((Get-Rect $h) | ConvertTo-Json -Compress))
+  }
+  [Console]::Out.Flush()
+  Start-Sleep -Milliseconds $IntervalMs
 }
-[Console]::Out.Write(($out | ConvertTo-Json -Compress))
