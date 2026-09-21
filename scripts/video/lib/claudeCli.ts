@@ -26,6 +26,14 @@
 export const DEFAULT_MCP_NAME = 'tomato-robot';
 
 /**
+ * Modèle de la session filmée. **L'alias, pas le nom complet.** Mesuré en ouvrant une session
+ * sans message — donc sans coût — et en lisant l'en-tête de la fenêtre : `--model claude-opus-5`,
+ * qui est pourtant le défaut du SDK (`queryOptions.ts`), donne « Fable 5.1 with high effort » ;
+ * `--model opus` donne « Opus 5 with xhigh effort ». Le CLI résout ses alias, pas ce nom-là.
+ */
+export const DEFAULT_CLI_MODEL = 'opus';
+
+/**
  * Longueur maximale du prompt système et du message de réveil réunis. `CreateProcess` plafonne
  * `lpCommandLine` à 32 767 caractères ; 25 000 laisse la place au reste des arguments.
  * Seuil repris de `ClaudeCodeLLMProvider.MaxPromptArgLength` (Maestro), éprouvé en production.
@@ -93,6 +101,12 @@ export function claudeArgs(launch: ClaudeLaunch): string[] {
     'dontAsk',
     '--tools',
     '',
+    // `settingSources: []` côté SDK : ni réglages utilisateur, ni réglages de projet, ni locaux.
+    '--setting-sources',
+    '',
+    // Claude in Chrome est un serveur MCP intégré, que `--strict-mcp-config` ne couvre pas : il se
+    // charge quand même (relevé dans le journal `--debug mcp`). La session filmée n'a que le robot.
+    '--no-chrome',
     '--model',
     launch.model,
     '--system-prompt',
@@ -109,13 +123,34 @@ export function claudeArgs(launch: ClaudeLaunch): string[] {
 export const MAX_MCP_OUTPUT_TOKENS = '400000';
 
 /**
- * Environnement du processus `claude`. `CLAUDECODE` est **retiré** : un `claude` lancé depuis une
- * session Claude Code le trouve dans son environnement et refuse de démarrer. Leçon reprise de
- * `ClaudeCodeLLMProvider.RunProcessAsync` (Maestro), qui fait exactement ça.
+ * Marqueurs qu'une session Claude Code pose dans l'environnement de ses processus fils, et qui
+ * n'ont rien à faire dans la session filmée. `CLAUDECODE` d'abord : sans son retrait, un `claude`
+ * lancé depuis une session Claude Code ne démarre pas (leçon de
+ * `ClaudeCodeLLMProvider.RunProcessAsync`, Maestro). Les autres ont été relevés **à l'écran**
+ * pendant la mise au point : le CLI affichait « Transcript saving is off — inherited
+ * CLAUDE_CODE_CHILD_SESSION marker » sur la dernière ligne de la fenêtre, donc dans le film.
+ *
+ * Liste nommée, jamais un préfixe : `CLAUDE_CODE_OAUTH_TOKEN` et `ANTHROPIC_API_KEY` portent
+ * l'authentification du propriétaire et doivent passer intacts.
  */
+export const NESTED_SESSION_VARS: readonly string[] = [
+  'CLAUDECODE',
+  'CLAUDE_CODE_CHILD_SESSION',
+  'CLAUDE_CODE_SESSION_ID',
+  'CLAUDE_CODE_SESSION_ATTENDED',
+  'CLAUDE_CODE_ENTRYPOINT',
+  'CLAUDE_CODE_EXECPATH',
+  'CLAUDE_CODE_SSE_PORT',
+  'CLAUDE_CODE_MESSAGING_SOCKET',
+  'CLAUDE_CODE_MESSAGING_TOKEN',
+  'CLAUDE_PID',
+  'CLAUDE_EFFORT',
+];
+
+/** Environnement du processus `claude` : limite MCP relevée, marqueurs de session imbriquée retirés. */
 export function claudeEnv(env: Readonly<Record<string, string | undefined>>): Record<string, string | undefined> {
   const out: Record<string, string | undefined> = { ...env, MAX_MCP_OUTPUT_TOKENS };
-  delete out['CLAUDECODE'];
+  for (const name of NESTED_SESSION_VARS) delete out[name];
   return out;
 }
 
