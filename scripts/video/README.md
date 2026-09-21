@@ -409,6 +409,14 @@ fenêtre de terminal, qui, elle, est petite et visible.
 image, produit un fichier par sous-plan puis les concatène :
 
 - **cartons de titre** : fond `0x0E1116`, Segoe UI, titre et sous-titre centrés ;
+- **cartons de signature** : le film s'ouvre et se ferme sur « Tomato Collector » avec
+  « By Arthur-Olivier Fortin » dessous (v2.3). Un carton qui porte une `byline` n'est plus placé par
+  ffmpeg mais par `lib/titleCard.ts` : trois corps empilés (88, 44 et 30 px), la pile centrée
+  verticalement **en pixels**, ce qui se teste sans lancer ffmpeg. Le carton d'ouverture ajoute un
+  sous-texte, celui de fin non. Les deux portent un `fadeS` : un fondu au noir de 0,6 s à l'entrée
+  comme à la sortie, posé **après** les `drawtext` pour emporter le texte avec le fond. Le nom
+  s'écrit avec un **trait d'union court** (U+002D) ; la règle « aucun tiret cadratin » vise la
+  ponctuation, pas un nom propre, et `plans/demo.test.ts` vérifie les deux ;
 - **arrêts sur image** : une image extraite à l'instant voulu, tenue 2 à 4,5 s, avec son sous-titre ;
 - **sous-titres** : un seul `drawtext`, avec son propre fond (`box=1`) et sa marge (`boxborderw`),
   toujours au même endroit — le bas de la colonne spectateur, vide dès que les contrôles sont
@@ -496,6 +504,7 @@ sous-titre dépasse deux lignes.
     lib/planGuard.ts       garde de type d'un plan lu depuis un JSON
     lib/cuts.ts            découpe d'un segment en sous-plans
     lib/style.ts           rectangles, format de sortie, style des textes gravés
+    lib/titleCard.ts       pile et fondu d'un carton de signature (pur, testé)
     lib/ffmpegFilters.ts   construction des filtres ffmpeg (pur, testé)
     lib/zoom.ts            géométrie et filtres d'un agrandissement (pur, testé)
     lib/split.ts           géométrie et filtres d'un écran partagé (pur, testé)
