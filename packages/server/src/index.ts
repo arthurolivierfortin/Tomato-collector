@@ -64,13 +64,13 @@ async function main(): Promise<void> {
   // Le serveur de réveil manuel écoute dans les deux modes ; agent off, le réveil est mis en scène sans SDK (issue #29).
   const { runner, wakePort, stop } = await startRunner(
     { hub, session, sim, mcpUrl, model: config.model, systemPrompt },
-    { agent: config.agent, log },
+    { agent: config.agent, visible: config.visible, log },
   );
   session.onWake((e) => runner.wake(e));
 
   const wake = wakePort === null ? 'réveil manuel indisponible' : `réveil manuel http://127.0.0.1:${wakePort}/wake/<tomatoId>`;
   log(
-    `prêt : MCP ${mcpUrl} · WebSocket ws://localhost:${wsPort} · ${wake} · épisodes ${config.episodesDir} · agent ${config.agent} (${config.model}) · rythme outils ${config.toolPacingMs} ms · flux console ${config.logStream}${config.logFile === '' ? '' : ` → ${config.logFile}`}`,
+    `prêt : MCP ${mcpUrl} · WebSocket ws://localhost:${wsPort} · ${wake} · épisodes ${config.episodesDir} · agent ${config.agent}${config.agent === 'visible' ? ` (fenêtre « ${config.visible.title} », flux ${config.visible.dir})` : ''} (${config.model}) · rythme outils ${config.toolPacingMs} ms · flux console ${config.logStream}${config.logFile === '' ? '' : ` → ${config.logFile}`}`,
   );
 
   const shutdown = (): void => {

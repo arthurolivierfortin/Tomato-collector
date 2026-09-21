@@ -1,4 +1,8 @@
+import type { QueryFn } from './agent/types';
+import { createVisibleQuery } from './agent/visibleQuery';
+import { createWindowLauncher } from './agent/windowLauncher';
 import { createWakeServer, readWakePort, resolveWakeEvent } from './agent/wakeServer';
+import type { VisibleConfig } from './config';
 import type { Hub } from './hub/hub';
 import { silentLogger, type Logger } from './log';
 import type { SimBridge } from './sim/simBridge';
@@ -22,6 +26,11 @@ export interface AgentRunnerDeps {
   sim?: SimBridge;
   /** Port de réveil laissé à M6 ; `-1` : le serveur de réveil est celui d'ici, dans les deux modes (issue #29). */
   wakePort?: number;
+  /**
+   * Flux d'un épisode. Absent : M6 prend `query()` du SDK. Le mode `visible` en passe un qui joue
+   * le **même** agent headless dans une fenêtre Windows Terminal et relit sa sortie.
+   */
+  query?: QueryFn;
 }
 
 export type CreateAgentRunner = (deps: AgentRunnerDeps) => AgentRunner;
@@ -107,7 +116,9 @@ export async function loadAgentRunner(deps: AgentRunnerDeps, log: Logger = silen
 }
 
 export interface RunnerOptions {
-  agent: 'on' | 'off';
+  agent: 'on' | 'off' | 'visible';
+  /** Fenêtre filmée du mode `visible` ; ignorée dans les deux autres modes. */
+  visible?: VisibleConfig;
   /** Défaut : `TOMATO_WAKE_PORT` (7333) ; 0 = port libre (tests) ; négatif = pas de serveur. */
   wakePort?: number;
   log?: Logger;
@@ -130,17 +141,33 @@ export interface RunnerHandle {
 export async function startRunner(deps: AgentRunnerDeps, opts: RunnerOptions): Promise<RunnerHandle> {
   const log = opts.log ?? silentLogger;
   const sim = deps.sim;
+  // `visible` charge le même module d'agent que `on` : même cycle d'épisode, même journal, même
+  // coût. Seul le chemin du flux change — une fenêtre et un fichier au lieu d'un tuyau caché.
+  const visibleQuery =
+    opts.agent === 'visible' && opts.visible !== undefined
+      ? createVisibleQuery({
+          workDir: opts.visible.dir,
+          title: opts.visible.title,
+          geometry: { cols: opts.visible.cols, rows: opts.visible.rows, x: opts.visible.x, y: opts.visible.y },
+          launcher: createWindowLauncher(log),
+          log,
+        })
+      : null;
   const runner =
-    opts.agent === 'on'
-      ? await loadAgentRunner({ ...deps, wakePort: -1 }, log, opts.module ?? AGENT_MODULE)
-      : createNoopRunner(log, { hub: deps.hub, session: deps.session });
+    opts.agent === 'off'
+      ? createNoopRunner(log, { hub: deps.hub, session: deps.session })
+      : await loadAgentRunner(
+          { ...deps, wakePort: -1, ...(visibleQuery === null ? {} : { query: visibleQuery }) },
+          log,
+          opts.module ?? AGENT_MODULE,
+        );
   const port = opts.wakePort ?? readWakePort();
   const wake =
     port < 0
       ? null
       : await createWakeServer({
           port,
-          agent: opts.agent,
+          agent: opts.agent === 'off' ? 'off' : 'on',
           runner,
           resolve: (id) => (sim === undefined ? null : resolveWakeEvent(sim, id)),
           knownIds: () => (sim?.latestState()?.tomatoes ?? []).map((t) => t.id),

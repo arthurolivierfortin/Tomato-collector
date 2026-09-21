@@ -7,8 +7,15 @@ export interface ServerConfig {
   wsPort: number;
   /** Modèle de l'agent (M6). */
   model: string;
-  /** `off` : aucun runner d'agent, pilotage à la main depuis Claude Code. */
-  agent: 'on' | 'off';
+  /**
+   * `on` : le SDK, dans un tuyau invisible. `off` : aucun runner, pilotage à la main.
+   * `visible` : **le même agent headless**, lancé dans une vraie fenêtre Windows Terminal dont la
+   * sortie brute (`--output-format stream-json`) est filmée, et que le serveur relit dans le
+   * fichier écrit par `Tee-Object` (issue vidéo : montrer que la session est réelle).
+   */
+  agent: 'on' | 'off' | 'visible';
+  /** Fenêtre de l'agent visible : où travailler, comment la nommer, quelle taille lui donner. */
+  visible: VisibleConfig;
   /** Dossier des journaux d'épisodes. */
   episodesDir: string;
   /** Durée minimale d'un appel d'outil, de `tool_call_start` à `tool_call_result` (0 = pas de rythme). */
@@ -25,6 +32,24 @@ export interface ServerConfig {
    */
   logFile: string;
 }
+
+/** Fenêtre filmée de l'agent visible. */
+export interface VisibleConfig {
+  /** Titre posé sur la fenêtre : c'est par lui que `record.ts` la trouve pour la filmer. */
+  title: string;
+  /** Colonnes et lignes du terminal ; 110 × 32 tient dans un écran de 1536 × 960. */
+  cols: number;
+  rows: number;
+  /** Coin haut gauche, en points logiques (`wt --pos`). */
+  x: number;
+  y: number;
+  /** Dossier de travail : prompts, configuration MCP et fichiers `.jsonl` des épisodes. */
+  dir: string;
+}
+
+export const DEFAULT_VISIBLE_TITLE = 'Claude Code headless';
+/** `packages/server/src` → racine du dépôt → `data/video/cli`. */
+export const DEFAULT_VISIBLE_DIR = resolve(import.meta.dirname, '../../../data/video/cli');
 
 export const DEFAULT_MCP_PORT = 7331;
 export const DEFAULT_WS_PORT = 7332;
@@ -47,6 +72,12 @@ function readMs(raw: string | undefined, fallback: number): number {
   return Number.isInteger(n) && n >= 0 ? n : fallback;
 }
 
+/** Entier strictement positif : une fenêtre de zéro colonne n'a pas de sens. */
+function readPositive(raw: string | undefined, fallback: number): number {
+  const n = Number(raw ?? '');
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
 function nonEmpty(raw: string | undefined, fallback: string): string {
   const v = raw?.trim();
   return v !== undefined && v !== '' ? v : fallback;
@@ -58,7 +89,15 @@ export function readConfig(env: Record<string, string | undefined>): ServerConfi
     mcpPort: readPort(env.TOMATO_MCP_PORT, DEFAULT_MCP_PORT),
     wsPort: readPort(env.TOMATO_WS_PORT, DEFAULT_WS_PORT),
     model: nonEmpty(env.TOMATO_MODEL, DEFAULT_MODEL),
-    agent: env.TOMATO_AGENT === 'off' ? 'off' : 'on',
+    agent: env.TOMATO_AGENT === 'off' ? 'off' : env.TOMATO_AGENT === 'visible' ? 'visible' : 'on',
+    visible: {
+      title: nonEmpty(env.TOMATO_VISIBLE_TITLE, DEFAULT_VISIBLE_TITLE),
+      cols: readPositive(env.TOMATO_VISIBLE_COLS, 110),
+      rows: readPositive(env.TOMATO_VISIBLE_ROWS, 32),
+      x: readMs(env.TOMATO_VISIBLE_X, 20),
+      y: readMs(env.TOMATO_VISIBLE_Y, 20),
+      dir: nonEmpty(env.TOMATO_VISIBLE_DIR, DEFAULT_VISIBLE_DIR),
+    },
     episodesDir: nonEmpty(env.TOMATO_EPISODES_DIR, DEFAULT_EPISODES_DIR),
     toolPacingMs: readMs(env.TOMATO_TOOL_PACING_MS, DEFAULT_TOOL_PACING_MS),
     logStream: env.TOMATO_LOG_STREAM === 'on' ? 'on' : 'off',

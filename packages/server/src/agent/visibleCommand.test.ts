@@ -8,6 +8,7 @@ import {
   teeShellCommand,
   terminalArgs,
   visibleClaudeArgs,
+  windowCommand,
   visibleEnv,
   type VisibleCommandInput,
 } from './visibleCommand';
@@ -90,13 +91,28 @@ describe('teeShellCommand', () => {
   });
 });
 
-describe('terminalArgs', () => {
-  const args = terminalArgs('Claude Code headless', { cols: 110, rows: 32, x: 20, y: 20 }, 'CMD');
+describe('windowCommand', () => {
+  // `wt.exe --title` est sans effet sur cette version : la fenetre ne s'ouvre meme pas (mesure,
+  // aux deux positions possibles de l'option). Le titre se pose donc depuis l'interieur — une
+  // affectation, qui n'imprime rien a l'ecran — et c'est par lui que le pilote trouve la fenetre.
+  it('pose le titre par lequel le pilote trouvera la fenêtre, sans rien imprimer', () => {
+    const command = windowCommand('Claude Code headless', INPUT);
+    expect(command.startsWith("$Host.UI.RawUI.WindowTitle = 'Claude Code headless'; claude -p ")).toBe(true);
+  });
 
-  it('ouvre une fenêtre neuve de Windows Terminal, titrée, dimensionnée, placée', () => {
+  it('n’ajoute rien d’autre : le reste de la ligne est la commande claude', () => {
+    const command = windowCommand('T', INPUT);
+    expect(command.slice(command.indexOf('claude'))).toBe(teeShellCommand(INPUT));
+  });
+});
+
+describe('terminalArgs', () => {
+  const args = terminalArgs({ cols: 110, rows: 32, x: 20, y: 20 }, 'CMD');
+
+  it('ouvre une fenêtre neuve de Windows Terminal, dimensionnée et placée', () => {
     expect(args[0]).toBe('-w');
     expect(args[1]).toBe('new');
-    expect(args[args.indexOf('--title') + 1]).toBe('Claude Code headless');
+    expect(args).not.toContain('--title');
     expect(args[args.indexOf('--size') + 1]).toBe('110,32');
     expect(args[args.indexOf('--pos') + 1]).toBe('20,20');
   });
