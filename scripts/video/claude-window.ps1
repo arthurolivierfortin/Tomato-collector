@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Ouvre la fenêtre de terminal filmée pendant une prise `--agent cli`, et y lance le vrai
   Claude Code interactif.
@@ -36,7 +36,8 @@ param(
   [int]$X = 20,
   [int]$Y = 20,
   [string]$WorkDir = '',
-  [string]$MaxMcpOutputTokens = '400000'
+  [string]$MaxMcpOutputTokens = '400000',
+  [string]$ClearEnv = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -46,9 +47,15 @@ mode con: cols=$Cols lines=$Rows
 
 Add-Type -Namespace TomatoWin -Name Api -MemberDefinition @'
 [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
+[DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc cb, IntPtr l);
+[DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, System.Text.StringBuilder s, int n);
+[DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
 [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
 [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int t, bool repaint);
 [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+[DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int t, uint flags);
+[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
 [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
 [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out RECT r, int size);
 '@
@@ -59,10 +66,33 @@ Add-Type -Namespace TomatoWin -Name Api -MemberDefinition @'
 
 # La fenêtre appartient à l'hôte de console (Windows Terminal), pas à ce processus PowerShell :
 # on la retrouve par son titre, qui vient d'être posé.
+#
+# Par énumération des fenêtres de premier plan, et surtout **pas** par `Get-Process |
+# Where MainWindowTitle` : un seul processus Windows Terminal héberge plusieurs fenêtres, et
+# `MainWindowTitle` n'en rend qu'une. Deux fenêtres ouvertes et la recherche tombait à côté
+# (mesuré ici : rectangle 0×0, capture impossible).
+function Find-WindowByTitle([string]$wanted) {
+  $found = [IntPtr]::Zero
+  $cb = [TomatoWin.Api+EnumWindowsProc] {
+    param($h, $l)
+    if ([TomatoWin.Api]::IsWindowVisible($h)) {
+      $sb = New-Object System.Text.StringBuilder 512
+      [void][TomatoWin.Api]::GetWindowText($h, $sb, 512)
+      if ($sb.ToString() -eq $script:wantedTitle) { $script:foundHandle = $h; return $false }
+    }
+    return $true
+  }
+  $script:wantedTitle = $wanted
+  $script:foundHandle = [IntPtr]::Zero
+  [void][TomatoWin.Api]::EnumWindows($cb, [IntPtr]::Zero)
+  $found = $script:foundHandle
+  return $found
+}
+
 $handle = [IntPtr]::Zero
 for ($i = 0; $i -lt 80 -and $handle -eq [IntPtr]::Zero; $i++) {
-  $found = @(Get-Process | Where-Object { $_.MainWindowTitle -eq $Title })
-  if ($found.Count -gt 0) { $handle = $found[0].MainWindowHandle } else { Start-Sleep -Milliseconds 100 }
+  $handle = Find-WindowByTitle $Title
+  if ($handle -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 100 }
 }
 
 if ($handle -ne [IntPtr]::Zero) {
@@ -71,7 +101,15 @@ if ($handle -ne [IntPtr]::Zero) {
   # Taille inchangée : c'est `mode con` qui décide combien de colonnes et de lignes tiennent.
   [void][TomatoWin.Api]::MoveWindow($handle, $X, $Y, ($r.Right - $r.Left), ($r.Bottom - $r.Top), $true)
   Start-Sleep -Milliseconds 400
+  # La capture filme une ZONE DE L'ÉCRAN : tout ce qui passerait devant la fenêtre entrerait dans
+  # le film. Au-dessus de tout (HWND_TOPMOST = -1, SWP_NOSIZE | SWP_NOACTIVATE = 0x0011), plus rien
+  # ne peut la couvrir — c'est la seule protection fiable, `SetForegroundWindow` seul échoue
+  # souvent quand la demande vient d'un processus en arrière-plan (mesuré ici : la fenêtre s'était
+  # ouverte derrière l'éditeur, et la capture a filmé l'éditeur).
+  [void][TomatoWin.Api]::ShowWindow($handle, 5)
+  [void][TomatoWin.Api]::SetWindowPos($handle, [IntPtr](-1), $X, $Y, 0, 0, 0x0011)
   [void][TomatoWin.Api]::SetForegroundWindow($handle)
+  Start-Sleep -Milliseconds 300
 
   # DWMWA_EXTENDED_FRAME_BOUNDS = 9 : le cadre visible, sans la bordure de saisie invisible.
   $frame = New-Object TomatoWin.Api+RECT
@@ -87,17 +125,23 @@ if ($handle -ne [IntPtr]::Zero) {
     h      = ($use.Bottom - $use.Top)
   }
 } else {
-  $rect = @{ title = $Title; handle = 0; x = 0; y = 0; w = 0; h = 0; error = 'fenêtre introuvable par son titre' }
+  $rect = @{ title = $Title; handle = 0; x = 0; y = 0; w = 0; h = 0; error = 'window not found by title' }
 }
 
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $RectFile) | Out-Null
-($rect | ConvertTo-Json -Compress) | Set-Content -Encoding UTF8 -Path $RectFile
+# Sans BOM : `JSON.parse` de Node refuse un fichier qui commence par U+FEFF.
+[System.IO.File]::WriteAllText($RectFile, ($rect | ConvertTo-Json -Compress), (New-Object System.Text.UTF8Encoding $false))
 
 if ($WorkDir -ne '') { Set-Location $WorkDir }
 
 $env:MAX_MCP_OUTPUT_TOKENS = $MaxMcpOutputTokens
-# Un `claude` lancé depuis une session Claude Code hérite de CLAUDECODE et refuse de démarrer.
-Remove-Item Env:CLAUDECODE -ErrorAction SilentlyContinue
+# Marqueurs de session imbriquée : un `claude` lancé depuis une session Claude Code en hérite et
+# soit refuse de démarrer (`CLAUDECODE`), soit affiche en bas de l'écran « Transcript saving is
+# off — inherited CLAUDE_CODE_CHILD_SESSION marker », qui serait à l'image. La liste vient de
+# `NESTED_SESSION_VARS` (lib/claudeCli.ts) et arrive par -ClearEnv.
+foreach ($name in ($ClearEnv -split ',')) {
+  if ($name.Trim() -ne '') { Remove-Item ('Env:' + $name.Trim()) -ErrorAction SilentlyContinue }
+}
 
 # Le pilote a besoin de voir la fenêtre placée avant d'ouvrir ffmpeg ; il attend RectFile.
 Start-Sleep -Milliseconds 600

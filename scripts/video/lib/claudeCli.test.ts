@@ -3,8 +3,10 @@ import {
   claudeArgs,
   claudeCommandLine,
   claudeEnv,
+  DEFAULT_CLI_MODEL,
   DEFAULT_MCP_NAME,
   MAX_CLAUDE_ARG_CHARS,
+  NESTED_SESSION_VARS,
   mcpConfigJson,
   systemPromptFor,
   toolPattern,
@@ -16,7 +18,7 @@ const LAUNCH: ClaudeLaunch = {
   mcpConfigPath: 'C:/tmp/mcp.json',
   systemPrompt: 'You are the control agent.',
   wakePrompt: 'A ripe tomato was detected: tomato #1.',
-  model: 'claude-opus-5',
+  model: 'opus',
 };
 
 describe('toolPattern', () => {
@@ -95,7 +97,19 @@ describe('claudeArgs', () => {
   });
 
   it('passe le modèle demandé', () => {
-    expect(args[args.indexOf('--model') + 1]).toBe('claude-opus-5');
+    expect(args[args.indexOf('--model') + 1]).toBe('opus');
+  });
+
+  // Mesuré en ouvrant une session sans message (donc sans coût) et en lisant l'en-tête à l'écran :
+  // « --model claude-opus-5 » — le défaut du SDK — donne « Fable 5.1 with high effort », tandis que
+  // « --model opus » donne « Opus 5 with xhigh effort ». Le CLI veut son alias.
+  it('prend l’alias « opus » par défaut, le seul que le CLI résout vers Opus 5', () => {
+    expect(DEFAULT_CLI_MODEL).toBe('opus');
+  });
+
+  it('coupe ce qui n’est pas le robot : pas de Claude in Chrome, pas de réglages du poste', () => {
+    expect(args).toContain('--no-chrome');
+    expect(args[args.indexOf('--setting-sources') + 1]).toBe('');
   });
 
   it('met le message de réveil en dernier : c’est le premier message de la session', () => {
@@ -122,6 +136,22 @@ describe('claudeEnv', () => {
     const env = claudeEnv({ CLAUDECODE: '1', PATH: 'C:/bin' });
     expect(env.CLAUDECODE).toBeUndefined();
     expect(env.PATH).toBe('C:/bin');
+  });
+
+  // Relevé à l'écran pendant la mise au point : lancé depuis une session Claude Code, le CLI
+  // affiche « Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker » en bas de
+  // la fenêtre. Ce bandeau serait dans le film.
+  it('retire les marqueurs de session imbriquée, qui mettent un avertissement à l’image', () => {
+    const env = claudeEnv({ CLAUDE_CODE_CHILD_SESSION: '1', CLAUDE_CODE_SESSION_ID: 'x', CLAUDE_CODE_ENTRYPOINT: 'cli' });
+    expect(env.CLAUDE_CODE_CHILD_SESSION).toBeUndefined();
+    expect(env.CLAUDE_CODE_SESSION_ID).toBeUndefined();
+    expect(env.CLAUDE_CODE_ENTRYPOINT).toBeUndefined();
+  });
+
+  it('garde l’authentification du propriétaire : rien de ce qui la porte n’est retiré', () => {
+    expect(NESTED_SESSION_VARS).not.toContain('CLAUDE_CODE_OAUTH_TOKEN');
+    expect(NESTED_SESSION_VARS).not.toContain('ANTHROPIC_API_KEY');
+    expect(NESTED_SESSION_VARS).toContain('CLAUDECODE');
   });
 });
 
