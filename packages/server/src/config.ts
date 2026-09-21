@@ -45,11 +45,18 @@ export interface VisibleConfig {
   y: number;
   /** Dossier de travail : prompts, configuration MCP et fichiers `.jsonl` des épisodes. */
   dir: string;
+  /**
+   * Dossier de départ de la fenêtre. Un dossier déjà approuvé par Claude Code n'ouvre aucune
+   * invite de confiance ; la racine du dépôt en est un.
+   */
+  cwd: string;
 }
 
 export const DEFAULT_VISIBLE_TITLE = 'Claude Code headless';
 /** `packages/server/src` → racine du dépôt → `data/video/cli`. */
 export const DEFAULT_VISIBLE_DIR = resolve(import.meta.dirname, '../../../data/video/cli');
+/** Racine du dépôt : le dossier de départ de la fenêtre filmée. */
+export const DEFAULT_VISIBLE_CWD = resolve(import.meta.dirname, '../../..');
 
 export const DEFAULT_MCP_PORT = 7331;
 export const DEFAULT_WS_PORT = 7332;
@@ -97,6 +104,7 @@ export function readConfig(env: Record<string, string | undefined>): ServerConfi
       x: readMs(env.TOMATO_VISIBLE_X, 20),
       y: readMs(env.TOMATO_VISIBLE_Y, 20),
       dir: nonEmpty(env.TOMATO_VISIBLE_DIR, DEFAULT_VISIBLE_DIR),
+      cwd: nonEmpty(env.TOMATO_VISIBLE_CWD, DEFAULT_VISIBLE_CWD),
     },
     episodesDir: nonEmpty(env.TOMATO_EPISODES_DIR, DEFAULT_EPISODES_DIR),
     toolPacingMs: readMs(env.TOMATO_TOOL_PACING_MS, DEFAULT_TOOL_PACING_MS),

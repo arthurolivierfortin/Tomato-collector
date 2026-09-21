@@ -40,7 +40,15 @@ async function loadTakes(dir: string): Promise<Map<string, TakeMarkers>> {
     log(`prise « ${parsed.take} » : ${parsed.markers.length} marqueurs, ${info.durationS.toFixed(1)} s, ${info.width}×${info.height}, ${info.fps.toFixed(1)} img/s`);
     const missing = parsed.missing ?? [];
     if (missing.length > 0) log(`ATTENTION : prise « ${parsed.take} » incomplète, marqueurs manquants : ${missing.join(', ')}`);
-    if (parsed.terminal !== undefined) log(`  terminal : ${parsed.terminal.video}, décalé de ${(parsed.terminal.startMs / 1000).toFixed(1)} s`);
+    if (parsed.terminal !== undefined) {
+      const source = parsed.terminal.source ?? 'page';
+      log(`  terminal : ${parsed.terminal.video} (${source}), décalé de ${(parsed.terminal.startMs / 1000).toFixed(1)} s`);
+      // Le carton de la partie 1 annonce « Claude Code, headless, live output » : il ne doit pas
+      // se retrouver au-dessus d'une page qui suit un journal.
+      if (source !== 'window') {
+        log(`  ATTENTION : la prise « ${name} » a filmé « ${source} », pas la fenêtre de l’agent ; le carton du terminal serait faux.`);
+      }
+    }
   }
   if (takes.size === 0) throw new Error(`aucune prise dans ${dir} : lancer d’abord « npm run video:record »`);
   return takes;

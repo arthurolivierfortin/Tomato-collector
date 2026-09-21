@@ -77,3 +77,21 @@ describe('createTeeReader', () => {
     expect(reader.flush()).toEqual([]);
   });
 });
+
+describe('parseAgentLine, messages « system » qui ne sont pas un init', () => {
+  // Relevé sur une vraie sortie : le CLI émet `system/hook_started`, `hook_progress` et
+  // `hook_response` au démarrage (crochets SessionStart du poste). Ils n'ont ni `mcp_servers` ni
+  // `session_id`, et `reduceStreamMessage` tombait dessus en lisant `msg.mcp_servers.find`.
+  it('range les messages de crochets en « other » plutôt qu’en init', () => {
+    const hook = '{"type":"system","subtype":"hook_started","hook_name":"SessionStart:startup","uuid":"a"}';
+    expect(parseAgentLine(hook)).toEqual({ type: 'other' });
+  });
+
+  it('garde l’init, le seul message système que le réducteur sait lire', () => {
+    expect(parseAgentLine(INIT)).toMatchObject({ type: 'system', subtype: 'init' });
+  });
+
+  it('refuse un init sans liste de serveurs MCP : le réducteur la parcourt', () => {
+    expect(parseAgentLine('{"type":"system","subtype":"init","session_id":"s","model":"m"}')).toEqual({ type: 'other' });
+  });
+});
