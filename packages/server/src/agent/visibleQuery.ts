@@ -25,9 +25,17 @@ import {
   type WindowGeometry,
 } from './visibleCommand';
 
-/** Fenêtre ouverte pour un épisode ; `close()` la referme. */
+/** Pourquoi la fenêtre est relâchée : l'épisode est allé au bout, ou il a été coupé. */
+export type CloseReason = 'finished' | 'aborted';
+
+/**
+ * Fenêtre ouverte pour un épisode. `close('finished')` ne fait rien : `claude` s'est arrêté seul
+ * après son `result`, et la fenêtre doit rester ouverte jusqu'à la fin de la prise (`-NoExit`).
+ * `close('aborted')` tue le processus : sans cela, un `claude` coupé continue d'appeler un serveur
+ * MCP arrêté et de dépenser.
+ */
 export interface OpenWindow {
-  close(): Promise<void>;
+  close(reason: CloseReason): Promise<void>;
 }
 
 /** Ouvre la fenêtre du terminal. Injectable : les tests rejouent un flux au lieu de lancer `wt.exe`. */
@@ -45,6 +53,10 @@ export interface VisibleQueryDeps {
   readonly pollMs?: number;
   /** Garde le dossier de session après l'arrêt, pour relire un épisode (`TOMATO_VISIBLE_KEEP`). */
   readonly keepFiles?: boolean;
+  /** Délai laissé au premier message `init` ; au-delà, l'épisode est abandonné. */
+  readonly initTimeoutMs?: number;
+  /** Délai sans une seule ligne nouvelle ; au-delà, l'épisode est abandonné. */
+  readonly idleTimeoutMs?: number;
   readonly log?: Logger;
 }
 
@@ -59,6 +71,21 @@ export interface VisibleAgent {
 }
 
 const DEFAULT_POLL_MS = 150;
+
+/**
+ * Délai laissé au premier message du flux. La fenêtre s'ouvre, `claude` démarre, ses crochets
+ * tournent, le serveur MCP se connecte — et, au premier lancement dans un dossier, le propriétaire
+ * répond à l'invite de confiance. Trois minutes, comme l'attente de la fenêtre côté pilote.
+ */
+const DEFAULT_INIT_TIMEOUT_MS = 180_000;
+
+/**
+ * Délai sans une seule ligne nouvelle une fois le flux commencé. Un `get_views` sur trois caméras
+ * prend quelques secondes, un tour de modèle quelques dizaines ; deux minutes de silence veulent
+ * dire que `claude` est mort ou que la fenêtre a été fermée à la main. Sans ce garde-fou, le
+ * runner reste `busy` pour toujours et les tomates suivantes s'empilent dans la file.
+ */
+const DEFAULT_IDLE_TIMEOUT_MS = 120_000;
 
 /** Combien de sessions ce processus a ouvertes : deux dans la même milliseconde auraient sinon le même nom. */
 let sessionsOpened = 0;
@@ -87,10 +114,29 @@ function sleep(ms: number): Promise<void> {
  * Suit le fichier `.jsonl` pendant qu'il s'écrit et rend chaque message dès qu'il est complet.
  * Le fichier peut ne pas exister tout de suite : la fenêtre met une seconde à démarrer.
  */
-async function* followTee(path: string, pollMs: number, done: () => boolean): AsyncGenerator<AgentMessage> {
+interface FollowLimits {
+  readonly initTimeoutMs: number;
+  readonly idleTimeoutMs: number;
+}
+
+async function* followTee(
+  path: string,
+  pollMs: number,
+  done: () => boolean,
+  limits: FollowLimits,
+): AsyncGenerator<AgentMessage> {
   const reader = createTeeReader();
   let at = 0;
+  let lastLineAt = Date.now();
+  let started = false;
   for (;;) {
+    const waited = Date.now() - lastLineAt;
+    if (!started && waited > limits.initTimeoutMs) {
+      throw new Error(`la fenêtre n'a livré aucun message en ${Math.round(limits.initTimeoutMs / 1000)} s : démarrage de claude en échec, ou init jamais reçu`);
+    }
+    if (started && waited > limits.idleTimeoutMs) {
+      throw new Error(`le flux de la fenêtre est muet depuis ${Math.round(limits.idleTimeoutMs / 1000)} s : claude arrêté, ou fenêtre fermée`);
+    }
     let handle;
     try {
       handle = await open(path, 'r');
@@ -105,7 +151,11 @@ async function* followTee(path: string, pollMs: number, done: () => boolean): As
         const buffer = Buffer.alloc(size - at);
         const { bytesRead } = await handle.read(buffer, 0, buffer.length, at);
         at += bytesRead;
-        for (const msg of reader.push(buffer.subarray(0, bytesRead))) yield msg;
+        for (const msg of reader.push(buffer.subarray(0, bytesRead))) {
+          lastLineAt = Date.now();
+          started = true;
+          yield msg;
+        }
       }
     } finally {
       await handle.close();
@@ -125,6 +175,10 @@ async function* followTee(path: string, pollMs: number, done: () => boolean): As
  */
 export function createVisibleAgent(deps: VisibleQueryDeps): VisibleAgent {
   const pollMs = deps.pollMs ?? DEFAULT_POLL_MS;
+  const limits: FollowLimits = {
+    initTimeoutMs: deps.initTimeoutMs ?? DEFAULT_INIT_TIMEOUT_MS,
+    idleTimeoutMs: deps.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS,
+  };
   const log = deps.log ?? silentLogger;
   let episode = 0;
   /*
@@ -169,13 +223,15 @@ export function createVisibleAgent(deps: VisibleQueryDeps): VisibleAgent {
     let finished = false;
     const aborted = (): boolean => options.abortController?.signal.aborted === true;
     try {
-      for await (const msg of followTee(input.teePath, pollMs, () => finished || aborted())) {
+      for await (const msg of followTee(input.teePath, pollMs, () => finished || aborted(), limits)) {
         yield msg;
         if (msg.type === 'result') finished = true;
         if (aborted()) return;
       }
     } finally {
-      await window.close();
+      // `finished` : `claude` s'est arrêté seul après son `result`, la fenêtre reste à l'image
+      // jusqu'à la fin de la prise. Sinon il tourne encore : on le coupe, il dépense.
+      await window.close(finished ? 'finished' : 'aborted');
     }
   };
 
