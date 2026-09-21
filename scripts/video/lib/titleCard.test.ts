@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_STYLE, type Format } from './style';
-import { fadeFilters, signatureBlocks, signatureCardFilters, type SignatureSpec } from './titleCard';
+import { fadeFilters, signatureBlocks, signatureCardFilters, signatureChain, type SignatureSpec } from './titleCard';
 
 const FORMAT: Format = { width: 1920, height: 1080, fps: 30 };
 
@@ -81,6 +81,27 @@ describe('signatureCardFilters', () => {
     expect(filters).toHaveLength(2);
     expect(filters[1]).toContain('y=520');
     expect(filters[1]).toContain('fontcolor=0xB9C2D0');
+  });
+});
+
+describe('signatureChain', () => {
+  const placed = [
+    { file: 'a.txt', size: 88, color: 'white', y: 400 },
+    { file: 'b.txt', size: 44, color: 'white', y: 540 },
+  ];
+
+  it('grave les textes, puis fond au noir, puis convertit : le fondu emporte le texte avec lui', () => {
+    // Aucun de ces filtres ne contient de virgule : la chaîne se relit telle quelle.
+    const parts = signatureChain(placed, DEFAULT_STYLE, 4, 0.6).split(',');
+    expect(parts.filter((p) => p.startsWith('drawtext='))).toHaveLength(2);
+    expect(parts.slice(0, 2).every((p) => p.startsWith('drawtext='))).toBe(true);
+    expect(parts.slice(2)).toEqual(['fade=t=in:st=0:d=0.60:color=black', 'fade=t=out:st=3.40:d=0.60:color=black', 'format=yuv420p']);
+  });
+
+  it('se passe du fondu sans rien casser', () => {
+    const withoutFade = signatureChain(placed, DEFAULT_STYLE, 4, 0);
+    expect(withoutFade).not.toContain('fade=');
+    expect(withoutFade.endsWith(',format=yuv420p')).toBe(true);
   });
 });
 

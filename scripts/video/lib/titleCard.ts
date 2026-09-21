@@ -9,7 +9,7 @@
  *
  * Tout est pur : géométrie et chaînes de filtres, aucun process lancé.
  */
-import { drawtextFilter, escapeFilterPath } from './ffmpegFilters';
+import { chain, drawtextFilter, escapeFilterPath } from './ffmpegFilters';
 import type { Format, TextStyle } from './style';
 
 /** Ce qu'un carton de signature porte : le titre, la ligne d'auteur, un sous-texte facultatif. */
@@ -122,4 +122,12 @@ export function signatureCardFilters(blocks: readonly PlacedText[], style: TextS
 export function fadeFilters(durationS: number, fadeS: number): string[] {
   if (fadeS <= 0 || durationS <= 2 * fadeS) return [];
   return [`fade=t=in:st=0:d=${fadeS.toFixed(2)}:color=black`, `fade=t=out:st=${(durationS - fadeS).toFixed(2)}:d=${fadeS.toFixed(2)}:color=black`];
+}
+
+/**
+ * La chaîne complète d'un carton de signature, prête pour `-vf`. Le fondu vient **après** les
+ * textes : sinon il n'emporterait que le fond et le titre resterait net jusqu'à la coupe.
+ */
+export function signatureChain(blocks: readonly PlacedText[], style: TextStyle, durationS: number, fadeS: number): string {
+  return chain([...signatureCardFilters(blocks, style), ...fadeFilters(durationS, fadeS), 'format=yuv420p']);
 }
