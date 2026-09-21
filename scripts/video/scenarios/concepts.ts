@@ -135,6 +135,11 @@ export function conceptsScenario(mode: TakeMode): Scenario {
       // la première approche) ; s'il la saute, la prise s'arrête ici et garde tout ce qui précède.
       { kind: 'waitForText', selector: TRACE, text: 'Ciseaux orientés', timeoutMs: EPISODE_TIMEOUT_MS },
       { kind: 'marker', name: 'rotate' },
+      // Cadrage coupe (`k`, issue #42) dès le positionnement fin : c'est « Ciseaux orientés » que
+      // ce scénario-ci sait détecter, et c'est le dernier geste de l'agent avant les approches. Le
+      // cadrage large montre le robot entier, il ne montrera jamais un geste de 6 cm ; la
+      // transition de 0,8 s se joue donc maintenant, loin de la coupe, et non pendant.
+      { kind: 'press', key: 'k' },
       { kind: 'wait', ms: HOLD.trace },
 
       // (i) Le mode « ce que voit l'agent » (`v`) pendant le positionnement.
@@ -152,6 +157,11 @@ export function conceptsScenario(mode: TakeMode): Scenario {
       { kind: 'marker', name: 'cut' },
       { kind: 'waitForText', selector: TRACE, text: 'dans le panier', timeoutMs: EPISODE_TIMEOUT_MS },
       { kind: 'marker', name: 'landed' },
+      // Retour au cadrage large deux secondes après la chute, au moment même où l'incrustation de
+      // la caméra outil s'éteint d'elle-même (`TOOL_CAM_LINGER_S`) : les deux plans rapprochés
+      // s'en vont ensemble, et le rapport se lit sur le robot entier.
+      { kind: 'wait', ms: 2000 },
+      { kind: 'press', key: 'k' },
       { kind: 'waitForText', selector: TRACE, text: 'Rapport :', timeoutMs: EPISODE_TIMEOUT_MS },
       { kind: 'marker', name: 'report' },
       // Queue courte : passé une poignée de secondes, la tomate suivante mûrit et un second
