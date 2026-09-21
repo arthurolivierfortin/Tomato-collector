@@ -70,13 +70,31 @@ export function gdigrabArgs({ title, fps, outPath }: GdigrabOptions): string[] {
   ];
 }
 
+/** Où commence la vignette du terminal dans un sous-plan, et combien de temps elle se fait attendre. */
+export interface TerminalPipStart {
+  /** Instant de départ dans la vidéo du terminal. */
+  readonly atS: number;
+  /**
+   * Retard, depuis le début du sous-plan, avant que la vignette apparaisse. Nul dès que la piste
+   * existe déjà ; positif quand la fenêtre de l'agent s'ouvre en cours de plan.
+   */
+  readonly delayS: number;
+}
+
 /**
- * Instant correspondant dans la vidéo du terminal, ou `null` quand la capture n'avait pas encore
- * commencé : le montage n'incruste alors rien plutôt que de montrer une image noire.
+ * Instant correspondant dans la vidéo du terminal.
+ *
+ * La fenêtre de l'agent n'existe qu'au réveil : un sous-plan qui commence avant elle n'a rien à
+ * incruster **au début**, mais il en a à incruster ensuite. La v3 jetait alors la vignette pour tout
+ * le sous-plan — le segment « Detection, then the agent wakes up » durait 9,8 s et n'en montrait
+ * aucune parce que la fenêtre s'ouvrait 1,8 s après son début. Le retard est donc rendu au lieu
+ * d'un `null` : le montage pose la vignette à la seconde où la piste commence, en fondu d'entrée.
  */
-export function terminalOffsetS(takeS: number, terminalStartMs: number): number | null {
-  const s = takeS - terminalStartMs / 1000;
-  return s < 0 ? null : s;
+export function terminalPipStart(takeS: number, terminalStartMs: number): TerminalPipStart {
+  // Arrondi à la milliseconde : les deux horloges sont des millisecondes, et une soustraction de
+  // flottants sortirait 1,8429999999999982 là où les marqueurs disent 1,843.
+  const s = Math.round((takeS - terminalStartMs / 1000) * 1000) / 1000;
+  return s >= 0 ? { atS: s, delayS: 0 } : { atS: 0, delayS: -s };
 }
 
 export interface TerminalCapture {

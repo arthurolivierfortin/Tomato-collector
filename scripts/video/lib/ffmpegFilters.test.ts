@@ -13,6 +13,7 @@ import {
   bandHeight,
   highlightFilter,
   pipComplex,
+  PIP_FADE_S,
   pickFontFile,
   FONT_CANDIDATES,
   CAPTION_MAX_LINES,
@@ -144,6 +145,24 @@ describe('pipComplex', () => {
     expect(graph).toContain('pad=472:300:4:4:color=0x38BDF8');
     // Sans sous-titre, la chaîne reste valide : `null` est le filtre neutre de ffmpeg.
     expect(graph).toContain('[framed]null[out]');
+  });
+
+  it('n’ajoute ni fondu ni attente quand la piste du terminal existe dès le début du plan', () => {
+    const graph = pipComplex(format, rect, DEFAULT_STYLE, [], 0);
+    expect(graph).toBe(pipComplex(format, rect, DEFAULT_STYLE, []));
+    expect(graph).not.toContain('tpad');
+    expect(graph).not.toContain('enable=');
+  });
+
+  it('fait attendre la vignette, puis la fait apparaître en fondu, quand la fenêtre s’ouvre en cours de plan', () => {
+    // La fenêtre de l'agent n'existe qu'au réveil : le début du plan n'a rien à incruster, la suite
+    // si. Des images transparentes tiennent la place (`tpad`), puis l'alpha monte (`fade`).
+    const graph = pipComplex(format, rect, DEFAULT_STYLE, ['drawtext=x=1'], 1.843);
+    const steps = graph.split(';');
+    expect(steps[1]).toContain('format=yuva420p');
+    expect(steps[1]).toContain('tpad=start_duration=1.843:start_mode=add:color=black@0');
+    expect(steps[1]).toContain(`fade=t=in:st=1.843:d=${PIP_FADE_S}:alpha=1`);
+    expect(steps[2]).toBe("[bg][pip]overlay=1432:620:enable='gte(t,1.843)'[framed]");
   });
 });
 
