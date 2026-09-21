@@ -3,6 +3,8 @@ import type { CameraId } from '@tomato/shared';
 import { setCameraGizmosVisible } from '../cameras/agentCameras';
 import { subscribeViews } from '../cameras/cameraModule';
 import type { SimRuntime } from '../core/runtime';
+import { INSET_MARGIN_PX, INSET_WIDTH_RATIO } from '../robot/toolCamera';
+import { attachToolCamera, type ToolCameraView } from '../robot/toolCameraView';
 import { PerceptionBadge } from '../perception/PerceptionBadge';
 import { usePerceptionState } from '../perception/usePerception';
 import type { SceneHandle } from '../three/createScene';
@@ -61,7 +63,8 @@ interface Props {
  * flux brut de la session agent (issue #23, touche `t`) et le panneau « Perception » (issue #36,
  * touche `p`). Touches : h contrôles, v mode agent, b schéma, c gizmos de caméra, z loupe plein écran,
  * t session brute, p perception, x pipeline de traitement plein écran, k cadrage de la vue
- * spectateur — large (plant, panier et bras entiers) ou coupe (issue #42).
+ * spectateur — large (plant, panier et bras entiers) ou coupe, j incrustation de la caméra outil
+ * montée sur les ciseaux (issue #42).
  */
 export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
   const state = useSyncExternalStore(store.subscribe, store.get);
@@ -78,19 +81,41 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
    */
   const framingRef = useRef<SpectatorFraming | null>(null);
   const toggleFraming = useCallback(() => framingRef.current?.toggle(), []);
+  const [scene, setScene] = useState<SceneHandle | null>(null);
   const handleSceneReady = useCallback(
-    (scene: SceneHandle) => {
-      const framing = attachFraming(scene);
+    (ready: SceneHandle) => {
+      const framing = attachFraming(ready);
       framingRef.current = framing;
-      const cleanup = onSceneReady(scene);
+      setScene(ready);
+      const cleanup = onSceneReady(ready);
       return () => {
         cleanup?.();
         framing.dispose();
         framingRef.current = null;
+        setScene(null);
       };
     },
     [onSceneReady],
   );
+
+  /**
+   * Caméra outil (issue #42) : l'incrustation est rendue par la scène, son cadre et son étiquette
+   * sont du DOM posé sur le même rectangle. Elle ne peut s'attacher qu'une fois le runtime prêt,
+   * qui arrive après la scène.
+   */
+  const toolCameraRef = useRef<ToolCameraView | null>(null);
+  const [toolCameraOn, setToolCameraOn] = useState(false);
+  const toggleToolCamera = useCallback(() => toolCameraRef.current?.toggle(), []);
+  useEffect(() => {
+    if (scene === null || runtime === null) return;
+    const view = attachToolCamera(scene, runtime, setToolCameraOn);
+    toolCameraRef.current = view;
+    return () => {
+      view.dispose();
+      toolCameraRef.current = null;
+      setToolCameraOn(false);
+    };
+  }, [scene, runtime]);
 
   const feature = useCallback((camera: CameraId) => store.dispatch({ type: 'local_feature', camera }), [store]);
   const openLightbox = useCallback((camera: CameraId) => store.dispatch({ type: 'local_lightbox_open', camera }), [store]);
@@ -127,7 +152,7 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
     void window.__tomato?.renderViews?.(['top', 'front', 'side']);
   }, []);
 
-  useDashboardKeys(store, toggleCameraGizmos, lightboxOpen, ui.pipelineCamera !== null, toggleFraming);
+  useDashboardKeys(store, toggleCameraGizmos, lightboxOpen, ui.pipelineCamera !== null, toggleFraming, toggleToolCamera);
 
   const sim = clock ?? state.sim;
 
@@ -148,6 +173,15 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
           <div className="pointer-events-none absolute left-3 right-3 top-9">
             <WakeBanner wake={state.wake} />
           </div>
+          {toolCameraOn && (
+            <div
+              data-testid="tool-camera"
+              className="pointer-events-none absolute rounded-sm border border-ink-dim"
+              style={{ right: INSET_MARGIN_PX, bottom: INSET_MARGIN_PX, width: `${INSET_WIDTH_RATIO * 100}%`, aspectRatio: '4 / 3' }}
+            >
+              <div className="absolute left-0 top-[-18px] text-[12px] text-ink-dim">caméra outil</div>
+            </div>
+          )}
           {!ui.controlsHidden && (
             <div className="absolute bottom-3 left-3 right-3">
               <Controls

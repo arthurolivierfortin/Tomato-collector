@@ -16,6 +16,11 @@ export interface SceneHandle {
   addObject(obj: Object3D): void;
   /** Rappel à chaque frame avec le dt réel en secondes, avant le rendu. */
   onFrame(cb: (dtS: number) => void): () => void;
+  /**
+   * Rappel juste **après** le rendu principal, pour dessiner par-dessus sans le recouvrir : c'est là
+   * que l'incrustation de la caméra outil rend sa seconde passe (issue #42).
+   */
+  onAfterRender(cb: () => void): () => void;
   dispose(): void;
 }
 
@@ -76,6 +81,7 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
   resize();
 
   const frameCallbacks = new Set<(dtS: number) => void>();
+  const afterRenderCallbacks = new Set<() => void>();
   let running = true;
   let last = performance.now();
   function loop(now: number): void {
@@ -85,6 +91,7 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
     for (const cb of frameCallbacks) cb(dtS);
     controls.update();
     renderer.render(scene, camera);
+    for (const cb of afterRenderCallbacks) cb();
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
@@ -98,6 +105,10 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
     onFrame: (cb) => {
       frameCallbacks.add(cb);
       return () => frameCallbacks.delete(cb);
+    },
+    onAfterRender: (cb) => {
+      afterRenderCallbacks.add(cb);
+      return () => afterRenderCallbacks.delete(cb);
     },
     dispose: () => {
       running = false;
