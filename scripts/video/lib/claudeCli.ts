@@ -51,3 +51,86 @@ export function mcpConfigJson(mcpName: string, mcpUrl: string): string {
 export function systemPromptFor(mcpName: string, prompt: string): string {
   return prompt.replace(/`robot` MCP server/g, `\`${mcpName}\` MCP server`);
 }
+
+export interface ClaudeLaunch {
+  readonly mcpName: string;
+  /** Fichier JSON écrit par le pilote, passé à `--mcp-config`. */
+  readonly mcpConfigPath: string;
+  /** Prompt système du robot, déjà passé par `systemPromptFor`. */
+  readonly systemPrompt: string;
+  /** Message de réveil, construit par `buildWakePrompt` du serveur : le premier message tapé. */
+  readonly wakePrompt: string;
+  readonly model: string;
+}
+
+/**
+ * Arguments de `claude` pour l'épisode filmé. Session **interactive** : ni `--print` ni
+ * `--output-format`, le message de réveil est l'argument positionnel final, ce qui ouvre la
+ * session et envoie ce message tout de suite (`claude [options] [prompt]`, `claude --help`).
+ *
+ * Correspondance avec `buildQueryOptions` du serveur, option par option :
+ * `systemPrompt` → `--system-prompt`, `model` → `--model`, `mcpServers` → `--mcp-config`,
+ * `strictMcpConfig` → `--strict-mcp-config`, `allowedTools` → `--allowedTools`,
+ * `permissionMode: 'dontAsk'` → `--permission-mode dontAsk`, `tools: []` → `--tools ""`.
+ * `maxTurns` n'a pas d'équivalent interactif : c'est le budget de 40 appels du serveur MCP qui
+ * borne l'épisode, et le prompt système le dit.
+ */
+export function claudeArgs(launch: ClaudeLaunch): string[] {
+  const size = launch.systemPrompt.length + launch.wakePrompt.length;
+  if (size > MAX_CLAUDE_ARG_CHARS) {
+    throw new Error(
+      `prompt système + réveil = ${size} caractères, au-delà de ${MAX_CLAUDE_ARG_CHARS} : ` +
+        'la ligne de commande Windows est plafonnée à 32 767 caractères et « claude » ne démarrerait pas.',
+    );
+  }
+  return [
+    '--mcp-config',
+    launch.mcpConfigPath,
+    '--strict-mcp-config',
+    '--allowedTools',
+    toolPattern(launch.mcpName),
+    '--permission-mode',
+    'dontAsk',
+    '--tools',
+    '',
+    '--model',
+    launch.model,
+    '--system-prompt',
+    launch.systemPrompt,
+    launch.wakePrompt,
+  ];
+}
+
+/**
+ * Limite de taille des résultats MCP côté Claude Code : trois PNG 800×800 en base64 dépassent le
+ * défaut de 25 000 tokens. Même valeur que `MAX_MCP_OUTPUT_TOKENS` de `queryOptions.ts`, recopiée
+ * plutôt qu'importée pour que `scripts/video` reste un programme indépendant de `packages/server`.
+ */
+export const MAX_MCP_OUTPUT_TOKENS = '400000';
+
+/**
+ * Environnement du processus `claude`. `CLAUDECODE` est **retiré** : un `claude` lancé depuis une
+ * session Claude Code le trouve dans son environnement et refuse de démarrer. Leçon reprise de
+ * `ClaudeCodeLLMProvider.RunProcessAsync` (Maestro), qui fait exactement ça.
+ */
+export function claudeEnv(env: Readonly<Record<string, string | undefined>>): Record<string, string | undefined> {
+  const out = { ...env, MAX_MCP_OUTPUT_TOKENS };
+  delete out['CLAUDECODE'];
+  return out;
+}
+
+/** Au-delà, un argument est abrégé dans la ligne affichée : le prompt système fait 15 ko. */
+const DISPLAY_MAX = 60;
+
+function displayArg(arg: string): string {
+  const shown = arg.length > DISPLAY_MAX ? `${arg.slice(0, DISPLAY_MAX)}… (+${arg.length - DISPLAY_MAX} car.)` : arg;
+  return /^[A-Za-z0-9._:/\\-]+$/.test(shown) && shown !== '' ? shown : `"${shown}"`;
+}
+
+/**
+ * La commande, lisible et collable, pour la procédure manuelle : quand la fenêtre ne s'ouvre pas
+ * toute seule, le propriétaire la lance lui-même et le pilote attend son titre.
+ */
+export function claudeCommandLine(args: readonly string[]): string {
+  return ['claude', ...args.map(displayArg)].join(' ');
+}
