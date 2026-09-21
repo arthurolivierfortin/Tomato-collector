@@ -10,7 +10,7 @@
  *
  * Ce que la fenêtre montre est donc exactement ce que le serveur lit. Rien n'y est écrit par nous.
  */
-import { mkdir, open, writeFile } from 'node:fs/promises';
+import { mkdir, open, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
 import { silentLogger, type Logger } from '../log';
@@ -36,17 +36,38 @@ export interface WindowLauncher {
 }
 
 export interface VisibleQueryDeps {
-  /** Dossier de travail de l'épisode : prompts, configuration MCP, fichier `.jsonl`. */
+  /** Dossier de travail : chaque démarrage de serveur y crée son propre sous-dossier daté. */
   readonly workDir: string;
   readonly title: string;
   readonly geometry: WindowGeometry;
   readonly launcher: WindowLauncher;
   /** Période de relecture du fichier `.jsonl` ; 150 ms en vrai, quelques ms dans les tests. */
   readonly pollMs?: number;
+  /** Garde le dossier de session après l'arrêt, pour relire un épisode (`TOMATO_VISIBLE_KEEP`). */
+  readonly keepFiles?: boolean;
   readonly log?: Logger;
 }
 
+/** Ce qu'un serveur en mode visible tient pendant toute sa vie. */
+export interface VisibleAgent {
+  /** Le flux d'un épisode, à injecter dans `createAgentRunner` à la place de `sdkQuery`. */
+  readonly query: QueryFn;
+  /** Sous-dossier de ce démarrage de serveur : prompts, configuration MCP, scripts, flux. */
+  readonly sessionDir: string;
+  /** Efface le dossier de session, sauf si `keepFiles`. */
+  dispose(): Promise<void>;
+}
+
 const DEFAULT_POLL_MS = 150;
+
+/** Combien de sessions ce processus a ouvertes : deux dans la même milliseconde auraient sinon le même nom. */
+let sessionsOpened = 0;
+
+/** `2026-09-21T12-34-56-789Z-4812-1` : l'instant, le processus, et le rang dans ce processus. */
+function sessionStamp(): string {
+  sessionsOpened += 1;
+  return `${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}-${sessionsOpened}`;
+}
 
 /** URL du serveur MCP du robot, telle que `buildQueryOptions` l'a posée dans les options. */
 function mcpUrlOf(options: Options): string {
@@ -102,14 +123,22 @@ async function* followTee(path: string, pollMs: number, done: () => boolean): As
  * configuration MCP sont écrits dans `workDir` : PowerShell les lit au lancement, la ligne de
  * commande reste courte, et le contenu envoyé est **exactement** celui que le SDK enverrait.
  */
-export function createVisibleQuery(deps: VisibleQueryDeps): QueryFn {
+export function createVisibleAgent(deps: VisibleQueryDeps): VisibleAgent {
   const pollMs = deps.pollMs ?? DEFAULT_POLL_MS;
   const log = deps.log ?? silentLogger;
   let episode = 0;
+  /*
+   * Un sous-dossier par démarrage de serveur, daté. Deux raisons, la seconde étant un bug vécu :
+   * les prompts et les flux d'une session ne traînent pas après elle, et surtout le compteur
+   * d'épisode — qui repart à 1 à chaque serveur — ne peut plus désigner le `episode-1.jsonl` du
+   * serveur précédent. `Tee-Object` ne tronque le sien qu'une seconde plus tard, le temps que la
+   * fenêtre s'ouvre : entre-temps, le serveur lisait l'épisode d'avant et le croyait terminé.
+   */
+  const sessionDir = join(deps.workDir, `session-${sessionStamp()}`);
 
-  return async function* visibleQuery(prompt: string, options: Options): AsyncIterable<AgentMessage> {
+  const query: QueryFn = async function* visibleQuery(prompt: string, options: Options): AsyncIterable<AgentMessage> {
     episode += 1;
-    const dir = deps.workDir;
+    const dir = sessionDir;
     await mkdir(dir, { recursive: true });
     const input: VisibleCommandInput = {
       mcpUrl: mcpUrlOf(options),
@@ -120,6 +149,9 @@ export function createVisibleQuery(deps: VisibleQueryDeps): QueryFn {
       teePath: join(dir, `episode-${episode}.jsonl`),
       sessionId: options.resume ?? null,
     };
+    // Ceinture et bretelles : même dans un dossier neuf, on ne lit jamais un fichier qu'on n'a
+    // pas vu naître. `Tee-Object` le recréera.
+    await rm(input.teePath, { force: true });
     await writeFile(input.wakePromptPath, prompt, 'utf8');
     await writeFile(input.mcpConfigPath, mcpConfigJson(input.mcpUrl), 'utf8');
     await writeFile(input.systemPromptPath, typeof options.systemPrompt === 'string' ? options.systemPrompt : '', 'utf8');
@@ -145,5 +177,17 @@ export function createVisibleQuery(deps: VisibleQueryDeps): QueryFn {
     } finally {
       await window.close();
     }
+  };
+
+  return {
+    query,
+    sessionDir,
+    async dispose() {
+      if (deps.keepFiles === true) {
+        log(`agent visible : dossier de session gardé (${sessionDir})`);
+        return;
+      }
+      await rm(sessionDir, { recursive: true, force: true });
+    },
   };
 }

@@ -73,8 +73,9 @@ describe('readConfig, agent headless visible', () => {
       TOMATO_VISIBLE_Y: '60',
       TOMATO_VISIBLE_DIR: '/tmp/cli',
       TOMATO_VISIBLE_CWD: '/tmp/repo',
+      TOMATO_VISIBLE_KEEP: 'on',
     }).visible;
-    expect(v).toEqual({ title: 'Claude Code headless', cols: 100, rows: 30, x: 40, y: 60, dir: '/tmp/cli', cwd: '/tmp/repo' });
+    expect(v).toEqual({ title: 'Claude Code headless', cols: 100, rows: 30, x: 40, y: 60, dir: '/tmp/cli', cwd: '/tmp/repo', keep: true });
   });
 
   it('ignore une géométrie absurde plutôt que d’ouvrir une fenêtre inutilisable', () => {

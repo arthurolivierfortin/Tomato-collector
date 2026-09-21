@@ -1,5 +1,5 @@
 import type { QueryFn } from './agent/types';
-import { createVisibleQuery } from './agent/visibleQuery';
+import { createVisibleAgent, type VisibleAgent } from './agent/visibleQuery';
 import { createWindowLauncher } from './agent/windowLauncher';
 import { createWakeServer, readWakePort, resolveWakeEvent } from './agent/wakeServer';
 import type { VisibleConfig } from './config';
@@ -143,21 +143,27 @@ export async function startRunner(deps: AgentRunnerDeps, opts: RunnerOptions): P
   const sim = deps.sim;
   // `visible` charge le même module d'agent que `on` : même cycle d'épisode, même journal, même
   // coût. Seul le chemin du flux change — une fenêtre et un fichier au lieu d'un tuyau caché.
-  const visibleQuery =
+  if (opts.agent === 'visible' && opts.visible === undefined) {
+    // Retomber en silence sur le SDK ferait une prise sans fenêtre, découverte à la première image.
+    throw new Error('agent: mode « visible » demandé sans configuration de fenêtre (RunnerOptions.visible)');
+  }
+  const visible: VisibleAgent | null =
     opts.agent === 'visible' && opts.visible !== undefined
-      ? createVisibleQuery({
+      ? createVisibleAgent({
           workDir: opts.visible.dir,
           title: opts.visible.title,
           geometry: { cols: opts.visible.cols, rows: opts.visible.rows, x: opts.visible.x, y: opts.visible.y, cwd: opts.visible.cwd },
           launcher: createWindowLauncher(log),
+          keepFiles: opts.visible.keep,
           log,
         })
       : null;
+  if (visible !== null) log(`agent: mode visible, fichiers de session dans ${visible.sessionDir}`);
   const runner =
     opts.agent === 'off'
       ? createNoopRunner(log, { hub: deps.hub, session: deps.session })
       : await loadAgentRunner(
-          { ...deps, wakePort: -1, ...(visibleQuery === null ? {} : { query: visibleQuery }) },
+          { ...deps, wakePort: -1, ...(visible === null ? {} : { query: visible.query }) },
           log,
           opts.module ?? AGENT_MODULE,
         );
@@ -182,6 +188,8 @@ export async function startRunner(deps: AgentRunnerDeps, opts: RunnerOptions): P
       const drained = runner.stop();
       await wake?.close();
       await drained;
+      // Les prompts et le flux de la session ne survivent pas au serveur qui les a écrits.
+      await visible?.dispose();
     },
   };
 }
