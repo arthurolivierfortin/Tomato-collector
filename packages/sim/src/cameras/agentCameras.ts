@@ -14,6 +14,7 @@ import {
 } from 'three';
 import { CAMERA_IDS, VIEW_SIZE_PX, vadd, vscale, type CameraId, type CameraPose, type Vec3 } from '@tomato/shared';
 import { worldToThree } from '../three/frame';
+import { AGENT_LAYER } from '../three/layers';
 import { cameraBasis, type CameraBasis } from './ortho';
 import { LINEAR_TO_SRGB_LUT, applyLutRgb, flipRowsRgba } from './pixels';
 
@@ -118,6 +119,8 @@ let currentGizmoGroup: Group | null = null;
 function createOne(id: CameraId, group: Group): AgentCamera {
   const half = DEFAULT_HALF_WIDTH_CM;
   const camera = new OrthographicCamera(-half, half, half, -half, NEAR_CM, FAR_CM);
+  // Schéma des lames réservé à l'agent : les vues et la passe d'identifiants ne bougent pas (layers.ts).
+  camera.layers.enable(AGENT_LAYER);
   camera.name = `agent-camera-${id}`;
   const target = new WebGLRenderTarget(VIEW_SIZE_PX, VIEW_SIZE_PX, { depthBuffer: true, stencilBuffer: false });
   const gizmo = createGizmo(id, group);

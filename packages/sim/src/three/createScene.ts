@@ -5,6 +5,7 @@ import {
 import type { Object3D } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { worldToThree } from './frame';
+import { SPECTATOR_LAYER } from './layers';
 import { WIDE_FRAMING } from './spectatorFraming';
 
 export interface SceneHandle {
@@ -30,6 +31,8 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
   // Cadrage par défaut : `WIDE_FRAMING` (issue #42), posé ici pour que la première frame soit déjà
   // cadrée ; `attachFraming` le repose au montage du dashboard et gère la bascule vers la coupe.
   const camera = new PerspectiveCamera(40, 1, 1, 2000);
+  // Décor réservé au spectateur (ciseaux détaillés) : invisible aux caméras de l'agent (voir layers.ts).
+  camera.layers.enable(SPECTATOR_LAYER);
   camera.position.copy(worldToThree(WIDE_FRAMING.eyeCm));
   camera.lookAt(worldToThree(WIDE_FRAMING.targetCm));
 

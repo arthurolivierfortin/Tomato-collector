@@ -1,26 +1,19 @@
-import {
-  BoxGeometry, CylinderGeometry, Group, Matrix4, Mesh, MeshStandardMaterial, SphereGeometry, Vector3,
-} from 'three';
+import { CylinderGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry, Vector3 } from 'three';
 import type { Vec3 } from '@tomato/shared';
 import { worldToThree } from '../three/frame';
+import { buildScissorsMesh } from './buildScissorsMesh';
 import { armJoints } from './ik';
 import type { ArmAngles } from './ik';
 import type { ScissorsPoints } from './scissorsGeometry';
 
-/** Palette (spec section 6) : bras gris neutre, articulations gris foncé, lames magenta. */
+/** Palette (spec section 6) : bras gris neutre, articulations gris foncé. Les ciseaux ont leur module. */
 const ARM_COLOR = '#9ca3af';
 const JOINT_COLOR = '#6b7280';
-const BLADE_COLOR = '#e879f9';
 const BASE_HEIGHT_CM = 4;
-const BLADE_WIDTH_CM = 1.2;
-const BLADE_THICKNESS_CM = 0.3;
 const UP = new Vector3(0, 1, 0);
 
 const armMaterial = new MeshStandardMaterial({ color: ARM_COLOR, roughness: 0.55, metalness: 0.35 });
 const jointMaterial = new MeshStandardMaterial({ color: JOINT_COLOR, roughness: 0.5, metalness: 0.4 });
-const bladeMaterial = new MeshStandardMaterial({
-  color: BLADE_COLOR, roughness: 0.3, metalness: 0.5, emissive: BLADE_COLOR, emissiveIntensity: 0.25,
-});
 
 /** Place un mesh dont la géométrie mesure 1 le long de Y entre deux points monde. */
 function placeSegment(mesh: Mesh, fromCm: Vec3, toCm: Vec3): void {
@@ -33,20 +26,6 @@ function placeSegment(mesh: Mesh, fromCm: Vec3, toCm: Vec3): void {
   if (len > 1e-6) mesh.quaternion.setFromUnitVectors(UP, dir.normalize());
 }
 
-/** Comme placeSegment, mais l'axe Z local (épaisseur) suit la normale donnée. */
-function placeBlade(mesh: Mesh, fromCm: Vec3, toCm: Vec3, normalCm: Vec3): void {
-  const a = worldToThree(fromCm);
-  const y = new Vector3().subVectors(worldToThree(toCm), a);
-  const len = y.length();
-  if (len <= 1e-6) return;
-  y.normalize();
-  const z = worldToThree(normalCm).normalize();
-  const x = new Vector3().crossVectors(y, z).normalize();
-  mesh.position.copy(a).addScaledVector(y, len / 2);
-  mesh.scale.set(1, len, 1);
-  mesh.quaternion.setFromRotationMatrix(new Matrix4().makeBasis(x, y, z));
-}
-
 function cylinder(radiusCm: number, material: MeshStandardMaterial): Mesh {
   const mesh = new Mesh(new CylinderGeometry(radiusCm, radiusCm, 1, 16), material);
   mesh.castShadow = true;
@@ -55,12 +34,6 @@ function cylinder(radiusCm: number, material: MeshStandardMaterial): Mesh {
 
 function joint(radiusCm: number): Mesh {
   const mesh = new Mesh(new SphereGeometry(radiusCm, 16, 12), jointMaterial);
-  mesh.castShadow = true;
-  return mesh;
-}
-
-function blade(): Mesh {
-  const mesh = new Mesh(new BoxGeometry(BLADE_WIDTH_CM, 1, BLADE_THICKNESS_CM), bladeMaterial);
   mesh.castShadow = true;
   return mesh;
 }
@@ -81,9 +54,8 @@ export function buildArmMesh(): ArmMesh {
   const shoulder = joint(3);
   const elbow = joint(2.6);
   const wrist = joint(1.6);
-  const bladeA = blade();
-  const bladeB = blade();
-  group.add(base, column, upper, fore, shoulder, elbow, wrist, bladeA, bladeB);
+  const scissors = buildScissorsMesh();
+  group.add(base, column, upper, fore, shoulder, elbow, wrist, scissors.group);
   return {
     group,
     pose(baseCm, angles, points) {
@@ -95,8 +67,7 @@ export function buildArmMesh(): ArmMesh {
       shoulder.position.copy(worldToThree(j.shoulderCm));
       elbow.position.copy(worldToThree(j.elbowCm));
       wrist.position.copy(worldToThree(points.pivotCm));
-      placeBlade(bladeA, points.pivotCm, points.tipACm, points.bladeNormal);
-      placeBlade(bladeB, points.pivotCm, points.tipBCm, points.bladeNormal);
+      scissors.pose(points);
     },
   };
 }
