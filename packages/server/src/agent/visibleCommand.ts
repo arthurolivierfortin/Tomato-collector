@@ -51,9 +51,16 @@ export function psLiteral(text: string): string {
   return `'${text.replace(/'/g, "''")}'`;
 }
 
-/** Contenu d'un fichier, lu par PowerShell au moment du lancement. */
+/**
+ * Contenu d'un fichier, lu par PowerShell au moment du lancement.
+ *
+ * `-Encoding UTF8` n'est pas un détail de style : sans lui, Windows PowerShell 5.1 lit un fichier
+ * UTF-8 **sans nomenclature** en ANSI. Mesuré sur « pitch -13.59° — occultée » : 29 caractères lus
+ * en 33, le degré devenu deux caractères, le tiret cadratin trois. `prompts/system.md` a neuf
+ * lignes non ASCII ; sans cette option, le prompt envoyé à l'agent n'est pas celui du SDK.
+ */
 function fromFile(path: string): string {
-  return `(Get-Content -Raw ${psLiteral(path)})`;
+  return `(Get-Content -Raw -Encoding UTF8 ${psLiteral(path)})`;
 }
 
 /** Fichier `--mcp-config` : le robot, en HTTP. Le nom **doit** être celui du SDK (`robot`) : c'est
@@ -131,9 +138,19 @@ export interface WindowGeometry {
  * Ces deux lignes sont tout ce que la fenêtre exécute : ce qui y défile est la sortie de `claude`.
  */
 export function launchScript(title: string, input: VisibleCommandInput): string {
-  return `$Host.UI.RawUI.WindowTitle = ${psLiteral(title)}
-${teeShellCommand(input)}
-`;
+  return [
+    // La console d'un `powershell -NoProfile` est en IBM437 (mesuré) : la sortie UTF-8 de `claude`
+    // y serait décodée en cp437 avant `Tee-Object`, et « 58.4° — occultée » arriverait dans le
+    // fichier tee — donc dans le dashboard et dans le journal — en « 58.4┬░ ΓÇö occult├⌐e ».
+    '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+    // Posée ici plutôt que dans l'environnement du `spawn` : celui-ci traverse powershell →
+    // Start-Process → wt.exe, et `wt` peut déléguer à une instance déjà ouverte, dont
+    // l'environnement est le sien. Les trois PNG de `get_views` dépassent le défaut de 25 000.
+    `$env:MAX_MCP_OUTPUT_TOKENS = ${psLiteral(MCP_TOKENS)}`,
+    `$Host.UI.RawUI.WindowTitle = ${psLiteral(title)}`,
+    teeShellCommand(input),
+    '',
+  ].join('\n');
 }
 
 /**
