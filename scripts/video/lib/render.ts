@@ -23,7 +23,7 @@ import { splitComplex, splitLayout, type SplitSpec } from './split';
 import { lineCount, wrapText } from './text';
 import { signatureBlocks, signatureChain, type PlacedText } from './titleCard';
 import { zoomChain, zoomLayout, zoomLines, zoomWrapChars, type ZoomBlock, type ZoomSpec } from './zoom';
-import { terminalOffsetS } from './terminal';
+import { terminalPipStart } from './terminal';
 import { encoderArgs, ffmpeg } from './ffmpegRun';
 
 /** Largeurs de rupture, en caractères, calées sur les corps de `DEFAULT_STYLE` en 1920 px. */
@@ -136,22 +136,30 @@ async function overlayChain(ctx: RenderContext, i: number, clip: Extract<Clip, {
 }
 
 /**
- * Incrustation du terminal pour ce sous-plan : le fichier et l'instant correspondant, ou `null`
- * quand la prise n'a pas de capture de terminal ou que celle-ci n'avait pas encore commencé.
+ * Incrustation du terminal pour ce sous-plan : le fichier, l'instant correspondant dans la capture,
+ * et le retard avant que la vignette apparaisse. `null` quand la prise n'a pas de capture de
+ * terminal, ou quand la fenêtre s'ouvre après la fin de ce sous-plan : il n'y a alors rien à
+ * montrer, pas même en fondu.
  */
-function pipSource(ctx: RenderContext, clip: Extract<Clip, { kind: 'video' | 'freeze' }>): { path: string; atS: number } | null {
+function pipSource(
+  ctx: RenderContext,
+  clip: Extract<Clip, { kind: 'video' | 'freeze' }>,
+): { path: string; atS: number; appearAtS: number } | null {
   if (clip.pip === undefined) return null;
   const track = ctx.terminalOf.get(clip.take);
   if (track === undefined) {
     ctx.warn(`prise « ${clip.take} » sans capture de terminal : incrustation ignorée`);
     return null;
   }
-  const atS = terminalOffsetS(clip.kind === 'video' ? clip.fromS : clip.atS, track.startMs);
-  if (atS === null) {
-    ctx.warn(`prise « ${clip.take} » : terminal pas encore lancé à cet instant, incrustation ignorée`);
+  const { atS, delayS } = terminalPipStart(clip.kind === 'video' ? clip.fromS : clip.atS, track.startMs);
+  if (delayS >= clipDurationS(clip)) {
+    ctx.warn(`prise « ${clip.take} » : terminal lancé après la fin de ce sous-plan, incrustation ignorée`);
     return null;
   }
-  return { path: track.path, atS };
+  if (delayS > 0) {
+    ctx.warn(`prise « ${clip.take} » : terminal lancé ${delayS.toFixed(2)} s après le début du sous-plan, vignette en fondu à partir de là`);
+  }
+  return { path: track.path, atS, appearAtS: delayS };
 }
 
 /**
@@ -184,7 +192,7 @@ async function renderVideo(ctx: RenderContext, i: number, clip: Extract<Clip, { 
       '-ss', clip.fromS.toFixed(3), '-i', sourceOf(ctx, clip.take),
       '-ss', pip.atS.toFixed(3), '-i', pip.path,
       '-t', durationS,
-      '-filter_complex', pipComplex(ctx.format, clip.pip, ctx.style, overlays),
+      '-filter_complex', pipComplex(ctx.format, clip.pip, ctx.style, overlays, pip.appearAtS),
       '-map', '[out]',
       ...encoderArgs(ctx.encoder, ctx.format.fps),
       out,
@@ -273,7 +281,7 @@ async function renderFreeze(ctx: RenderContext, i: number, clip: Extract<Clip, {
       '-loop', '1', '-framerate', String(ctx.format.fps), '-t', String(clip.durationS), '-i', still,
       '-loop', '1', '-framerate', String(ctx.format.fps), '-t', String(clip.durationS), '-i', pipStill,
       '-t', String(clip.durationS),
-      '-filter_complex', pipComplex(ctx.format, clip.pip, ctx.style, await overlayChain(ctx, i, clip)),
+      '-filter_complex', pipComplex(ctx.format, clip.pip, ctx.style, await overlayChain(ctx, i, clip), pip.appearAtS),
       '-map', '[out]',
       ...encoderArgs(ctx.encoder, ctx.format.fps),
       out,

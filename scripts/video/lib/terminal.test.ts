@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gdigrabArgs, parseTerminalMode, terminalOffsetS } from './terminal';
+import { gdigrabArgs, parseTerminalMode, terminalPipStart } from './terminal';
 
 describe('gdigrabArgs', () => {
   it('capture une fenêtre par son titre, pas l’écran', () => {
@@ -18,15 +18,16 @@ describe('gdigrabArgs', () => {
   });
 });
 
-describe('terminalOffsetS', () => {
-  it('ramène un instant de la prise sur l’horloge du terminal', () => {
-    // Le terminal démarre 2 s après la vidéo de la prise : 30 s dans la prise = 28 s dans le terminal.
-    expect(terminalOffsetS(30, 2000)).toBe(28);
+describe('terminalPipStart', () => {
+  it('cale la vignette sur l’horloge du terminal quand la piste existe déjà', () => {
+    expect(terminalPipStart(30, 2000)).toEqual({ atS: 28, delayS: 0 });
+    expect(terminalPipStart(2, 2000)).toEqual({ atS: 0, delayS: 0 });
   });
 
-  it('rend null avant le début de la capture du terminal : il n’y a rien à incruster', () => {
-    expect(terminalOffsetS(1.5, 2000)).toBeNull();
-    expect(terminalOffsetS(2, 2000)).toBe(0);
+  it('retarde la vignette au lieu de la jeter quand la fenêtre s’ouvre après le début du plan', () => {
+    // C'est le défaut du montage v3 : le segment « Detection, then the agent wakes up » partait
+    // 1,8 s avant l'ouverture de la fenêtre et perdait sa vignette pendant ses 9,8 s entières.
+    expect(terminalPipStart(20.737, 22_580)).toEqual({ atS: 0, delayS: 1.843 });
   });
 });
 

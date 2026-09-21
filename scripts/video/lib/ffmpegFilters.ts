@@ -134,18 +134,42 @@ function pipInner(spec: PipSpec, w: number, h: number): string {
 }
 
 /**
+ * Fondu d'entrée de la vignette qui se fait attendre : assez long pour qu'elle arrive au lieu
+ * d'apparaître d'un coup, assez court pour qu'on ne se demande pas ce qui se passe.
+ */
+export const PIP_FADE_S = 0.5;
+
+/**
  * Incrustation d'une seconde source (la capture du terminal) dans la première, avec un liseré de la
  * couleur des cadres de mise en évidence. Le graphe complet est rendu ici : `[0:v]` est la prise,
  * `[1:v]` le terminal, `overlays` les filtres de sous-titre et de cadre à appliquer ensuite.
+ *
+ * `appearAtS` est le retard de la vignette dans ce sous-plan. Il n'est pas nul quand la fenêtre de
+ * l'agent s'ouvre **pendant** le plan : le début du plan n'a alors rien à incruster. Des images
+ * transparentes (`tpad`) tiennent la place, l'alpha monte ensuite (`fade`), et l'incrustation elle-
+ * même n'est activée qu'à partir de cet instant. La v3 jetait la vignette pour tout le sous-plan
+ * dans ce cas-là, ce qui laissait 9,8 s de partie 2 sans terminal à l'image.
  */
-export function pipComplex(format: Format, spec: PipSpec, style: TextStyle, overlays: readonly string[]): string {
+export function pipComplex(
+  format: Format,
+  spec: PipSpec,
+  style: TextStyle,
+  overlays: readonly string[],
+  appearAtS = 0,
+): string {
   const border = style.highlightThickness;
   const innerW = spec.w - 2 * border;
   const innerH = spec.h - 2 * border;
+  const at = appearAtS.toFixed(3).replace(/\.?0+$/, '');
+  const wait =
+    appearAtS > 0
+      ? `,format=yuva420p,tpad=start_duration=${at}:start_mode=add:color=black@0,fade=t=in:st=${at}:d=${PIP_FADE_S}:alpha=1`
+      : '';
+  const enable = appearAtS > 0 ? `:enable='gte(t,${at})'` : '';
   return [
     `[0:v]${chain(normalizeFilters(format))}[bg]`,
-    `[1:v]${pipInner(spec, innerW, innerH)},` + `pad=${spec.w}:${spec.h}:${border}:${border}:color=${PIP_BORDER}[pip]`,
-    `[bg][pip]overlay=${spec.x}:${spec.y}[framed]`,
+    `[1:v]${pipInner(spec, innerW, innerH)},` + `pad=${spec.w}:${spec.h}:${border}:${border}:color=${PIP_BORDER}${wait}[pip]`,
+    `[bg][pip]overlay=${spec.x}:${spec.y}${enable}[framed]`,
     `[framed]${chain([...overlays])}[out]`,
   ].join(';');
 }
