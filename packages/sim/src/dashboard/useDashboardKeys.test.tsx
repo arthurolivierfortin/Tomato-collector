@@ -11,18 +11,28 @@ interface ProbeProps {
   lightboxOpen: boolean;
   pipelineOpen: boolean;
   toggleFraming: () => void;
+  toggleToolCamera: () => void;
 }
 
-function Probe({ store, lightboxOpen, pipelineOpen, toggleFraming }: ProbeProps) {
-  useDashboardKeys(store, () => undefined, lightboxOpen, pipelineOpen, toggleFraming);
+function Probe({ store, lightboxOpen, pipelineOpen, toggleFraming, toggleToolCamera }: ProbeProps) {
+  useDashboardKeys(store, () => undefined, lightboxOpen, pipelineOpen, toggleFraming, toggleToolCamera);
   return null;
 }
 
 function mount(lightboxOpen = false, pipelineOpen = false) {
   const store = createDashboardStore();
   const framings: number[] = [];
-  render(<Probe store={store} lightboxOpen={lightboxOpen} pipelineOpen={pipelineOpen} toggleFraming={() => framings.push(1)} />);
-  return Object.assign(store, { framings });
+  const toolCameras: number[] = [];
+  render(
+    <Probe
+      store={store}
+      lightboxOpen={lightboxOpen}
+      pipelineOpen={pipelineOpen}
+      toggleFraming={() => framings.push(1)}
+      toggleToolCamera={() => toolCameras.push(1)}
+    />,
+  );
+  return Object.assign(store, { framings, toolCameras });
 }
 
 describe('useDashboardKeys', () => {
@@ -56,6 +66,13 @@ describe('useDashboardKeys', () => {
     fireEvent.keyDown(window, { key: 'k' });
     fireEvent.keyDown(window, { key: 'k' });
     expect(store.framings).toHaveLength(2);
+  });
+
+  // Issue #42 : `j` force l'incrustation de la caméra outil, dans un sens puis dans l'autre.
+  it('toggles the tool camera inset on j', () => {
+    const store = mount();
+    fireEvent.keyDown(window, { key: 'j' });
+    expect(store.toolCameras).toHaveLength(1);
   });
 
   it('ignores keys typed in a field', () => {

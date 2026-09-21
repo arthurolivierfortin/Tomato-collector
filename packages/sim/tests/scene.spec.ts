@@ -89,3 +89,23 @@ test('the spectator view opens on the wide framing and k toggles the cut framing
   await expect.poll(() => eyeCm(page), { timeout: 5_000 }).toEqual(WIDE_FRAMING.eyeCm);
   expect(errors).toEqual([]);
 });
+
+// Issue #42 : l'incrustation de la caméra outil s'allume dès que les ciseaux quittent le repos.
+test('the tool camera inset shows up once the scissors move, and j forces it off', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/');
+  await expect(page.getByTestId('spectator')).toBeVisible();
+  await page.waitForFunction(() => window.__tomato !== undefined && window.__tomato.runtime.ctx.scene !== null, undefined, { timeout: 30_000 });
+  await expect(page.getByTestId('tool-camera')).toHaveCount(0);
+
+  const moved = await page.evaluate(() => window.__tomato!.runtime.applyNow({ type: 'move_scissors', x: 30, y: -8, z: 58, mode: 'absolute' }));
+  expect(moved.ok, moved.message).toBe(true);
+  await expect(page.getByTestId('tool-camera')).toBeVisible({ timeout: 5_000 });
+  mkdirSync(shotsDir, { recursive: true });
+  await page.screenshot({ path: resolve(shotsDir, 'scene-tool-camera.png') });
+
+  await page.keyboard.press('j');
+  await expect(page.getByTestId('tool-camera')).toHaveCount(0, { timeout: 5_000 });
+  expect(errors).toEqual([]);
+});

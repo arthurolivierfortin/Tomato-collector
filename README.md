@@ -185,6 +185,11 @@ limites et reproduction dans [`docs/perception-model.md`](docs/perception-model.
   l'agent en direct, le replier pour donner toute la hauteur à la trace.
 - `b` : ouvre le schéma bloc en bandeau bas, utile pour montrer le flux agent ↔ serveur ↔ sim.
 - `c` : affiche les gizmos des trois caméras (masqués par défaut), utile pour expliquer d'où viennent les vues.
+- `j` : incrustation « caméra outil » dans le coin bas droit de la vue spectateur — une caméra montée
+  sur les ciseaux, à 30 cm en retrait et **sous** le plan des lames, qui suit leur pose et montre en
+  gros l'ouverture, la coupe et le pédoncule. Elle s'allume toute seule dès que les ciseaux quittent
+  leur pose de repos et s'éteint deux secondes après l'atterrissage du fruit ; `j` force l'état
+  inverse. Masquer les contrôles (`h`) avant de filmer : sinon leur panneau recouvre l'incrustation.
 - `k` : cadrage de la vue spectateur — « large » (plant, panier et bras entiers, cadrage par défaut) ou
   « coupe » (rapproché sur la zone de coupe, socle du bras hors champ), transition de 0,8 s. Les deux
   regardent la scène de face et de la droite du plant pour que l'avant-bras et les lames restent en
