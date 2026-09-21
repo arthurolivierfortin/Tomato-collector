@@ -1,6 +1,6 @@
 # STATUS
 
-**Étape courante :** S:4 — Intégration et tournage, vidéo v2.3 livrée ; prises v3 à venir avec runner headless visible (PR #45). Issue ouverte restante : #35 étiquettes.
+**Étape courante :** S:4 — Intégration et tournage, vidéo v3 livrée (`data/video/tomato-demo-v3.mp4`, 7 min 08 s, runner visible PR #45, prises v3 PR #47) ; montage v3.1 en cours (sous-titres recalés, vignette dès le réveil). Issue ouverte restante : #35 étiquettes.
 **Repo :** arthurolivierfortin/Tomato-collector
 
 ## Étapes
@@ -10,7 +10,7 @@
 | S:1 Fondations | monorepo, shared, scène minimale, plant v1, README, cycle, issues | terminée 2026-09-17 |
 | S:2 Sim | M1 plant (PR #10), M2 bras (PR #8), M3 vues (PR #9) | terminée 2026-09-17 |
 | S:3 Perception, serveur, agent, dashboard | M4 (PR #13), M5 (PR #17), M6 (PR #16), M7 (PR #15) | terminée 2026-09-18 |
-| S:4 Intégration et tournage | premiers épisodes réels, ajustements, prises vidéo | vidéo v2.3 livrée ; prises v3 à venir avec runner headless visible (PR #45) |
+| S:4 Intégration et tournage | premiers épisodes réels, ajustements, prises vidéo | vidéo v3 livrée (PR #45, #47) ; montage v3.1 en cours |
 
 ## Conditions de passage
 
@@ -43,3 +43,4 @@
 - 2026-09-19 : PR #41 mergée : montage v2.2 `data/video/tomato-demo-v2.2.mp4` (6 min 14 s) : segment détection en écran partagé continu (tomate qui rougit à gauche, vue du modèle agrandie en direct à droite : 8 unripe → première boîte ripe → porte 5/5 → réveil), `lib/split.ts`. 826 tests. Aucun épisode payant.
 - 2026-09-21 : PR #43 mergée : cartons titre « Tomato Collector, By Arthur-Olivier Fortin » en ouverture et fin (v2.3).
 - 2026-09-21 : PR #44 mergée (#42) : caméra spectateur tournée vers l'avant (`spectatorFraming.ts`, cadrage large + touche k coupe), lames en maillage 3D, caméra outil embarquée en incrustation (touche j), vues de l'agent inchangées au pixel près. 869 tests.
+- 2026-09-21 : PR #45 mergée : runner `TOMATO_AGENT=visible` (Claude Code headless dans une vraie fenêtre Windows Terminal, flux stream-json filmé) ; PR #47 mergée : prises v3 (concepts et cycle avec runner visible, détection et pipeline gratuites, nouvelle caméra + caméra outil), vidéo `data/video/tomato-demo-v3.mp4` (7 min 08 s). Montage v3.1 en cours (sous-titres recalés, vignette dès le réveil).
