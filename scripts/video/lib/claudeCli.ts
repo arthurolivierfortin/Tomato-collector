@@ -114,7 +114,7 @@ export const MAX_MCP_OUTPUT_TOKENS = '400000';
  * `ClaudeCodeLLMProvider.RunProcessAsync` (Maestro), qui fait exactement ça.
  */
 export function claudeEnv(env: Readonly<Record<string, string | undefined>>): Record<string, string | undefined> {
-  const out = { ...env, MAX_MCP_OUTPUT_TOKENS };
+  const out: Record<string, string | undefined> = { ...env, MAX_MCP_OUTPUT_TOKENS };
   delete out['CLAUDECODE'];
   return out;
 }
