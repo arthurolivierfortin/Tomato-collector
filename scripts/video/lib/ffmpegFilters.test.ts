@@ -16,6 +16,7 @@ import {
   pickFontFile,
   FONT_CANDIDATES,
   CAPTION_MAX_LINES,
+  captionWrapChars,
 } from './ffmpegFilters';
 
 describe('escapeFilterPath', () => {
@@ -108,6 +109,19 @@ describe('captionFilters', () => {
     expect(top).toBeGreaterThan(84); // bas du bandeau de statuts et de la pastille de perception
     expect(1080 - DEFAULT_STYLE.captionBottom).toBeLessThan(960); // haut du schéma bloc
     expect(DEFAULT_STYLE.captionX + DEFAULT_STYLE.captionWidth).toBeLessThanOrEqual(800); // colonne spectateur
+  });
+});
+
+describe('captionWrapChars', () => {
+  it('donne la rupture du bandeau habituel, et celle d’un bandeau rétréci', () => {
+    // Le montage coupe le sous-titre à ce nombre de caractères : drawtext ne renvoie pas à la
+    // ligne tout seul. Un bandeau moitié moins large, c'est deux fois moins de texte par ligne.
+    expect(captionWrapChars(DEFAULT_STYLE, DEFAULT_STYLE.captionWidth)).toBe(50);
+    expect(captionWrapChars(DEFAULT_STYLE, 488)).toBe(30);
+  });
+
+  it('ne descend jamais sous douze caractères, si étroit soit le bandeau', () => {
+    expect(captionWrapChars(DEFAULT_STYLE, 0)).toBe(12);
   });
 });
 
