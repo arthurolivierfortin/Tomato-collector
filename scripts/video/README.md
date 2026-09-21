@@ -4,8 +4,8 @@ Quatre prises, un montage. Rien n'est manuel : la page est pilotée par Playwrig
 terminal est filmée par ffmpeg, et ffmpeg assemble le résultat. Deux des quatre prises ne coûtent
 rien : elles tournent contre un serveur `TOMATO_AGENT=off`.
 
-    npm run video:record -- --scenario concepts  --mode live --take concepts --terminal page
-    npm run video:record -- --scenario cycle     --mode live --take cycle    --terminal page
+    npm run video:record -- --scenario concepts  --mode live --take concepts --terminal window
+    npm run video:record -- --scenario cycle     --mode live --take cycle    --terminal window
     npm run video:record -- --scenario pipeline  --mode live --take pipeline   # serveur TOMATO_AGENT=off
     npm run video:record -- --scenario detection --mode live --take detection  # serveur TOMATO_AGENT=off
     npm run video:montage -- --episode latest
@@ -202,9 +202,10 @@ prompt système, avant la première approche) ; s'il la saute, la prise garde to
 | `--take <nom>` | nom du scénario | nom des fichiers de sortie |
 | `--page <url>` | `http://localhost:5173` | page à piloter |
 | `--api <url>` | `http://localhost:7331` | HTTP du serveur ; en direct, `/health` doit dire `phase: "idle"` et `simConnected: false` |
-| `--terminal <page\|gdigrab\|off>` | `off` | comment filmer le terminal |
+| `--terminal <page\|gdigrab\|window\|off>` | `off` | comment filmer le terminal ; `window` pour les prises finales |
 | `--terminal-log <fichier>` | `data/video/server.log` | mode `page` : le fichier écrit par `TOMATO_LOG_FILE` |
-| `--terminal-window <titre>` | `Tomato server` | mode `gdigrab` : titre exact de la fenêtre |
+| `--terminal-window <titre>` | `Claude Code headless` | modes `gdigrab` et `window` : titre exact de la fenêtre |
+| `--terminal-inset <px>` | `0` | mode `window` : pixels rognés sur les quatre bords de la fenêtre |
 | `--episode <id\|chemin>` | — | journal à rejouer en mode `replay` |
 | `--episodes-dir <dossier>` | `data/episodes` | où chercher `<id>.json` |
 | `--out <dossier>` | `data/video/takes` | dossier des prises |
@@ -226,7 +227,12 @@ prompt système, avant la première approche) ; s'il la saute, la prise garde to
 ## Le terminal à l'image
 
 Sans terminal, un spectateur peut croire que la session de l'agent est une mise en scène du
-dashboard. La vidéo filme donc, en parallèle de la page, **la sortie réelle du processus serveur**.
+dashboard. La vidéo filme donc, en parallèle de la page, **le processus de l'agent lui-même**.
+
+Les prises finales emploient `--terminal window` : le serveur lance Claude Code headless dans une
+vraie fenêtre de Windows Terminal et le pipeline la filme à l'écran (voir plus bas). Les deux modes
+qui suivent — la page qui suit le journal du serveur, et `gdigrab` sur une console — restent là pour
+les répétitions et pour les prises qui n'ont pas d'agent.
 
 1. **Le serveur écrit son flux dans un fichier.** `TOMATO_LOG_STREAM=on` imprime sur la sortie
    standard exactement les lignes que le dashboard reçoit, une couleur par nature d'événement,
@@ -271,6 +277,100 @@ dashboard. La vidéo filme donc, en parallèle de la page, **la sortie réelle d
    `plans/demo.test.ts` vérifie zone par zone qu'elle n'en touche aucune. Le demi-écran, lui,
    recouvre volontairement la trace et la vue mise en avant : un carton l'annonce, le terminal
    devient le sujet ; il laisse en revanche le sous-titre libre.
+
+### `--terminal window` : l'agent headless filmé dans Windows Terminal
+
+C'est **le mode des prises finales**. Le serveur lance le même Claude Code headless que d'habitude,
+mais dans une vraie fenêtre de Windows Terminal, et c'est cette fenêtre que le film montre.
+
+    claude -p (Get-Content -Raw <wake.txt>) --output-format stream-json --verbose       --mcp-config <mcp.json> --strict-mcp-config --allowedTools 'mcp__robot__*'       --permission-mode dontAsk --tools '' --setting-sources '' --no-chrome       --model claude-opus-5 --system-prompt (Get-Content -Raw <system.md>)       | Tee-Object -FilePath <episode-N.jsonl>
+
+Ce qui défile dans la fenêtre est **la sortie du binaire**, une ligne JSON par message. Rien n'y est
+imprimé par le pipeline, rien n'y est reformaté : la seule chose que le script de lancement fait
+avant `claude`, c'est poser le titre de la fenêtre, et ça n'écrit rien à l'écran. Le serveur lit le
+fichier que `Tee-Object` écrit à côté et le fait passer par **le même chemin** que le flux du SDK
+(`streamToDashboard`) : le dashboard, le journal, le coût et le carton de fin ne changent pas.
+
+Les options font écho une à une à `buildQueryOptions` (`packages/server/src/agent/queryOptions.ts`),
+et `visibleCommand.test.ts` le vérifie. Trois écarts, assumés et commentés dans le module :
+`maxTurns` n'existe pas dans `claude --help` (la limite de 40 appels MCP borne l'épisode),
+`includePartialMessages` est laissé de côté (il noierait la fenêtre sous des fragments d'un mot), et
+`--no-chrome` n'a pas d'équivalent SDK (Claude in Chrome est un serveur MCP intégré que
+`--strict-mcp-config` ne couvre pas — relevé dans `claude --debug mcp`).
+
+#### Une prise, pas à pas, avec le propriétaire devant la machine
+
+1. **Un écran propre.** La capture est une capture d'**écran** : tout ce qui passerait devant la
+   fenêtre serait dans le film. Fermer les autres fenêtres de terminal, et ne rien poser sur le coin
+   haut gauche de l'écran pendant toute la prise. Le pilote remet la fenêtre au-dessus de tout
+   toutes les trois secondes, mais il ne peut rien contre une fenêtre qu'on active exprès.
+2. **`claude` connecté**, sur le compte du propriétaire : `claude auth` hors prise. Le pipeline ne
+   touche jamais à l'authentification ; il retire seulement les marqueurs de session imbriquée
+   (`CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`…), sans lesquels une session lancée depuis une autre
+   session Claude Code affiche « Transcript saving is off » en bas de l'écran — donc à l'image.
+3. **Le serveur, en mode visible**, neuf, dans son propre terminal :
+
+       TOMATO_AGENT=visible npm run start -w @tomato/server
+
+   La fenêtre s'ouvre à 110 × 32 caractères en haut à gauche, dans le dossier du dépôt — déjà
+   approuvé par Claude Code, donc sans invite de confiance. Tout se règle par l'environnement :
+   `TOMATO_VISIBLE_TITLE`, `TOMATO_VISIBLE_COLS`, `TOMATO_VISIBLE_ROWS`, `TOMATO_VISIBLE_X`,
+   `TOMATO_VISIBLE_Y`, `TOMATO_VISIBLE_DIR`, `TOMATO_VISIBLE_CWD`.
+4. **La sim** (`npm run dev:sim`), sans ouvrir d'onglet.
+5. **La prise** :
+
+       npm run video:record -- --scenario concepts --mode live --take concepts --terminal window
+
+   Le pilote n'ouvre pas la fenêtre et n'y écrit jamais rien. Il l'attend par son titre — jusqu'à
+   trois minutes —, la met au premier plan, la filme à 25 img/s sur l'horloge des marqueurs, puis la
+   referme à la fin.
+6. **Si Claude Code demande quelque chose au démarrage** (« Do you trust the files in this
+   folder? »), le propriétaire répond **à la main, dans la fenêtre**. C'est la seule frappe permise
+   de toute la prise, et l'attente de trois minutes est là pour ça. Passé ce délai, la prise
+   continue sans incrustation plutôt que d'échouer.
+7. **Ne plus toucher à la fenêtre** : ne pas la déplacer, ne pas la réduire, ne pas y taper. Le
+   rectangle filmé est mesuré une fois, au moment où elle apparaît.
+
+Un dernier détail de mise en scène : la **taille de la police** vient du profil de Windows Terminal,
+`wt.exe` n'a pas d'option pour la fixer. 110 colonnes dans une fenêtre d'environ 1 050 points donnent
+une quinzaine de pixels par caractère, ce qui se lit dans le demi-écran du montage. Si Windows
+Terminal affiche un bandeau d'information en haut (« Le comportement d'arrêt peut être configuré… »),
+le fermer une fois avant la prise : il resterait à l'image.
+
+#### Ce qui est réel, et ce qui est mis en forme
+
+| À l'image | D'où ça vient |
+|---|---|
+| la fenêtre de terminal, son onglet, son fond | Windows Terminal, capturé à l'écran |
+| chaque ligne JSON qui y défile | la sortie de `claude --output-format stream-json`, telle quelle |
+| la trace, le schéma bloc, les vues du dashboard | l'application, en direct, via le hub WebSocket |
+| le carton « Claude Code, headless, live output » | le montage |
+| les sous-titres, les cadres bleus, l'écran partagé | le montage |
+| le carton de résultat (appels, durée, coût) | le journal de l'épisode, `data/episodes/<id>.json` |
+
+Le coût affiché vient du message `result` du CLI, lu dans le fichier `.jsonl` puis écrit dans le
+journal comme il l'est avec le SDK : il n'y a plus de coût manquant à ce mode.
+
+#### Pourquoi une zone d'écran et pas `-i title=…`
+
+`ffmpeg -f gdigrab -i title="<titre>"` **trouve** la fenêtre de Windows Terminal, mais n'en ramène
+que du noir : elle se dessine en DirectX, et un `BitBlt` sur son contexte ne rend rien. Mesuré ici :
+75 images capturées, toutes noires et identiques. Le bureau composé, lui, porte la fenêtre telle
+qu'elle s'affiche, d'où `-i desktop -offset_x/-offset_y/-video_size` sur son rectangle, demandé à
+`window-rect.ps1` en **pixels physiques** — l'écran de la machine est à 250 %, et une position
+logique serait fausse de plus de mille pixels.
+
+Quatre autres pièges, tous mesurés, tous commentés dans le code :
+
+- un `spawn` depuis Node n'ouvre **aucune** fenêtre, même `detached` : ni `powershell`, ni `wt.exe`.
+  Seul `Start-Process` de PowerShell en ouvre une ;
+- Windows PowerShell 5.1 **ne cite pas** les éléments de `-ArgumentList` : chaque argument est donc
+  cité à la main, sans quoi un argument à espaces casse le lancement ;
+- `wt.exe --title` empêche la fenêtre de s'ouvrir sur cette version : le titre se pose depuis
+  l'intérieur, et le pilote scrute toutes les 250 ms parce que Claude Code reprend ce titre quelques
+  secondes après son démarrage ;
+- Windows Terminal coupe sa ligne de commande sur les `;` : la commande passe donc par un fichier
+  `launch-<n>.ps1`, jamais par un `-Command` en ligne.
 
 ### `--terminal gdigrab`, l'option
 
@@ -515,7 +615,8 @@ sous-titre dépasse deux lignes.
     record.ts              CLI d'enregistrement
     montage.ts             CLI de montage
     rehearse.ts            faux agent MCP pour la répétition sans coût
-    terminal.ps1           ouvre et dimensionne la fenêtre de terminal filmée
+    terminal.ps1           ouvre et dimensionne la fenêtre de terminal filmée (modes page/gdigrab)
+    window-rect.ps1        trouve la fenêtre de l'agent visible, la met au-dessus, rend son rectangle
     storyboard.md          le découpage, en français
     plans/demo.ts          le même découpage, exécutable : assemblage et cartons de fin
     plans/part1.ts         partie 1, plans/part2.ts partie 2
@@ -525,7 +626,8 @@ sous-titre dépasse deux lignes.
     lib/browser.ts         ouverture de Chromium, mesures GPU et cadence
     lib/health.ts          GET /health, serveur neuf et aucune autre sim
     lib/recorder.ts        déroulé d'une prise, écriture vidéo + marqueurs
-    lib/terminal.ts        capture du terminal : page filmée (défaut) ou fenêtre gdigrab
+    lib/terminal.ts        capture du terminal : page filmée, fenêtre gdigrab, ou zone d'écran
+    lib/windowRect.ts      la fenêtre de l'agent visible : attente, rectangle, premier plan, fermeture
     lib/termServer.ts      serveur local qui sert la page terminal et lui donne les lignes
     lib/ansi.ts            codes ANSI du serveur → HTML coloré (pur, testé)
     terminal/index.html    la page « terminal », sans bibliothèque ni CDN

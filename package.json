@@ -22,7 +22,7 @@
     "video:record": "tsx scripts/video/record.ts",
     "video:montage": "tsx scripts/video/montage.ts",
     "video:rehearse": "tsx scripts/video/rehearse.ts",
-    "video:all": "npm run video:record -- --scenario concepts --mode live --take concepts --terminal page && npm run video:record -- --scenario cycle --mode live --take cycle --terminal page && npm run video:montage -- --episode latest"
+    "video:all": "npm run video:record -- --scenario concepts --mode live --take concepts --terminal window && npm run video:record -- --scenario cycle --mode live --take cycle --terminal window && npm run video:montage -- --episode latest"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

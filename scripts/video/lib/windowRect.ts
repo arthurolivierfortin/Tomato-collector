@@ -60,7 +60,7 @@ function isRecord(x: unknown): x is Record<string, unknown> {
  * rend `null` : mieux vaut une prise sans incrustation qu'une capture d'un morceau de bureau.
  */
 export function parseWindowProbe(stdout: string): WindowProbe | null {
-  const text = stdout.replace(/^﻿/, '').trim();
+  const text = stdout.replace(/^\uFEFF/, '').trim();
   if (text === '') return null;
   let parsed: unknown;
   try {
