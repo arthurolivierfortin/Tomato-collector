@@ -35,7 +35,22 @@ export const ZONE = {
    * lit, juste avant la coupe, si le point de coupe est bien posé sur la tige.
    */
   agentFrontView: { x: 1466, y: 110, w: 400, h: 390 },
+  /**
+   * L'incrustation de la caméra outil (issue #42), **mesurée** sur la page en 1920×1080, contrôles
+   * masqués : x 548, y 759, 240 × 180. C'est la géométrie de `insetRect` du côté de la sim — 30 %
+   * de la largeur du canvas spectateur, en 4:3, à 12 px du coin bas droit — appliquée au canvas
+   * réel (`SPECTATOR_COLUMN`). L'étiquette « caméra outil » vit 18 px au-dessus : elle n'est pas
+   * dans cette zone-ci, qui est celle qu'un arrêt sur image agrandit, mais dans `PROTECTED`.
+   */
+  toolCamera: { x: 548, y: 759, w: 240, h: 180 },
 } as const satisfies Record<string, Rect>;
+
+/**
+ * Le canvas de la vue spectateur, **mesuré** : la colonne de gauche entre le bandeau de statuts et
+ * le pied de page. C'est lui qui porte l'incrustation de la caméra outil, et c'est sa largeur dont
+ * l'incrustation prend 30 %.
+ */
+export const SPECTATOR_COLUMN: Rect = { x: 0, y: 89, w: 800, h: 862 };
 
 /**
  * Corps du panneau « Perception » à agrandir : l'image que reçoit le détecteur et les cinq lignes
@@ -84,18 +99,47 @@ export const RIPENING_SPLIT: SplitSpec = {
  */
 const VIEW_THUMB_LABELS: Rect = { x: 1288, y: 930, w: 632, h: 24 };
 
-/** Le bandeau de sous-titre dans son cas le plus large : deux lignes, toute la largeur de rupture. */
-const CAPTION_BAND: Rect = {
-  x: DEFAULT_STYLE.captionX - DEFAULT_STYLE.bandPadding,
-  y: 1080 - DEFAULT_STYLE.captionBottom - bandHeight(DEFAULT_STYLE, CAPTION_MAX_LINES),
-  w: DEFAULT_STYLE.captionWidth + 2 * DEFAULT_STYLE.bandPadding,
-  h: bandHeight(DEFAULT_STYLE, CAPTION_MAX_LINES),
-};
+/** Hauteur de l'étiquette « caméra outil », mesurée juste au-dessus de l'incrustation. */
+const TOOL_CAM_LABEL_H = 18;
+
+/**
+ * Le bandeau de sous-titre dans son cas le plus large : `lines` lignes pleines, marge comprise.
+ * La boîte réelle épouse le texte ; celle-ci est la borne, c'est elle qu'on tient à l'écart.
+ */
+export function captionBand(captionWidth: number, lines: number = CAPTION_MAX_LINES): Rect {
+  const h = bandHeight(DEFAULT_STYLE, lines);
+  return {
+    x: DEFAULT_STYLE.captionX - DEFAULT_STYLE.bandPadding,
+    y: 1080 - DEFAULT_STYLE.captionBottom - h,
+    w: captionWidth + 2 * DEFAULT_STYLE.bandPadding,
+    h,
+  };
+}
+
+/**
+ * Largeur du sous-titre tant que l'incrustation de la caméra outil est allumée.
+ *
+ * Le bandeau habituel part de x 6 et court jusqu'à x 802 : il passe **sous** l'incrustation, qui
+ * commence à x 548. Ce n'est pas un réglage de goût, c'est une collision — le sous-titre effacerait
+ * précisément le plan que la caméra outil vient montrer. La largeur retenue n'est donc pas choisie
+ * mais déduite : le bandeau s'arrête une marge avant le bord gauche de l'incrustation, et le bas
+ * gauche de la colonne spectateur, lui, reste libre comme avant.
+ */
+export const TOOL_CAM_CAPTION_WIDTH = ZONE.toolCamera.x - DEFAULT_STYLE.captionX - 2 * DEFAULT_STYLE.bandPadding;
+
+/** À étaler dans tout segment joué pendant que l'incrustation de la caméra outil est allumée. */
+export const TOOL_CAM_CAPTION = { captionWidth: TOOL_CAM_CAPTION_WIDTH } as const;
 
 /**
  * Ce qu'une incrustation ne doit jamais couvrir. `blockActivity` est l'étiquette « agent → server :
  * … » qui vit tout en bas à droite, au-dessus du schéma bloc : elle est petite, facile à oublier, et
  * c'est elle qui dit ce qui vient de passer sur le bus.
+ *
+ * `toolCamera` est l'incrustation de la caméra outil **et son étiquette**, 18 px au-dessus. Elle ne
+ * se défend pas seulement des vignettes : le bandeau de sous-titre de largeur normale la recouvre
+ * aussi, et c'est pour cela que les segments joués pendant qu'elle est allumée portent
+ * `TOOL_CAM_CAPTION`. Les deux zones se chevauchent donc volontairement dans cette liste :
+ * `captionBand` est la borne du bandeau habituel, `toolCamera` ce qu'il doit céder.
  */
 export const PROTECTED = {
   statusBar: { x: 0, y: 0, w: 1920, h: 84 },
@@ -106,7 +150,13 @@ export const PROTECTED = {
   blockDiagram: { x: 0, y: 951, w: 1920, h: 129 },
   blockActivity: { x: 1450, y: 950, w: 470, h: 30 },
   viewThumbLabels: VIEW_THUMB_LABELS,
-  captionBand: CAPTION_BAND,
+  captionBand: captionBand(DEFAULT_STYLE.captionWidth),
+  toolCamera: {
+    x: ZONE.toolCamera.x,
+    y: ZONE.toolCamera.y - TOOL_CAM_LABEL_H,
+    w: ZONE.toolCamera.w,
+    h: ZONE.toolCamera.h + TOOL_CAM_LABEL_H,
+  },
 } as const satisfies Record<string, Rect>;
 
 /**
