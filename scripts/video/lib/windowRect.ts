@@ -70,6 +70,48 @@ export function parseWindowProbe(stdout: string): WindowProbe | null {
   return { rect: { x, y, w, h }, handle };
 }
 
+/** Interroge le script une fois. Jamais d'exception : une fenêtre absente est un `null`. */
+export async function probeWindow(script: string, title: string, options: WindowProbeOptions = {}): Promise<WindowProbe | null> {
+  const { execFile } = await import('node:child_process');
+  return new Promise<WindowProbe | null>((done) => {
+    execFile('powershell.exe', windowProbeArgs(script, title, options), { windowsHide: true }, (error, stdout) => {
+      done(error !== null ? null : parseWindowProbe(stdout));
+    });
+  });
+}
+
+export interface WaitForWindowOptions {
+  readonly timeoutMs: number;
+  readonly pollMs: number;
+  /** Arrête l'attente avant la fin du délai : la prise s'est terminée sans que la fenêtre vienne. */
+  readonly cancelled?: () => boolean;
+  readonly log?: (line: string) => void;
+}
+
+/**
+ * Attend que la fenêtre apparaisse. Le délai est volontairement long : au premier lancement dans
+ * un dossier, Claude Code demande s'il faut faire confiance à son contenu, et c'est le
+ * propriétaire qui répond, à la main, pendant que le pilote patiente.
+ */
+export async function waitForWindow(script: string, title: string, options: WaitForWindowOptions): Promise<WindowProbe | null> {
+  const deadline = Date.now() + options.timeoutMs;
+  for (;;) {
+    if (options.cancelled?.() === true) return null;
+    const found = await probeWindow(script, title, { topmost: true });
+    if (found !== null) return found;
+    if (Date.now() >= deadline) {
+      options.log?.(`fenêtre « ${title} » toujours absente après ${Math.round(options.timeoutMs / 1000)} s : la prise continue sans incrustation.`);
+      return null;
+    }
+    await new Promise((r) => setTimeout(r, options.pollMs));
+  }
+}
+
+/** Referme la fenêtre à la fin de la prise. Le serveur, lui, l'a laissée ouverte (`-NoExit`). */
+export async function closeWindow(script: string, title: string): Promise<void> {
+  await probeWindow(script, title, { close: true });
+}
+
 /**
  * Ce que `record.ts` affiche pendant qu'il attend la fenêtre. Elle peut tarder : au premier
  * lancement dans un dossier, Claude Code demande s'il faut faire confiance à son contenu, et

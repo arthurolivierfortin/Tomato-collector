@@ -7,7 +7,8 @@ import type { ScriptEntry } from './episodes';
 import { createMarkerLog, type MarkerLog, type TakeMarkers } from './markers';
 import { scenarioMarkers, type Scenario } from './scenario';
 import { runStep } from './steps';
-import { startPageCapture, startTerminalCapture, type TerminalCapture, type TerminalMode } from './terminal';
+import { insetRect, startPageCapture, startRegionCapture, startTerminalCapture, type TerminalCapture, type TerminalMode } from './terminal';
+import { closeWindow, waitForWindow, type WindowProbe } from './windowRect';
 
 export interface RecordOptions {
   readonly scenario: Scenario;
@@ -20,8 +21,12 @@ export interface RecordOptions {
   readonly terminalMode: TerminalMode;
   /** Mode `page` : le fichier que le serveur écrit avec `TOMATO_LOG_FILE`. */
   readonly terminalLog: string;
-  /** Mode `gdigrab` : le titre exact de la fenêtre de console à filmer. */
+  /** Modes `gdigrab` et `window` : le titre exact de la fenêtre à filmer. */
   readonly terminalWindow: string;
+  /** Mode `window` : `scripts/video/window-rect.ps1`, qui trouve la fenêtre et rend son rectangle. */
+  readonly windowScript: string;
+  /** Mode `window` : pixels rognés sur les quatre bords de la fenêtre (bordure de Windows). */
+  readonly terminalInset: number;
   readonly log: (line: string) => void;
 }
 
@@ -38,6 +43,21 @@ export interface RecordResult {
 
 /** Cadence de la capture de terminal : celle du screencast Playwright, pour ne pas dériver. */
 const TERMINAL_FPS = 25;
+
+/**
+ * Attente de la fenêtre de l'agent visible. Elle n'existe qu'au réveil de l'agent, donc après le
+ * mûrissement et la détection ; et au premier lancement dans un dossier, Claude Code demande au
+ * propriétaire s'il fait confiance à son contenu. Trois minutes, donc, largement.
+ */
+const WINDOW_TIMEOUT_MS = 180_000;
+const WINDOW_POLL_MS = 1000;
+
+/**
+ * Largeur maximale du fichier de capture. La fenêtre fait près de 2 900 pixels physiques de large
+ * sur cet écran à 250 % ; encoder ça en direct volerait du CPU à la prise, et le montage ne la
+ * montre jamais plus large que la moitié de l'image.
+ */
+const TERMINAL_MAX_WIDTH = 1600;
 
 const READY_TIMEOUT_MS = 120_000;
 
@@ -92,7 +112,7 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
   const outAbs = resolve(outDir);
   const rawDir = join(outAbs, `.raw-${take}`);
   // `.mkv` pour ffmpeg, `.webm` pour Playwright : le montage lit les deux sans rien savoir du mode.
-  const terminalName = `${take}.terminal.${options.terminalMode === 'gdigrab' ? 'mkv' : 'webm'}`;
+  const terminalName = `${take}.terminal.${options.terminalMode === 'gdigrab' ? 'mkv' : options.terminalMode === 'window' ? 'mp4' : 'webm'}`;
   await mkdir(rawDir, { recursive: true });
   const { browser, context, page, errors } = await openCapturePage(rawDir);
   // Instant t = 0 du fichier vidéo : Playwright démarre le screencast à la création de la page,
@@ -103,6 +123,10 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
   markerLog.startAt(videoStartMs);
   let terminal: TerminalCapture | null = null;
   let terminalVideo: (() => Promise<string>) | null = null;
+  /** Mode `window` : l'attente de la fenêtre, et la fenêtre trouvée (pour la refermer). */
+  let windowWatch: Promise<void> = Promise.resolve();
+  let windowProbe: WindowProbe | null = null;
+  let stepsDone = false;
   const startedAt = new Date().toISOString();
   let renderer = 'inconnu';
   let rafFps = 0;
@@ -121,6 +145,28 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
         (line) => log(`  [ffmpeg terminal] ${line}`),
       );
       log(`terminal : fenêtre « ${options.terminalWindow} » filmée dans ${terminal.video} (+${terminal.startMs} ms)`);
+    } else if (options.terminalMode === 'window') {
+      // La fenêtre n'existe pas encore : le serveur l'ouvre au réveil de l'agent. On l'attend en
+      // tâche de fond, et la capture démarre à la seconde où elle apparaît — sur l'horloge de la
+      // prise, comme les marqueurs.
+      windowWatch = (async (): Promise<void> => {
+        const found = await waitForWindow(options.windowScript, options.terminalWindow, {
+          timeoutMs: WINDOW_TIMEOUT_MS,
+          pollMs: WINDOW_POLL_MS,
+          cancelled: () => stepsDone,
+          log,
+        });
+        if (found === null) return;
+        windowProbe = found;
+        const region = insetRect(found.rect, options.terminalInset);
+        terminal = startRegionCapture(
+          { region, fps: TERMINAL_FPS, outPath: join(outAbs, terminalName), maxWidth: TERMINAL_MAX_WIDTH },
+          videoStartMs,
+          (line) => log(`  [ffmpeg terminal] ${line}`),
+        );
+        log(`terminal : fenêtre « ${options.terminalWindow} » à ${region.x},${region.y} (${region.w}×${region.h} px), filmée dans ${terminalName} (+${terminal.startMs} ms)`);
+      })();
+      log(`terminal : attente de la fenêtre « ${options.terminalWindow} » (ouverte par le serveur au réveil de l’agent).`);
     } else if (options.terminalMode === 'page') {
       const capture = await startPageCapture(browser, options.terminalLog, join(rawDir, 'terminal'), videoStartMs, log);
       terminal = capture;
@@ -138,12 +184,20 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
     if (/swiftshader|software/i.test(renderer)) log('ATTENTION : rendu logiciel, la prise sera saccadée.');
     if (scenario.mode === 'live') await waitForServer(page, log);
     failure = await playSteps(page, options, markerLog);
+    stepsDone = true;
   } catch (e) {
+    stepsDone = true;
     failure = firstLine(e);
   } finally {
+    stepsDone = true;
+    // L'attente de la fenêtre est coupée par `stepsDone` : elle rend la main tout de suite.
+    await windowWatch;
     // Le contexte du terminal doit être fermé avant qu'on demande son fichier : Playwright n'écrit
     // l'index de la vidéo qu'à la fermeture.
     await terminal?.stop();
+    // La fenêtre de l'agent reste ouverte tant que la prise dure (`-NoExit`) ; c'est ici qu'elle
+    // se referme, une fois la dernière image écrite.
+    if (windowProbe !== null) await closeWindow(options.windowScript, options.terminalWindow);
     if (terminal !== null && terminal.failed()) log('ATTENTION : la capture du terminal s’est arrêtée (fenêtre introuvable ?) ; la prise n’aura pas d’incrustation.');
     markers = markerLog.snapshot({
       take,
@@ -154,7 +208,16 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
       firstPaintMs,
       // Capture perdue (fenêtre introuvable, ffmpeg arrêté) : la prise n'annonce pas une piste
       // qui n'existe pas, et le montage se rabat sur les segments sans incrustation.
-      ...(terminal === null || terminal.failed() ? {} : { terminal: { video: terminalName, startMs: terminal.startMs } }),
+      ...(terminal === null || terminal.failed()
+        ? {}
+        : {
+            terminal: {
+              video: terminalName,
+              startMs: terminal.startMs,
+              // `off` ne produit aucune piste : à ce point, le mode est forcément l'un des trois.
+              source: options.terminalMode as Exclude<TerminalMode, 'off'>,
+            },
+          }),
       ...(failure === null ? {} : { failedStep: failure }),
     });
     await context.close();

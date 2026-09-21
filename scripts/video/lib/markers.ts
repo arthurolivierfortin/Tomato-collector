@@ -6,6 +6,9 @@
 
 export type TakeMode = 'live' | 'replay';
 
+/** D'où vient la piste terminal d'une prise ; `off` n'en produit aucune. */
+export type TerminalSource = 'page' | 'gdigrab' | 'window';
+
 export interface Marker {
   readonly name: string;
   /** Millisecondes depuis le premier instant enregistré de la prise. */
@@ -40,6 +43,14 @@ export interface TerminalTrack {
   readonly video: string;
   /** Instant du début de la capture, depuis le t = 0 de la vidéo de la prise. */
   readonly startMs: number;
+  /**
+   * D'où vient cette piste. `window` : la capture d'écran de la vraie fenêtre où tourne Claude
+   * Code headless — la seule que le plan de la vidéo emploie, parce que c'est la seule qui montre
+   * le binaire lui-même. `page` : la page qui suit le journal du serveur, gardée pour les
+   * répétitions. Le montage l'écrit dans son compte rendu : un carton qui annonce une session
+   * réelle ne doit pas se retrouver au-dessus d'une page.
+   */
+  readonly source?: TerminalSource;
 }
 
 export interface TakeMeta {
