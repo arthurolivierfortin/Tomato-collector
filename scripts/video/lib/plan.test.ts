@@ -149,6 +149,27 @@ describe('entryClips — carton seul', () => {
     const [entry] = resolvePlan({ ...plan, segments: [{ card: { text: 'Résultat : récoltée', durationS: 4, subtitle: '10 appels · 0,35 $' } }] }, takes);
     expect(entryClips(entry!)).toEqual([{ kind: 'title', text: 'Résultat : récoltée', durationS: 4, subtitle: '10 appels · 0,35 $' }]);
   });
+
+  it('porte la ligne d’auteur et le fondu du carton de signature jusqu’au sous-plan', () => {
+    const card = {
+      text: 'Tomato Collector',
+      durationS: 4,
+      byline: 'By Arthur-Olivier Fortin',
+      subtitle: 'A Claude agent harvests tomatoes in a 3D simulation',
+      fadeS: 0.6,
+    };
+    const [entry] = resolvePlan({ ...plan, segments: [{ card }] }, takes);
+    expect(entryClips(entry!)).toEqual([
+      {
+        kind: 'title',
+        text: 'Tomato Collector',
+        durationS: 4,
+        subtitle: 'A Claude agent harvests tomatoes in a 3D simulation',
+        byline: 'By Arthur-Olivier Fortin',
+        fadeS: 0.6,
+      },
+    ]);
+  });
 });
 
 describe('totalDurationS', () => {

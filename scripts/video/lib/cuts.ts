@@ -4,12 +4,21 @@
  * Pur et testé sans ffmpeg.
  */
 import type { PipSpec, Rect } from './ffmpegFilters';
-import type { ResolvedEntry, ResolvedSegment } from './plan';
+import type { ResolvedEntry, ResolvedSegment, TitleSpec } from './plan';
 import type { SplitSpec } from './split';
 import type { ZoomSpec } from './zoom';
 
 export type Clip =
-  | { readonly kind: 'title'; readonly text: string; readonly durationS: number; readonly subtitle?: string }
+  | {
+      readonly kind: 'title';
+      readonly text: string;
+      readonly durationS: number;
+      readonly subtitle?: string;
+      /** Ligne d'auteur sous le titre : le carton est rendu comme un carton de signature. */
+      readonly byline?: string;
+      /** Fondu au noir d'entrée et de sortie, en secondes. */
+      readonly fadeS?: number;
+    }
   | {
       readonly kind: 'video';
       readonly take: string;
@@ -83,9 +92,16 @@ export function segmentClips(segment: ResolvedSegment): Clip[] {
   return clips;
 }
 
-function titleClip(title: { text: string; durationS: number; subtitle?: string }): Clip {
-  const { text, durationS, subtitle } = title;
-  return { kind: 'title', text, durationS, ...(subtitle === undefined ? {} : { subtitle }) };
+function titleClip(title: TitleSpec): Clip {
+  const { text, durationS, subtitle, byline, fadeS } = title;
+  return {
+    kind: 'title',
+    text,
+    durationS,
+    ...(subtitle === undefined ? {} : { subtitle }),
+    ...(byline === undefined ? {} : { byline }),
+    ...(fadeS === undefined ? {} : { fadeS }),
+  };
 }
 
 /** Une entrée de plan : un carton seul, ou un segment découpé par ses arrêts sur image. */
