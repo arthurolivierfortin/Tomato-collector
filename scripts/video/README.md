@@ -272,6 +272,14 @@ les répétitions et pour les prises qui n'ont pas d'agent.
    de vues, qui commencent à y 932. Ces étiquettes sont maintenant déclarées dans `PROTECTED`, et
    c'est le test de géométrie qui le voit, plus une relecture d'image.
 
+   La fenêtre de l'agent n'existe qu'au réveil, et le segment du réveil commence **avant** elle :
+   sur la prise du 2026-09-21, « Detection, then the agent wakes up » dure 9,8 s et la fenêtre
+   s'ouvre 1,8 s après son début. Le montage jetait alors la vignette pour tout le segment — dix
+   secondes de partie 2 sans terminal à l'image. Il la **retarde** maintenant : des images
+   transparentes tiennent la place (`tpad`), l'alpha monte en un demi-fondu (`fade`) à la seconde
+   où la piste commence, et l'incrustation n'est activée qu'à partir de là. La règle est dans
+   `terminalPipStart` (`lib/terminal.ts`), qui rend le retard au lieu d'un `null`.
+
    La vignette occupe la rangée de vignettes de vues, la seule bande de l'écran dont l'information
    est redondante, et elle est **rognée par le bas** plutôt que réduite : on lit les dernières
    lignes de la console au lieu de la page entière devenue illisible. Les zones qu'aucune vignette
@@ -291,7 +299,19 @@ mais dans une vraie fenêtre de Windows Terminal, et c'est cette fenêtre que le
 
 Ce qui défile dans la fenêtre est **la sortie du binaire**, une ligne JSON par message. Rien n'y est
 imprimé par le pipeline, rien n'y est reformaté : la seule chose que le script de lancement fait
-avant `claude`, c'est poser le titre de la fenêtre, et ça n'écrit rien à l'écran. Le serveur lit le
+avant `claude`, c'est poser le titre de la fenêtre et l'encodage de la console, et ça n'écrit rien à
+l'écran (`visibleCommand.test.ts` refuse tout `Write-Host`, `Write-Output` ou `echo` dans ce
+script). Une chose y était pourtant imprimée sans venir de nous : la bannière « Windows PowerShell /
+Copyright (C) Microsoft Corporation », trois lignes en haut de la fenêtre, donc en haut du film.
+C'est le shell qui l'écrit avant de lire le script, et `powershell -NoLogo` la supprime.
+
+Deux détails de la fenêtre restent visibles et sont assumés. L'**onglet s'appelle « claude »** :
+Claude Code reprend le titre de la fenêtre quelques secondes après son démarrage, et le nôtre —
+« Claude Code headless » — ne tient que le temps que le pilote la trouve (d'où la scrutation à
+250 ms, et le suivi par position une fois trouvée). Et les **charges utiles d'images sont en
+base64** : un `tool_result` de `get_views` porte trois PNG de 800 × 800 sur la même ligne JSON, qui
+défile en moins d'un cinquième de seconde. Le montage ne s'arrête jamais dessus — il s'arrête sur la
+ligne `tool_use`, puis sur le `tool_result` en JSON — et le sous-titre le dit. Le serveur lit le
 fichier que `Tee-Object` écrit à côté et le fait passer par **le même chemin** que le flux du SDK
 (`streamToDashboard`) : le dashboard, le journal, le coût et le carton de fin ne changent pas.
 
@@ -370,7 +390,19 @@ le fermer une fois avant la prise : il resterait à l'image.
 | le carton de résultat (appels, durée, coût) | le journal de l'épisode, `data/episodes/<id>.json` |
 
 Le coût affiché vient du message `result` du CLI, lu dans le fichier `.jsonl` puis écrit dans le
-journal comme il l'est avec le SDK : il n'y a plus de coût manquant à ce mode.
+journal comme il l'est avec le SDK. Ce paragraphe annonçait « il n'y a plus de coût manquant à ce
+mode » ; ce n'était vrai qu'une fois sur deux, et voici pourquoi. Le `result` n'arrive qu'après un
+**tour de modèle complet**, plusieurs secondes après le `report` qui clôt l'épisode côté serveur —
+mesuré sur les deux prises du 2026-09-21 : le journal de `cycle` porte `costUsd: 0.354`, celui de
+`concepts` n'a jamais été écrit avec son coût. L'arrêt du serveur coupait le flux au bout de cinq
+secondes (`STOP_DRAIN_MS`) et la fenêtre était tuée avec lui.
+
+Le mode visible laisse donc **trente secondes** au `result` après une coupure (`RESULT_GRACE_MS`,
+`agent/visibleQuery.ts`) : le flux continue d'être relu, la fenêtre reste ouverte tant que le
+message peut encore arriver, et `startRunner` passe le même délai au runner pour qu'il ne rende pas
+la main avant. Passé ces trente secondes, `claude` est perdu ou bloqué : la fenêtre est coupée,
+sinon elle continuerait d'appeler un serveur MCP arrêté et de dépenser. Le journal dit alors ce
+qu'il en est — `costUsd: 0` — et le carton de fin n'annonce aucun chiffre plutôt qu'un faux.
 
 #### Pourquoi une zone d'écran et pas `-i title=…`
 

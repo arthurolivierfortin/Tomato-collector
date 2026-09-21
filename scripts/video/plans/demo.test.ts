@@ -272,6 +272,9 @@ describe('demoPlan', () => {
       'concepts:agent_view',
       'concepts:normal_view',
       'concepts:cut',
+      // Le rapport : le cadrage large est revenu, mais l'incrustation de la caméra outil est encore
+      // allumée jusqu'à la dernière image de la prise.
+      'concepts:report',
       'cycle:positionnement',
       'cycle:positionnement',
       'cycle:coupe',

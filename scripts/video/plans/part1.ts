@@ -352,12 +352,12 @@ export const part1: PlanEntry[] = [
     highlight: ZONE.trace,
     ...TOOL_CAM_CAPTION,
     freezeAt: [
-      // La coupe elle-même. `cut + 0,16 s` et non `+ 0,4 s` : mesuré image par image sur la prise,
-      // le fruit quitte le cadre de la caméra outil entre 100,44 s et 100,52 s, soit moins d'une
-      // demi-seconde après le marqueur. À `+ 0,4 s` il n'était déjà plus là et la légende parlait
-      // d'une chute qu'on ne voyait pas.
+      // La coupe elle-même. `cut + 0,1 s` et non `+ 0,4 s` : mesuré image par image **dans le
+      // rectangle agrandi** (`ZONE.toolCamera`, 240 x 180 px), le fruit est encore accroché à
+      // 100,36 s, détaché et à mi-hauteur à 100,48 s, et sorti du cadre à 100,52 s. À `+ 0,4 s` il
+      // n'était plus là depuis longtemps et la légende parlait d'une chute qu'on ne voyait pas.
       {
-        at: { marker: 'cut', offsetS: 0.16 },
+        at: { marker: 'cut', offsetS: 0.1 },
         durationS: 4,
         caption: 'Blades closed, stem severed, and the tomato starts to fall',
         zoom: {
@@ -372,15 +372,19 @@ export const part1: PlanEntry[] = [
     ],
   },
   // (i) Le rapport. Il arrive dix secondes après la chute sur cette prise, et il avait jusqu'ici le
-  // sous-titre de la coupe au-dessus de lui. L'incrustation de la caméra outil s'est éteinte deux
-  // secondes après la chute et le pilote est revenu au cadrage large : le bandeau reprend sa
-  // largeur normale.
+  // sous-titre de la coupe au-dessus de lui.
+  //
+  // Le bandeau reste **rétréci**, et c'est une vérification, pas une supposition : le pilote revient
+  // au cadrage large deux secondes après la chute, mais l'incrustation de la caméra outil, elle, est
+  // encore allumée — relevée sur les images de la prise à 104 s, 108 s, 111,4 s et 114,3 s, jusqu'à
+  // la dernière. Un bandeau de largeur normale lui passerait dessus.
   {
     take: CONCEPTS,
     from: { marker: 'report' },
     to: { marker: 'end' },
     caption: 'The agent reports the harvest and the episode closes',
     highlight: ZONE.trace,
+    ...TOOL_CAM_CAPTION,
   },
 ];
 
