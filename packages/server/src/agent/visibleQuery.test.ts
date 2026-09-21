@@ -154,18 +154,75 @@ describe('createVisibleAgent', () => {
     expect(await readFile(scriptPath, 'utf8')).toContain("--resume 'ep-session-1'");
   });
 
-  it('coupe le flux quand l’épisode est interrompu, sans attendre le result', async () => {
+  /*
+   * Le coût de l'épisode est dans le message `result`, et le CLI ne l'écrit qu'après un tour de
+   * modèle complet — plusieurs secondes après le `report` qui clôt l'épisode côté serveur. Coupé
+   * net à l'arrêt du serveur, le flux s'arrêtait avant : le journal de la prise `concepts` du
+   * 2026-09-21 gardait `costUsd: 0` et le carton de fin n'annonçait aucun chiffre.
+   */
+  it('attend le result après une coupure : c’est lui qui porte le coût', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tomato-visible-'));
     const abort = new AbortController();
-    const agent = agentIn(dir, replayLauncher(61, 'utf16le', 1));
+    const agent = createVisibleAgent({
+      workDir: dir,
+      title: 'T',
+      geometry: { cols: 110, rows: 32, x: 20, y: 20, cwd: 'C:/repo' },
+      launcher: replayLauncher(61, 'utf16le', 1),
+      pollMs: 5,
+      resultGraceMs: 5000,
+    });
     const opts = { ...options(null), abortController: abort };
     const seen: AgentMessage[] = [];
     for await (const msg of agent.query('wake', opts)) {
       seen.push(msg);
       if (seen.length === 3) abort.abort();
     }
-    expect(seen.length).toBeLessThan(27);
+    expect(seen[seen.length - 1]).toMatchObject({ type: 'result' });
+  });
+
+  it('laisse la fenêtre ouverte quand le result est arrivé, même après une coupure', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tomato-visible-'));
+    const abort = new AbortController();
+    const launcher = replayLauncher(61, 'utf16le', 1);
+    const agent = createVisibleAgent({
+      workDir: dir,
+      title: 'T',
+      geometry: { cols: 110, rows: 32, x: 20, y: 20, cwd: 'C:/repo' },
+      launcher,
+      pollMs: 5,
+      resultGraceMs: 5000,
+    });
+    const opts = { ...options(null), abortController: abort };
+    const seen: AgentMessage[] = [];
+    for await (const msg of agent.query('wake', opts)) {
+      seen.push(msg);
+      if (seen.length === 3) abort.abort();
+    }
+    expect(launcher.closed).toEqual(['finished']);
+  });
+
+  it('n’attend pas plus que le délai de grâce : un claude muet ne bloque pas l’arrêt', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tomato-visible-'));
+    const abort = new AbortController();
+    const launcher = replayLauncher(61, 'utf16le', 1);
+    const agent = createVisibleAgent({
+      workDir: dir,
+      title: 'T',
+      geometry: { cols: 110, rows: 32, x: 20, y: 20, cwd: 'C:/repo' },
+      launcher,
+      pollMs: 5,
+      // Plus court qu'un seul intervalle de relecture : la grâce est déjà écoulée au premier tour.
+      resultGraceMs: 0,
+    });
+    const opts = { ...options(null), abortController: abort };
+    const seen: AgentMessage[] = [];
+    for await (const msg of agent.query('wake', opts)) {
+      seen.push(msg);
+      if (seen.length === 3) abort.abort();
+    }
     expect(seen[seen.length - 1]).not.toMatchObject({ type: 'result' });
+    // Rien n'est arrivé : `claude` tourne encore et dépense, la fenêtre est coupée.
+    expect(launcher.closed).toEqual(['aborted']);
   });
 });
 

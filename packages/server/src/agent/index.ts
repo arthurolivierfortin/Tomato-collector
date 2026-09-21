@@ -29,6 +29,12 @@ export interface ServerAgentRunnerDeps {
   /** Port du serveur de réveil manuel ; 0 = port libre, négatif = pas de serveur. */
   wakePort?: number;
   query?: QueryFn;
+  /**
+   * Délai laissé au message `result` après un `report`, à l'arrêt du serveur. Absent : celui du
+   * runner (5 s), qui suffit au SDK. M5 en passe un bien plus long en mode visible, où le `result`
+   * du CLI n'arrive qu'après un tour de modèle complet — et où c'est lui qui porte le coût.
+   */
+  stopDrainMs?: number;
   log?: (line: string) => void;
   onDelta?: (text: string) => void;
 }
@@ -59,6 +65,7 @@ export function createAgentRunner(deps: ServerAgentRunnerDeps): ServerAgentRunne
     resolveWake: (id) => (sim === null ? null : resolveWakeEvent(sim, id)),
     log,
     ...(deps.query === undefined ? {} : { query: deps.query }),
+    ...(deps.stopDrainMs === undefined ? {} : { stopDrainMs: deps.stopDrainMs }),
     ...(deps.onDelta === undefined ? {} : { onDelta: deps.onDelta }),
   });
 

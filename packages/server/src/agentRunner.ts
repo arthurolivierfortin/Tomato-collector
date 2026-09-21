@@ -1,5 +1,5 @@
 import type { QueryFn } from './agent/types';
-import { createVisibleAgent, type VisibleAgent } from './agent/visibleQuery';
+import { createVisibleAgent, RESULT_GRACE_MS, type VisibleAgent } from './agent/visibleQuery';
 import { createWindowLauncher } from './agent/windowLauncher';
 import { createWakeServer, readWakePort, resolveWakeEvent } from './agent/wakeServer';
 import type { VisibleConfig } from './config';
@@ -31,6 +31,12 @@ export interface AgentRunnerDeps {
    * le **même** agent headless dans une fenêtre Windows Terminal et relit sa sortie.
    */
   query?: QueryFn;
+  /**
+   * Délai laissé au message `result` après un `report`, à l'arrêt du serveur. Absent : celui de M6
+   * (5 s). Le mode `visible` en passe trente, parce que le `result` du CLI n'arrive qu'après un
+   * tour de modèle complet et que c'est lui qui porte le coût de l'épisode.
+   */
+  stopDrainMs?: number;
 }
 
 export type CreateAgentRunner = (deps: AgentRunnerDeps) => AgentRunner;
@@ -163,7 +169,13 @@ export async function startRunner(deps: AgentRunnerDeps, opts: RunnerOptions): P
     opts.agent === 'off'
       ? createNoopRunner(log, { hub: deps.hub, session: deps.session })
       : await loadAgentRunner(
-          { ...deps, wakePort: -1, ...(visible === null ? {} : { query: visible.query }) },
+          {
+            ...deps,
+            wakePort: -1,
+            // Le flux visible attend le `result` jusqu'à `RESULT_GRACE_MS` après une coupure :
+            // le runner doit lui laisser le même temps, sinon il rend la main avant le coût.
+            ...(visible === null ? {} : { query: visible.query, stopDrainMs: RESULT_GRACE_MS }),
+          },
           log,
           opts.module ?? AGENT_MODULE,
         );
