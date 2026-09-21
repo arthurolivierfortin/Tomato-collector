@@ -20,6 +20,7 @@ import {
 } from './ffmpegFilters';
 import { splitComplex, splitLayout, type SplitSpec } from './split';
 import { lineCount, wrapText } from './text';
+import { signatureBlocks, signatureChain, type PlacedText } from './titleCard';
 import { zoomChain, zoomLayout, zoomLines, zoomWrapChars, type ZoomBlock, type ZoomSpec } from './zoom';
 import { terminalOffsetS } from './terminal';
 import { encoderArgs, ffmpeg } from './ffmpegRun';
@@ -57,7 +58,39 @@ function sourceOf(ctx: RenderContext, take: string): string {
   return path;
 }
 
+/**
+ * Carton de signature : trois corps empilés (titre, ligne d'auteur, sous-texte) et un fondu au
+ * noir. La pile est calculée par `signatureBlocks`, en pixels : ffmpeg ne place rien ici.
+ */
+async function renderSignature(ctx: RenderContext, i: number, clip: Extract<Clip, { kind: 'title' }>, byline: string, out: string): Promise<void> {
+  const blocks = signatureBlocks(
+    { title: clip.text, byline, ...(clip.subtitle === undefined ? {} : { subtext: clip.subtitle }) },
+    ctx.format,
+  );
+  const placed: PlacedText[] = [];
+  for (const block of blocks) {
+    placed.push({ file: await textFile(ctx, `sign-${pad(i)}-${block.key}`, block.text), size: block.size, color: block.color, y: block.y });
+  }
+  const { width, height, fps } = ctx.format;
+  await ffmpeg([
+    '-f',
+    'lavfi',
+    '-i',
+    `color=c=${TITLE_BACKGROUND}:s=${width}x${height}:r=${fps}:d=${clip.durationS}`,
+    '-vf',
+    signatureChain(placed, ctx.style, clip.durationS, clip.fadeS ?? 0),
+    '-t',
+    String(clip.durationS),
+    ...encoderArgs(ctx.encoder, fps),
+    out,
+  ]);
+}
+
 async function renderTitle(ctx: RenderContext, i: number, clip: Extract<Clip, { kind: 'title' }>, out: string): Promise<void> {
+  if (clip.byline !== undefined) {
+    await renderSignature(ctx, i, clip, clip.byline, out);
+    return;
+  }
   const titlePath = await textFile(ctx, `title-${pad(i)}`, wrapText(clip.text, WRAP.title));
   const subPath = clip.subtitle === undefined ? null : await textFile(ctx, `sub-${pad(i)}`, wrapText(clip.subtitle, WRAP.subtitle));
   const { width, height, fps } = ctx.format;
