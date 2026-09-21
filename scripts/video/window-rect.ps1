@@ -32,6 +32,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# La console d'un `powershell -NoProfile` est en IBM437 : sans cette ligne, un titre de
+# fenetre non ASCII reviendrait mojibake dans le JSON rendu au pilote.
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 Add-Type -Namespace TomatoRect -Name Api -MemberDefinition @'
 [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }

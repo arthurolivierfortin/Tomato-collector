@@ -33,12 +33,18 @@ describe('visibleClaudeArgs', () => {
     expect(args).toContain('--verbose');
   });
 
-  it('lit le message de réveil dans un fichier : le prompt ne passe pas par la ligne de commande', () => {
-    expect(args[1]).toBe(`(Get-Content -Raw ${psLiteral(INPUT.wakePromptPath)})`);
+  /*
+   * `-Encoding UTF8` n'est pas un détail : sans lui, Windows PowerShell 5.1 lit un fichier UTF-8
+   * sans nomenclature en ANSI. Mesure sur « pitch -13.59° — occultée » : 29 caractères lus en 33,
+   * le degré devenu deux caractères, le tiret cadratin trois. `prompts/system.md` a neuf lignes
+   * non ASCII ; le prompt envoyé ne serait alors PAS celui du SDK.
+   */
+  it('lit le message de réveil dans un fichier, en UTF-8', () => {
+    expect(args[1]).toBe(`(Get-Content -Raw -Encoding UTF8 ${psLiteral(INPUT.wakePromptPath)})`);
   });
 
-  it('lit le prompt système dans son fichier, le même que celui du SDK', () => {
-    expect(value('--system-prompt')).toBe(`(Get-Content -Raw ${psLiteral(INPUT.systemPromptPath)})`);
+  it('lit le prompt système dans son fichier, en UTF-8, le même que celui du SDK', () => {
+    expect(value('--system-prompt')).toBe(`(Get-Content -Raw -Encoding UTF8 ${psLiteral(INPUT.systemPromptPath)})`);
   });
 
   // Chaque ligne fait écho à une option de `buildQueryOptions` : c'est la même session, filmée.
@@ -95,16 +101,39 @@ describe('launchScript', () => {
   const script = launchScript('Claude Code headless', INPUT);
   const lines = script.split(/\r?\n/).filter((l) => l !== '');
 
+  /*
+   * Mesure sur cette machine : dans `powershell -NoProfile`, `[Console]::OutputEncoding` vaut
+   * IBM437. La sortie UTF-8 de `claude` est donc décodée en cp437 **avant** `Tee-Object`, et
+   * « pitch -13.59° — occultée » arrive dans le fichier tee en « -13.59┬░ ΓÇö occult├⌐e » — donc
+   * dans le dashboard, dans `agent_raw` et dans la note du rapport écrite au journal.
+   */
+  it('met la console en UTF-8 avant tout, sinon le flux du binaire est mojibaké', () => {
+    expect(lines[0]).toBe('[Console]::OutputEncoding = [System.Text.Encoding]::UTF8');
+  });
+
+  /*
+   * Passée par l'environnement du `spawn`, la variable traverse powershell → Start-Process →
+   * wt.exe ; si `wt` délègue à une instance déjà ouverte, elle peut ne jamais atteindre `claude`,
+   * et les trois PNG de `get_views` seraient tronqués. Posée ici, elle y est toujours.
+   */
+  it('relève la limite de sortie MCP dans le script même, pas seulement par l’environnement', () => {
+    expect(lines[1]).toBe(`$env:MAX_MCP_OUTPUT_TOKENS = ${psLiteral(MAX_MCP_OUTPUT_TOKENS)}`);
+  });
+
   // `wt.exe --title` est sans effet sur cette version : la fenetre ne s'ouvre meme pas. Le titre
   // se pose donc depuis l'interieur — une affectation, qui n'imprime rien a l'ecran — et c'est
   // par lui que le pilote trouve la fenetre.
   it('pose le titre par lequel le pilote trouvera la fenêtre, sans rien imprimer', () => {
-    expect(lines[0]).toBe("$Host.UI.RawUI.WindowTitle = 'Claude Code headless'");
+    expect(lines[2]).toBe("$Host.UI.RawUI.WindowTitle = 'Claude Code headless'");
   });
 
-  it('n’exécute rien d’autre que la commande claude : deux lignes, pas une de plus', () => {
-    expect(lines).toHaveLength(2);
-    expect(lines[1]).toBe(teeShellCommand(INPUT));
+  it('n’exécute rien d’autre que la commande claude : trois affectations, puis elle', () => {
+    expect(lines).toHaveLength(4);
+    expect(lines[3]).toBe(teeShellCommand(INPUT));
+  });
+
+  it('n’imprime rien dans la fenêtre : aucune ligne n’y écrit', () => {
+    expect(script).not.toMatch(/Write-Host|Write-Output|\becho\b/);
   });
 });
 
@@ -169,4 +198,42 @@ describe('visibleEnv', () => {
     expect(NESTED_SESSION_VARS).not.toContain('CLAUDE_CODE_OAUTH_TOKEN');
     expect(NESTED_SESSION_VARS).not.toContain('ANTHROPIC_API_KEY');
   });
+});
+
+/**
+ * Le seul test qui lance vraiment PowerShell : il prouve que la ligne construite ci-dessus rend
+ * bien le texte du fichier, caractère pour caractère. C'est la vérification de B2 sur la machine,
+ * pas sur une chaîne de caractères.
+ */
+describe.skipIf(process.platform !== 'win32')('fromFile, en vrai, sous Windows PowerShell', () => {
+  const NON_ASCII = 'pitch -13.59° — occultée 40 %';
+
+  async function readBack(expression: string, file: string): Promise<string> {
+    const { execFile } = await import('node:child_process');
+    return new Promise<string>((done, fail) => {
+      execFile(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-Command',
+          // Même première ligne que `launchScript` : sans elle, c'est la **sortie** de PowerShell
+          // qui serait mojibakée (console en IBM437) et le test mesurerait le mauvais bout.
+          `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $t = ${expression}; [Console]::Out.Write($t.Length.ToString() + '|' + $t)`,
+        ],
+        { windowsHide: true },
+        (error, stdout) => (error === null ? done(stdout) : fail(error)),
+      );
+    });
+  }
+
+  it('rend le fichier UTF-8 sans nomenclature intact, longueur comprise', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'tomato-enc-'));
+    const file = join(dir, 'wake.txt');
+    await writeFile(file, NON_ASCII, 'utf8');
+    const read = await readBack(visibleClaudeArgs({ ...INPUT, wakePromptPath: file })[1] ?? '', file);
+    expect(read).toBe(`${NON_ASCII.length}|${NON_ASCII}`);
+  }, 30_000);
 });
