@@ -50,6 +50,8 @@ export interface VisibleConfig {
    * invite de confiance ; la racine du dépôt en est un.
    */
   cwd: string;
+  /** `TOMATO_VISIBLE_KEEP=on` : garder le dossier de session après l'arrêt, pour le relire. */
+  keep: boolean;
 }
 
 export const DEFAULT_VISIBLE_TITLE = 'Claude Code headless';
@@ -105,6 +107,7 @@ export function readConfig(env: Record<string, string | undefined>): ServerConfi
       y: readMs(env.TOMATO_VISIBLE_Y, 20),
       dir: nonEmpty(env.TOMATO_VISIBLE_DIR, DEFAULT_VISIBLE_DIR),
       cwd: nonEmpty(env.TOMATO_VISIBLE_CWD, DEFAULT_VISIBLE_CWD),
+      keep: env.TOMATO_VISIBLE_KEEP === 'on',
     },
     episodesDir: nonEmpty(env.TOMATO_EPISODES_DIR, DEFAULT_EPISODES_DIR),
     toolPacingMs: readMs(env.TOMATO_TOOL_PACING_MS, DEFAULT_TOOL_PACING_MS),

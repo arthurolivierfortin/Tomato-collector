@@ -155,7 +155,7 @@ describe('startRunner, mode visible', () => {
       agent: 'visible',
       wakePort: -1,
       module: './testing/fakeAgent.js',
-      visible: { title: 'Claude Code headless', cols: 110, rows: 32, x: 20, y: 20, dir: 'C:/tmp/cli', cwd: 'C:/repo' },
+      visible: { title: 'Claude Code headless', cols: 110, rows: 32, x: 20, y: 20, dir: 'C:/tmp/cli', cwd: 'C:/repo', keep: false },
     });
     try {
       const { lastDeps } = await import('./testing/fakeAgent.js');
@@ -176,5 +176,13 @@ describe('startRunner, mode visible', () => {
     } finally {
       await handle.stop();
     }
+  });
+});
+
+describe('startRunner, mode visible sans configuration', () => {
+  it('échoue bruyamment plutôt que de retomber en silence sur le SDK', async () => {
+    await expect(startRunner(deps(), { agent: 'visible', wakePort: -1, module: './testing/fakeAgent.js' })).rejects.toThrow(
+      /visible.*fenêtre|fenêtre.*visible/i,
+    );
   });
 });
