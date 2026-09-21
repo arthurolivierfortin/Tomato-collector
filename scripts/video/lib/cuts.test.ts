@@ -71,4 +71,11 @@ describe('isMontagePlan', () => {
     expect(isMontagePlan({ ...plan, segments: {} })).toBe(false);
     expect(isMontagePlan(null)).toBe(false);
   });
+
+  it('accepte un carton de signature, et refuse une ligne d’auteur ou un fondu mal typés', () => {
+    const card = { text: 'Tomato Collector', durationS: 4, byline: 'By Arthur-Olivier Fortin', fadeS: 0.6 };
+    expect(isMontagePlan({ ...plan, segments: [{ card }] })).toBe(true);
+    expect(isMontagePlan({ ...plan, segments: [{ card: { ...card, byline: 12 } }] })).toBe(false);
+    expect(isMontagePlan({ ...plan, segments: [{ card: { ...card, fadeS: '0.6' } }] })).toBe(false);
+  });
 });

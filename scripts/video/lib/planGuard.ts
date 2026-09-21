@@ -15,7 +15,10 @@ function isTimeRef(x: unknown): boolean {
 }
 
 function isTitle(x: unknown): boolean {
-  return isRecord(x) && typeof x['text'] === 'string' && typeof x['durationS'] === 'number';
+  if (!isRecord(x) || typeof x['text'] !== 'string' || typeof x['durationS'] !== 'number') return false;
+  // Carton de signature : une ligne d'auteur, et un fondu au noir exprimé en secondes.
+  if (x['byline'] !== undefined && typeof x['byline'] !== 'string') return false;
+  return x['fadeS'] === undefined || typeof x['fadeS'] === 'number';
 }
 
 function isRect(x: unknown): boolean {

@@ -39,6 +39,13 @@ export interface TitleSpec {
   readonly text: string;
   readonly durationS: number;
   readonly subtitle?: string;
+  /**
+   * Ligne d'auteur, juste sous le titre : le carton devient un carton de signature, avec sa propre
+   * pile de trois corps (`lib/titleCard.ts`) au lieu des deux blocs centrés des cartons de section.
+   */
+  readonly byline?: string;
+  /** Fondu au noir d'entrée et de sortie, en secondes ; absent ou nul, le carton apparaît net. */
+  readonly fadeS?: number;
 }
 
 export interface SegmentSpec {
