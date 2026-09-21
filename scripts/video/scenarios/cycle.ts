@@ -43,10 +43,19 @@ export function cycleScenario(mode: TakeMode): Scenario {
       { kind: 'marker', name: 'observation' },
       { kind: 'waitForText', selector: TRACE, text: 'Ciseaux →', timeoutMs: EPISODE_TIMEOUT_MS },
       { kind: 'marker', name: 'positionnement' },
+      // Cadrage coupe (`k`, issue #42) au premier `move_scissors` : c'est là que le geste devient
+      // fin, et un plan large ne le montrera pas. L'incrustation de la caméra outil, elle, s'est
+      // allumée toute seule quand les ciseaux ont quitté leur pose de repos — pas de `j` ici.
+      { kind: 'press', key: 'k' },
       { kind: 'waitForText', selector: TRACE, text: 'Coupe', timeoutMs: EPISODE_TIMEOUT_MS },
       { kind: 'marker', name: 'coupe' },
       { kind: 'waitForText', selector: TRACE, text: 'dans le panier', timeoutMs: EPISODE_TIMEOUT_MS },
       { kind: 'marker', name: 'chute' },
+      // Retour au cadrage large deux secondes après la chute, en même temps que l'incrustation de
+      // la caméra outil s'éteint (`TOOL_CAM_LINGER_S`). Le rapport arrive plusieurs secondes plus
+      // tard : cette attente ne repousse pas le marqueur `rapport`.
+      { kind: 'wait', ms: 2000 },
+      { kind: 'press', key: 'k' },
       { kind: 'waitForText', selector: TRACE, text: 'Rapport :', timeoutMs: EPISODE_TIMEOUT_MS },
       { kind: 'marker', name: 'rapport' },
       // Queue courte, et c'est une contrainte, pas un réglage de confort : une fois l'épisode clos
