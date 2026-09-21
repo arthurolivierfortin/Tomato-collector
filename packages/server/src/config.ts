@@ -74,12 +74,15 @@ function readPort(raw: string | undefined, fallback: number): number {
   return Number.isInteger(n) && n >= 0 && n <= 65535 ? n : fallback;
 }
 
-/** Durée en ms : entier ≥ 0 ; toute autre valeur retombe sur la valeur par défaut. */
-function readMs(raw: string | undefined, fallback: number): number {
+/** Entier ≥ 0 ; toute autre valeur retombe sur la valeur par défaut. */
+function readWhole(raw: string | undefined, fallback: number): number {
   if (raw === undefined || raw.trim() === '') return fallback;
   const n = Number(raw);
   return Number.isInteger(n) && n >= 0 ? n : fallback;
 }
+
+/** Durée en ms : un entier ≥ 0, comme tout le reste. */
+const readMs = readWhole;
 
 /** Entier strictement positif : une fenêtre de zéro colonne n'a pas de sens. */
 function readPositive(raw: string | undefined, fallback: number): number {
@@ -103,8 +106,8 @@ export function readConfig(env: Record<string, string | undefined>): ServerConfi
       title: nonEmpty(env.TOMATO_VISIBLE_TITLE, DEFAULT_VISIBLE_TITLE),
       cols: readPositive(env.TOMATO_VISIBLE_COLS, 110),
       rows: readPositive(env.TOMATO_VISIBLE_ROWS, 32),
-      x: readMs(env.TOMATO_VISIBLE_X, 20),
-      y: readMs(env.TOMATO_VISIBLE_Y, 20),
+      x: readWhole(env.TOMATO_VISIBLE_X, 20),
+      y: readWhole(env.TOMATO_VISIBLE_Y, 20),
       dir: nonEmpty(env.TOMATO_VISIBLE_DIR, DEFAULT_VISIBLE_DIR),
       cwd: nonEmpty(env.TOMATO_VISIBLE_CWD, DEFAULT_VISIBLE_CWD),
       keep: env.TOMATO_VISIBLE_KEEP === 'on',

@@ -1,10 +1,9 @@
 /** Enregistrement d'une prise : ouvre la page, joue le scénario, écrit la vidéo et les marqueurs. */
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import type { Page } from 'playwright';
 import { firstPaintEpochMs, measureRafFps, openCapturePage, webglRenderer } from './browser';
 import type { ScriptEntry } from './episodes';
-import { createMarkerLog, type MarkerLog, type TakeMarkers } from './markers';
+import { createMarkerLog, type TakeMarkers } from './markers';
 import { scenarioMarkers, type Scenario } from './scenario';
 import { startPageCapture, startTerminalCapture, type TerminalCapture, type TerminalMode } from './terminal';
 import { firstLine, playSteps, READY_TIMEOUT_MS, waitForReady, waitForServer } from './play';
@@ -123,7 +122,7 @@ export async function record(options: RecordOptions): Promise<RecordResult> {
         },
         () => stepsDone,
       );
-      log(`terminal : attente de la fenêtre « ${options.terminalWindow} » (ouverte par le serveur au réveil de l’agent).`);
+      log(`terminal : attente de la fenêtre « ${options.terminalWindow} » (ouverte par le serveur au réveil de l’agent).`);
     } else if (options.terminalMode === 'page') {
       const capture = await startPageCapture(browser, options.terminalLog, join(rawDir, 'terminal'), videoStartMs, log);
       terminal = capture;

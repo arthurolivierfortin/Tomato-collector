@@ -63,8 +63,15 @@ function fromFile(path: string): string {
   return `(Get-Content -Raw -Encoding UTF8 ${psLiteral(path)})`;
 }
 
-/** Fichier `--mcp-config` : le robot, en HTTP. Le nom **doit** être celui du SDK (`robot`) : c'est
- * lui qui donne aux outils leur préfixe `mcp__robot__`, que `streamToDashboard` reconnaît. */
+/**
+ * Fichier `--mcp-config` : le robot, en HTTP. Le nom **doit** être celui du SDK (`robot`) : c'est
+ * lui qui donne aux outils leur préfixe `mcp__robot__`, que `streamToDashboard` reconnaît.
+ *
+ * Écart avec `buildQueryOptions` : `alwaysLoad: true` n'a pas d'équivalent dans le fichier de
+ * configuration du CLI. Sans lui, les outils sont chargés à la connexion du serveur MCP, ce qui
+ * revient au même ici — vérifié sur une vraie session : le message `init` liste les neuf outils
+ * `mcp__robot__…` avant le premier tour du modèle.
+ */
 export function mcpConfigJson(mcpUrl: string): string {
   return JSON.stringify({ mcpServers: { [ROBOT_MCP_NAME]: { type: 'http', url: mcpUrl } } }, null, 2);
 }
@@ -123,11 +130,11 @@ export interface WindowGeometry {
 }
 
 /**
- * Le script PowerShell joué dans la fenêtre : deux lignes, le titre puis la commande.
+ * Le script PowerShell joué dans la fenêtre : trois affectations, puis la commande.
  *
  * Pourquoi un **fichier** et pas un `-Command` en ligne : Windows Terminal coupe sa ligne de
  * commande sur les `;`, qui y séparent ses propres sous-commandes. La commande `claude` en
- * contient — ne serait-ce que celui qui suit la pose du titre — et la fenêtre ne s'ouvrait pas du
+ * contient — ne serait-ce que ceux qui séparent les affectations — et la fenêtre ne s'ouvrait pas du
  * tout (mesuré : aucune fenêtre, aucun message). Un fichier n'a ni `;`, ni guillemets, ni `$` à
  * faire traverser trois analyseurs.
  *
@@ -135,7 +142,7 @@ export interface WindowGeometry {
  * installée ici : avec cette option, la fenêtre ne s'ouvre pas non plus. C'est une **affectation**,
  * elle n'écrit rien à l'écran, et c'est par ce titre que le pilote trouve la fenêtre à filmer.
  *
- * Ces deux lignes sont tout ce que la fenêtre exécute : ce qui y défile est la sortie de `claude`.
+ * Ces quatre lignes sont tout ce que la fenêtre exécute : ce qui y défile est la sortie de `claude`.
  */
 export function launchScript(title: string, input: VisibleCommandInput): string {
   return [
