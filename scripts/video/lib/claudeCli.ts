@@ -122,9 +122,16 @@ export function claudeEnv(env: Readonly<Record<string, string | undefined>>): Re
 /** Au-delà, un argument est abrégé dans la ligne affichée : le prompt système fait 15 ko. */
 const DISPLAY_MAX = 60;
 
+/**
+ * Un argument tel qu'on l'écrit dans une commande à recopier : les drapeaux et les nombres nus,
+ * tout le reste entre guillemets — y compris les chemins, qui peuvent contenir une espace.
+ */
+export function shellArg(arg: string): string {
+  return /^(-{1,2}[A-Za-z][A-Za-z0-9-]*|\d+)$/.test(arg) ? arg : `"${arg}"`;
+}
+
 function displayArg(arg: string): string {
-  const shown = arg.length > DISPLAY_MAX ? `${arg.slice(0, DISPLAY_MAX)}… (+${arg.length - DISPLAY_MAX} car.)` : arg;
-  return /^[A-Za-z0-9._:/\\-]+$/.test(shown) && shown !== '' ? shown : `"${shown}"`;
+  return shellArg(arg.length > DISPLAY_MAX ? `${arg.slice(0, DISPLAY_MAX)}… (+${arg.length - DISPLAY_MAX} car.)` : arg);
 }
 
 /**
