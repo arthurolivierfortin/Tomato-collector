@@ -20,7 +20,7 @@ import {
   mcpConfigJson,
   terminalArgs,
   visibleEnv,
-  windowCommand,
+  launchScript,
   type VisibleCommandInput,
   type WindowGeometry,
 } from './visibleCommand';
@@ -124,7 +124,11 @@ export function createVisibleQuery(deps: VisibleQueryDeps): QueryFn {
     await writeFile(input.mcpConfigPath, mcpConfigJson(input.mcpUrl), 'utf8');
     await writeFile(input.systemPromptPath, typeof options.systemPrompt === 'string' ? options.systemPrompt : '', 'utf8');
 
-    const args = terminalArgs(deps.geometry, windowCommand(deps.title, input));
+    // Le script de lancement est ecrit avec nomenclature : Windows PowerShell 5.1 lit un .ps1
+    // sans elle en ANSI, et un chemin accentue y deviendrait illisible.
+    const scriptPath = join(dir, `launch-${episode}.ps1`);
+    await writeFile(scriptPath, `﻿${launchScript(deps.title, input)}`, 'utf8');
+    const args = terminalArgs(deps.geometry, scriptPath);
     log(`agent visible : fenêtre « ${deps.title} », flux suivi dans ${input.teePath}`);
     const window = deps.launcher.launch(args, visibleEnv(process.env), input.teePath);
 
