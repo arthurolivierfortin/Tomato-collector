@@ -32,10 +32,17 @@ export function startProcessCommand(exe: string, args: readonly string[]): strin
  *
  * `.Contains(…)` et non `-like` : un chemin peut contenir des crochets, que `-like` lirait comme
  * un motif. Et `-ne $null` d'abord : certaines lignes de commande ne sont pas lisibles.
+ *
+ * `$_.ProcessId -ne $PID` **exclut le tueur lui-même** : il est lancé par
+ * `powershell -Command "… Contains('…/launch-2.ps1') …"`, donc sa propre ligne de commande porte
+ * le chemin cherché et il se trouvait dans sa propre sélection. `taskkill /T /F` le tuait alors
+ * avant qu'il ait parcouru le reste de la liste, et le `claude` de la fenêtre survivait — c'est
+ * exactement ce que cette commande existe pour empêcher.
  */
 export function killByScriptCommand(scriptPath: string): string {
   return (
-    `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -ne $null -and $_.CommandLine.Contains(${psLiteral(scriptPath)}) } ` +
+    `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -ne $null -and $_.ProcessId -ne $PID ` +
+    `-and $_.CommandLine.Contains(${psLiteral(scriptPath)}) } ` +
     '| ForEach-Object { taskkill /T /F /PID $_.ProcessId }'
   );
 }
