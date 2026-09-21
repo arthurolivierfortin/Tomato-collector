@@ -19,7 +19,7 @@ describe('decodeTeeChunk', () => {
   });
 
   it('retire la nomenclature UTF-8 : JSON.parse la refuse', () => {
-    expect(decodeTeeChunk(Buffer.from(`﻿${INIT}\n`, 'utf8'))).toBe(`${INIT}\n`);
+    expect(decodeTeeChunk(Buffer.from(`\uFEFF${INIT}\n`, 'utf8'))).toBe(`${INIT}\n`);
   });
 });
 
