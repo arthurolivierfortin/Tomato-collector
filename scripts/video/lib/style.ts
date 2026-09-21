@@ -119,6 +119,16 @@ export function bandHeight(style: TextStyle, lines: number): number {
 }
 
 /**
+ * Nombre de caractères tenant dans un bandeau de `width` pixels, au corps du style. `drawtext` ne
+ * renvoie pas à la ligne tout seul : c'est ce nombre qui décide de la coupe, donc du nombre de
+ * lignes, donc de la hauteur du bandeau. Il vit ici, avec le reste du vocabulaire visuel, pour que
+ * le plan puisse vérifier sans ffmpeg qu'un sous-titre tient dans la largeur qu'on lui laisse.
+ */
+export function captionWrapChars(style: TextStyle, width: number): number {
+  return Math.max(12, Math.floor((width - 4 * style.bandPadding) / (style.captionSize * 0.44)));
+}
+
+/**
  * Le bandeau pleine largeur : de bord à bord, du haut de la boîte de texte jusqu'au bas de l'image.
  *
  * Sur le dashboard, le fond du sous-titre épouse le texte et c'est très bien : le bas de la colonne

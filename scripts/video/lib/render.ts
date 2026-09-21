@@ -6,6 +6,7 @@ import {
   captionBackdropFilter,
   captionBandRect,
   captionFilters,
+  captionWrapChars,
   chain,
   highlightFilter,
   pipComplex,
@@ -108,11 +109,6 @@ async function renderTitle(ctx: RenderContext, i: number, clip: Extract<Clip, { 
   ]);
 }
 
-/** Nombre de caractères tenant dans un bandeau de `width` pixels, au corps du style. */
-function wrapWidth(style: TextStyle, width: number): number {
-  return Math.max(12, Math.floor((width - 4 * style.bandPadding) / (style.captionSize * 0.44)));
-}
-
 /**
  * Bande pleine puis cadre de mise en évidence puis sous-titre. La bande passe **sous** le cadre :
  * sur l'écran plein format, le cadre bleu d'une tuile de la rangée du bas descend jusque dans le
@@ -131,7 +127,7 @@ async function overlayChain(ctx: RenderContext, i: number, clip: Extract<Clip, {
     // et le sous-titre apparaît dans un rectangle plus sombre au milieu du bandeau.
     ...(full ? { bandOpacity: 0 } : {}),
   };
-  const wrapped = wrapText(caption, wrapWidth(style, style.captionWidth));
+  const wrapped = wrapText(caption, captionWrapChars(style, style.captionWidth));
   const lines = lineCount(wrapped);
   if (lines > CAPTION_MAX_LINES) ctx.warn(`sous-titre sur ${lines} lignes, raccourcir : « ${caption} »`);
   const path = await textFile(ctx, `cap-${pad(i)}`, wrapped);
