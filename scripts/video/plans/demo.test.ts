@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { EndCardData } from '../lib/episodes';
-import { intersects } from '../lib/ffmpegFilters';
+import { captionWrapChars, intersects, CAPTION_MAX_LINES, DEFAULT_STYLE } from '../lib/ffmpegFilters';
 import type { TakeMarkers } from '../lib/markers';
 import { resolvePlan, type ResolvedSegment } from '../lib/plan';
 import { isMontagePlan } from '../lib/plan';
 import { splitLayout } from '../lib/split';
 import { zoomLayout, type ZoomSpec } from '../lib/zoom';
+import { lineCount, wrapText } from '../lib/text';
 import { signatureBlocks } from '../lib/titleCard';
 import { AUTHOR, BYLINE, PROJECT, burnedTexts, demoPlan, openingCard, planPips, planSplits, signOffCard } from './demo';
-import { PERCEPTION_LIVE, PIP, PROTECTED, RIPENING_SPLIT, SPECTATOR_LIVE, pipelineTile } from './zones';
+import { PERCEPTION_LIVE, PIP, PROTECTED, RIPENING_SPLIT, SPECTATOR_LIVE, TOOL_CAM_CAPTION_WIDTH, ZONE, pipelineTile } from './zones';
 
 const end: EndCardData = { outcome: 'tomato harvested', toolCalls: 12, cost: '$0.38', durationS: 61.1 };
 const plan = demoPlan(end);
@@ -242,12 +243,53 @@ describe('demoPlan', () => {
     for (const [i, zoom] of zooms.entries()) expect(zoom.source).toEqual(pipelineTile(i));
   });
 
+  it('agrandit l’incrustation de la caméra outil sur les lames, puis sur la coupe fermée', () => {
+    // Un plan large ne montrera jamais un geste de 6 cm : les deux images qui portent la coupe
+    // sont celles de la caméra embarquée, agrandies comme les tuiles du pipeline.
+    const toolCam = zoomsOf('concepts').filter((z) => z.source === ZONE.toolCamera);
+    expect(toolCam).toHaveLength(2);
+    expect(burnedTexts(plan)).toContain('The tool camera rides on the scissors: both blades around the stem, nothing else');
+  });
+
+  it('annonce l’incrustation une fois en partie 2, au premier mouvement des ciseaux', () => {
+    const intro = plan.segments.filter((e) => !('card' in e) && e.take === 'cycle' && e.caption === 'Tool camera, bottom right');
+    expect(intro).toHaveLength(1);
+    const [segment] = intro;
+    expect(segment !== undefined && 'card' in segment ? undefined : segment?.from).toEqual({ marker: 'positionnement' });
+    // Assez long pour se lire : plus court que `MIN_CAPTION_S`, le montage le fondrait dans le suivant.
+    const resolved = resolvedSegments().find((s) => s.caption === 'Tool camera, bottom right');
+    expect((resolved?.toS ?? 0) - (resolved?.fromS ?? 0)).toBeGreaterThanOrEqual(2.5);
+  });
+
+  it('pose le sous-titre à gauche de l’incrustation là où la colonne spectateur est le sujet', () => {
+    // Du premier geste fin à deux secondes après la chute, et seulement là : ailleurs le sujet est
+    // la trace ou les vues de l'agent, et le bandeau garde toute sa largeur.
+    const narrow = plan.segments.flatMap((e) =>
+      'card' in e || e.captionWidth !== TOOL_CAM_CAPTION_WIDTH ? [] : [`${e.take}:${typeof e.from === 'object' ? e.from.marker : String(e.from)}`],
+    );
+    expect(narrow).toEqual(['concepts:normal_view', 'cycle:positionnement', 'cycle:positionnement', 'cycle:coupe', 'cycle:chute']);
+  });
+
+  it('tient chacun de ces sous-titres en deux lignes dans le bandeau rétréci', () => {
+    // Un bandeau moitié moins large, c'est deux fois moins de texte par ligne : le plan doit dire
+    // la même chose plus court, pas laisser le montage prévenir au troisième passage.
+    const chars = captionWrapChars(DEFAULT_STYLE, TOOL_CAM_CAPTION_WIDTH);
+    const tooLong: string[] = [];
+    for (const e of plan.segments) {
+      if ('card' in e || e.captionWidth !== TOOL_CAM_CAPTION_WIDTH) continue;
+      // Un arrêt sur image agrandi écrit sa légende à côté de l'image, pas dans le bandeau.
+      const texts = [...(e.caption === undefined ? [] : [e.caption]), ...(e.freezeAt ?? []).flatMap((f) => (f.zoom === undefined ? [f.caption] : []))];
+      tooLong.push(...texts.filter((t) => lineCount(wrapText(t, chars)) > CAPTION_MAX_LINES));
+    }
+    expect(tooLong).toEqual([]);
+  });
+
   it('agrandit la vue que l’agent relit avant de couper, et plus rien sur la détection', () => {
     // La v2.1 posait trois agrandissements sur la prise « detection ». Ils sont remplacés par
     // l'écran partagé, qui montre la même chose **en lecture** : plus aucun ne doit rester, sinon
     // le spectateur verrait deux fois le panneau agrandi, une fois figé et une fois en direct.
     expect(zoomsOf('detection')).toHaveLength(0);
-    expect(zoomsOf('concepts')).toHaveLength(1);
+    expect(zoomsOf('concepts')).toHaveLength(3);
   });
 
   it('tient toute la détection en écran partagé, du mûrissement au réveil', () => {
@@ -308,7 +350,7 @@ describe('demoPlan', () => {
 
   it('écrit les trois éléments de chaque agrandissement, et les tient hors de l’image agrandie', () => {
     const zooms = [...zoomsOf('pipeline'), ...zoomsOf('detection'), ...zoomsOf('concepts')];
-    expect(zooms).toHaveLength(11);
+    expect(zooms).toHaveLength(13);
     for (const zoom of zooms) {
       // Trois éléments écrits, trois éléments remplis : personne ne lit « Done by: ».
       expect(zoom.input.length).toBeGreaterThan(3);

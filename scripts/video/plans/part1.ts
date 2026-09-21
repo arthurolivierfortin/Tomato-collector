@@ -6,7 +6,7 @@
 import type { PlanEntry } from '../lib/plan';
 import { detectionSegments } from './detection';
 import { pipelineSegments } from './pipeline';
-import { PIP, ZONE } from './zones';
+import { PIP, TOOL_CAM_CAPTION, ZONE } from './zones';
 
 const CONCEPTS = 'concepts';
 
@@ -230,22 +230,53 @@ export const part1: PlanEntry[] = [
       },
     ],
   },
-  // (h) La coupe et la chute. Le premier arrêt sur image est posé sur la trace au moment où l'on y
-  // lit, d'un coup d'œil, toute la vérification : les vues redemandées, la phrase de l'agent, l'appel.
+  // (h) La coupe et la chute. Deux regards se relaient : la trace, où l'on lit d'un coup d'œil
+  // toute la vérification, et l'incrustation de la caméra outil, où l'on voit enfin le geste.
+  //
+  // La vue spectateur est passée au cadrage coupe (`k`) depuis le positionnement fin, et la caméra
+  // embarquée sur les ciseaux s'est allumée toute seule : elle occupe le coin bas droit de la
+  // colonne, d'où le sous-titre rétréci (`TOOL_CAM_CAPTION`) sur tout ce segment. Le bandeau de
+  // largeur normale s'arrêtait à x 802 et passait juste dessus.
   {
     take: CONCEPTS,
     from: { marker: 'normal_view' },
     to: { marker: 'end' },
     title: { text: 'Cut, fall, basket', durationS: 3.5 },
-    caption: 'The stem is cut, the tomato falls, a sensor in the basket confirms the harvest',
+    caption: 'The stem is cut, the tomato falls into the basket',
     highlight: ZONE.trace,
+    ...TOOL_CAM_CAPTION,
     freezeAt: [
+      // Les lames autour de la tige, vues de la caméra outil : à 1,7 m, dans le plan large, elles
+      // faisaient une quarantaine de pixels de tranche, souvent derrière une feuille.
+      {
+        at: { marker: 'normal_view', offsetS: 0.9 },
+        durationS: 4,
+        caption: 'The tool camera rides on the scissors: both blades around the stem, nothing else',
+        zoom: {
+          source: ZONE.toolCamera,
+          input: 'the scissors pose the agent just set, seen from a camera bolted 17 cm behind the pivot',
+          by: 'the simulation, rendering a second pass of the spectator layer into the inset',
+          output: 'the open V of the blades, the stem between them, the ripe tomato under it',
+        },
+      },
       {
         at: { marker: 'normal_view', offsetS: 1.8 },
         durationS: 4.5,
-        caption: 'In the trace: views asked again, then 0.1 cm from the stem midpoint, normal aligned. Cutting.',
+        caption: 'In the trace: 0.1 cm from the stem midpoint, cutting',
       },
-      { at: { marker: 'cut', offsetS: 1 }, durationS: 4, caption: 'cut returns the distance to the middle of the stem and the blade angle' },
+      // La coupe elle-même : les lames fermées sur la tige, et le fruit qui part.
+      {
+        at: { marker: 'cut', offsetS: 0.4 },
+        durationS: 4,
+        caption: 'Blades closed, stem severed, and the tomato starts to fall',
+        zoom: {
+          source: ZONE.toolCamera,
+          input: 'the cut call, once the blades sat within 0.5 cm of the stem midpoint',
+          by: 'the simulation: the stem constraint is released and physics takes over',
+          output: 'the closed blades, the cut stem, and the fruit already leaving the frame',
+        },
+      },
+      { at: { marker: 'cut', offsetS: 1 }, durationS: 4, caption: 'cut returns the distance to the stem and the blade angle' },
       { at: { marker: 'landed', offsetS: 1.6 }, durationS: 4.5, caption: 'The tomato lands in the basket: harvest confirmed' },
     ],
   },
