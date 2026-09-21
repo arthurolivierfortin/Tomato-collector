@@ -109,7 +109,14 @@ describe('launchScript', () => {
 });
 
 describe('terminalArgs', () => {
-  const args = terminalArgs({ cols: 110, rows: 32, x: 20, y: 20 }, 'C:/data/video/cli/launch.ps1');
+  const args = terminalArgs({ cols: 110, rows: 32, x: 20, y: 20, cwd: 'C:/Tomato-collector' }, 'C:/data/video/cli/launch.ps1');
+
+  // Le dossier de depart decide de ce que Claude Code demande au demarrage : dans un dossier deja
+  // approuve, aucune invite de confiance. Sans cette option, wt ouvre la fenetre dans le profil de
+  // l'utilisateur (releve sur une vraie sortie : cwd = le profil, pas le depot).
+  it('part du dossier demande, celui que Claude Code a deja approuve', () => {
+    expect(args[args.indexOf('-d') + 1]).toBe('C:/Tomato-collector');
+  });
 
   it('ouvre une fenêtre neuve de Windows Terminal, dimensionnée et placée', () => {
     expect(args[0]).toBe('-w');

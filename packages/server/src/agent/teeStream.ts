@@ -41,7 +41,17 @@ function isRecord(x: unknown): x is Record<string, unknown> {
 }
 
 /** Les types de message que `reduceStreamMessage` sait lire ; tout le reste devient `other`. */
-const KNOWN = new Set(['system', 'assistant', 'user', 'stream_event', 'result']);
+const KNOWN = new Set(['assistant', 'user', 'stream_event', 'result']);
+
+/**
+ * Un message `system` n'est lisible par le réducteur que si c'est un **init** portant sa liste de
+ * serveurs MCP. Le CLI en émet d'autres — `hook_started`, `hook_progress`, `hook_response`, écrits
+ * au démarrage par les crochets `SessionStart` du poste, relevés sur une vraie sortie — et
+ * `reduceStreamMessage` tombait dessus en parcourant `msg.mcp_servers`.
+ */
+function isInit(x: Record<string, unknown>): boolean {
+  return x['subtype'] === 'init' && Array.isArray(x['mcp_servers']) && typeof x['session_id'] === 'string';
+}
 
 /**
  * Une ligne du flux, en message d'agent. Une ligne vide ou illisible rend `null` : un épisode ne
@@ -59,7 +69,8 @@ export function parseAgentLine(line: string): AgentMessage | null {
     return null;
   }
   if (!isRecord(parsed) || typeof parsed['type'] !== 'string') return null;
-  return KNOWN.has(parsed['type']) ? (parsed as unknown as AgentMessage) : { type: 'other' };
+  const readable = parsed['type'] === 'system' ? isInit(parsed) : KNOWN.has(parsed['type']);
+  return readable ? (parsed as unknown as AgentMessage) : { type: 'other' };
 }
 
 export interface TeeReader {

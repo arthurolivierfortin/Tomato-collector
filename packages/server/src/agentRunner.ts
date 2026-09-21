@@ -148,7 +148,7 @@ export async function startRunner(deps: AgentRunnerDeps, opts: RunnerOptions): P
       ? createVisibleQuery({
           workDir: opts.visible.dir,
           title: opts.visible.title,
-          geometry: { cols: opts.visible.cols, rows: opts.visible.rows, x: opts.visible.x, y: opts.visible.y },
+          geometry: { cols: opts.visible.cols, rows: opts.visible.rows, x: opts.visible.x, y: opts.visible.y, cwd: opts.visible.cwd },
           launcher: createWindowLauncher(log),
           log,
         })

@@ -110,14 +110,20 @@ export const part1: PlanEntry[] = [
       { at: { marker: 'views_first', offsetS: 1.5 }, durationS: 4.5, caption: 'First tool call of the episode: get_views on all three cameras' },
     ],
   },
-  // L'agent est une vraie session Claude Code : le terminal prend la moitié droite de l'écran, au
-  // moment même où le tout premier `tool_use` de la session s'y inscrit.
+  // L'agent est un vrai Claude Code headless : la fenêtre où il tourne prend la moitié droite de
+  // l'écran, au moment même où le tout premier `tool_use` de la session s'y inscrit. Ce qu'on y
+  // voit est la sortie du binaire, `--output-format stream-json`, capturée à l'écran : rien n'est
+  // reformaté par le montage (`--terminal window`, serveur `TOMATO_AGENT=visible`).
   {
     take: CONCEPTS,
     from: { marker: 'views_first', offsetS: 1.5 },
     to: { marker: 'lightbox_front', offsetS: -1.5 },
-    title: { text: 'The agent is a real Claude Code session', durationS: 4.5, subtitle: 'The server console, live: init, text, tool_use, tool_result, result' },
-    caption: 'On the right, the server console: the SDK stream as it arrives',
+    title: {
+      text: 'Claude Code, headless, live output',
+      durationS: 4.5,
+      subtitle: 'Screen capture of the terminal it runs in: init, assistant, tool_use, result',
+    },
+    caption: 'On the right, the real process: one JSON message per line, as it arrives',
     pip: PIP.half,
     freezeAt: [
       {

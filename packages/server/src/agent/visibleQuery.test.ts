@@ -62,7 +62,7 @@ function replayLauncher(chunkSize = 400, encoding: BufferEncoding = 'utf16le', t
 
 async function collect(sessionId: string | null = null, launcher = replayLauncher()): Promise<{ messages: AgentMessage[]; dir: string; launcher: ReturnType<typeof replayLauncher> }> {
   const dir = await mkdtemp(join(tmpdir(), 'tomato-visible-'));
-  const query = createVisibleQuery({ workDir: dir, title: 'Claude Code headless', geometry: { cols: 110, rows: 32, x: 20, y: 20 }, launcher, pollMs: 5 });
+  const query = createVisibleQuery({ workDir: dir, title: 'Claude Code headless', geometry: { cols: 110, rows: 32, x: 20, y: 20, cwd: 'C:/repo' }, launcher, pollMs: 5 });
   const messages: AgentMessage[] = [];
   for await (const msg of query('A ripe tomato was detected: tomato #1.', options(sessionId))) messages.push(msg);
   return { messages, dir, launcher };
@@ -129,7 +129,7 @@ describe('createVisibleQuery', () => {
   it('coupe le flux quand l’épisode est interrompu, sans attendre le result', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tomato-visible-'));
     const abort = new AbortController();
-    const query = createVisibleQuery({ workDir: dir, title: 'T', geometry: { cols: 110, rows: 32, x: 0, y: 0 }, launcher: replayLauncher(61, 'utf16le', 1), pollMs: 5 });
+    const query = createVisibleQuery({ workDir: dir, title: 'T', geometry: { cols: 110, rows: 32, x: 0, y: 0, cwd: 'C:/repo' }, launcher: replayLauncher(61, 'utf16le', 1), pollMs: 5 });
     const opts = { ...options(null), abortController: abort };
     const seen: AgentMessage[] = [];
     for await (const msg of query('wake', opts)) {

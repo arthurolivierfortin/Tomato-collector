@@ -107,6 +107,12 @@ export interface WindowGeometry {
   /** Coin haut gauche voulu, en points logiques : c'est l'unité de `wt --pos`. */
   readonly x: number;
   readonly y: number;
+  /**
+   * Dossier de départ de la fenêtre. Il décide de ce que Claude Code demande au démarrage :
+   * dans un dossier déjà approuvé, aucune invite de confiance. Sans cette option, `wt` ouvre la
+   * fenêtre dans le profil de l'utilisateur (relevé sur une vraie sortie).
+   */
+  readonly cwd: string;
 }
 
 /**
@@ -145,6 +151,8 @@ export function terminalArgs(geometry: WindowGeometry, scriptPath: string): stri
     `${geometry.cols},${geometry.rows}`,
     '--pos',
     `${geometry.x},${geometry.y}`,
+    '-d',
+    geometry.cwd,
     'powershell',
     '-NoProfile',
     '-NoExit',

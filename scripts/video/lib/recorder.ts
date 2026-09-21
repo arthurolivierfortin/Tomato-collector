@@ -50,7 +50,14 @@ const TERMINAL_FPS = 25;
  * propriétaire s'il fait confiance à son contenu. Trois minutes, donc, largement.
  */
 const WINDOW_TIMEOUT_MS = 180_000;
-const WINDOW_POLL_MS = 1000;
+/**
+ * Scrutation rapide : Claude Code **reprend le titre de la fenêtre** quelques secondes après son
+ * démarrage (relevé : la fenêtre, titrée « Claude Code headless » par le script de lancement,
+ * s'appelait « claude » à la fin de l'épisode). Le pilote doit donc la trouver pendant la fenêtre
+ * de quelques secondes où le titre est encore le nôtre — et, une fois trouvée, il la suit par sa
+ * position, plus par son titre.
+ */
+const WINDOW_POLL_MS = 250;
 
 /**
  * Largeur maximale du fichier de capture. La fenêtre fait près de 2 900 pixels physiques de large

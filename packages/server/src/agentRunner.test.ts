@@ -155,7 +155,7 @@ describe('startRunner, mode visible', () => {
       agent: 'visible',
       wakePort: -1,
       module: './testing/fakeAgent.js',
-      visible: { title: 'Claude Code headless', cols: 110, rows: 32, x: 20, y: 20, dir: 'C:/tmp/cli' },
+      visible: { title: 'Claude Code headless', cols: 110, rows: 32, x: 20, y: 20, dir: 'C:/tmp/cli', cwd: 'C:/repo' },
     });
     try {
       const { lastDeps } = await import('./testing/fakeAgent.js');
