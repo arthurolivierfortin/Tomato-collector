@@ -148,3 +148,33 @@ describe('startRunner: serveur de réveil toujours ouvert (issue #29)', () => {
     }
   });
 });
+
+describe('startRunner, mode visible', () => {
+  it('charge le même module d’agent qu’en mode « on » et lui passe un flux à lui', async () => {
+    const handle = await startRunner(deps(), {
+      agent: 'visible',
+      wakePort: -1,
+      module: './testing/fakeAgent.js',
+      visible: { title: 'Claude Code headless', cols: 110, rows: 32, x: 20, y: 20, dir: 'C:/tmp/cli' },
+    });
+    try {
+      const { lastDeps } = await import('./testing/fakeAgent.js');
+      // C'est bien l'agent complet, pas le runner inerte : seul le chemin du flux change.
+      expect(lastDeps?.query).toBeTypeOf('function');
+      expect(lastDeps?.mcpUrl).toBe('http://localhost:7331/mcp');
+      expect(lastDeps?.wakePort).toBe(-1);
+    } finally {
+      await handle.stop();
+    }
+  });
+
+  it('laisse le mode « on » sans flux injecté : c’est le SDK qui parle', async () => {
+    const handle = await startRunner(deps(), { agent: 'on', wakePort: -1, module: './testing/fakeAgent.js' });
+    try {
+      const { lastDeps } = await import('./testing/fakeAgent.js');
+      expect(lastDeps?.query).toBeUndefined();
+    } finally {
+      await handle.stop();
+    }
+  });
+});

@@ -110,18 +110,29 @@ export interface WindowGeometry {
 }
 
 /**
+ * La commande jouée dans la fenêtre, précédée de la pose du titre.
+ *
+ * `wt.exe --title` est sans effet sur la version installée ici : avec cette option, la fenêtre ne
+ * s'ouvre pas du tout — mesuré aux deux positions admises (avant et après `new-tab`), alors que la
+ * même ligne sans `--title` ouvre bien la fenêtre. Le titre se pose donc depuis l'intérieur. C'est
+ * une **affectation**, elle n'écrit rien à l'écran ; et c'est par ce titre que le pilote trouve la
+ * fenêtre à filmer.
+ */
+export function windowCommand(title: string, input: VisibleCommandInput): string {
+  return `$Host.UI.RawUI.WindowTitle = ${psLiteral(title)}; ${teeShellCommand(input)}`;
+}
+
+/**
  * Arguments de `wt.exe`. `-w new` force une **fenêtre** neuve plutôt qu'un onglet dans une fenêtre
- * existante ; `--title` la nomme, le temps que le pilote la trouve ; `-NoExit` la laisse ouverte
- * après la fin de l'épisode, jusqu'à ce que la prise soit terminée.
+ * existante ; `--size` et `--pos` la dimensionnent et la placent (colonnes/lignes, et points
+ * logiques) ; `-NoExit` la laisse ouverte après la fin de l'épisode, jusqu'à la fin de la prise.
  *
  * `powershell`, pas `pwsh` : PowerShell 7 n'est pas installé sur cette machine.
  */
-export function terminalArgs(title: string, geometry: WindowGeometry, command: string): string[] {
+export function terminalArgs(geometry: WindowGeometry, command: string): string[] {
   return [
     '-w',
     'new',
-    '--title',
-    title,
     '--size',
     `${geometry.cols},${geometry.rows}`,
     '--pos',
