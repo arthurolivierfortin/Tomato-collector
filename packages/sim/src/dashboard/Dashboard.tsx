@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CameraId } from '@tomato/shared';
 import { setCameraGizmosVisible } from '../cameras/agentCameras';
 import { subscribeViews } from '../cameras/cameraModule';
@@ -6,6 +6,7 @@ import type { SimRuntime } from '../core/runtime';
 import { PerceptionBadge } from '../perception/PerceptionBadge';
 import { usePerceptionState } from '../perception/usePerception';
 import type { SceneHandle } from '../three/createScene';
+import { attachFraming, type SpectatorFraming } from '../three/spectatorFraming';
 import { SpectatorView } from '../three/SpectatorView';
 import { BlockDiagram } from './BlockDiagram';
 import type { BridgeSlot } from './bridgeSlot';
@@ -59,7 +60,8 @@ interface Props {
  * s'efface et les trois vues passent en grand. La colonne du milieu porte aussi, sous la trace, le
  * flux brut de la session agent (issue #23, touche `t`) et le panneau « Perception » (issue #36,
  * touche `p`). Touches : h contrôles, v mode agent, b schéma, c gizmos de caméra, z loupe plein écran,
- * t session brute, p perception, x pipeline de traitement plein écran.
+ * t session brute, p perception, x pipeline de traitement plein écran, k cadrage de la vue
+ * spectateur — large (plant, panier et bras entiers) ou coupe (issue #42).
  */
 export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
   const state = useSyncExternalStore(store.subscribe, store.get);
@@ -70,6 +72,25 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
   const [gizmosVisible, setGizmosVisible] = useState(false);
   const toggleCameraGizmos = useCallback(() => setGizmosVisible((v) => !v), []);
   useEffect(() => setCameraGizmosVisible(gizmosVisible), [gizmosVisible]);
+  /**
+   * Cadrage de la vue spectateur (issue #42) : hors du store, comme les gizmos — c'est un état de la
+   * scène Three, pas de la simulation, et personne d'autre que la touche `k` n'en dépend.
+   */
+  const framingRef = useRef<SpectatorFraming | null>(null);
+  const toggleFraming = useCallback(() => framingRef.current?.toggle(), []);
+  const handleSceneReady = useCallback(
+    (scene: SceneHandle) => {
+      const framing = attachFraming(scene);
+      framingRef.current = framing;
+      const cleanup = onSceneReady(scene);
+      return () => {
+        cleanup?.();
+        framing.dispose();
+        framingRef.current = null;
+      };
+    },
+    [onSceneReady],
+  );
 
   const feature = useCallback((camera: CameraId) => store.dispatch({ type: 'local_feature', camera }), [store]);
   const openLightbox = useCallback((camera: CameraId) => store.dispatch({ type: 'local_lightbox_open', camera }), [store]);
@@ -106,7 +127,7 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
     void window.__tomato?.renderViews?.(['top', 'front', 'side']);
   }, []);
 
-  useDashboardKeys(store, toggleCameraGizmos, lightboxOpen, ui.pipelineCamera !== null);
+  useDashboardKeys(store, toggleCameraGizmos, lightboxOpen, ui.pipelineCamera !== null, toggleFraming);
 
   const sim = clock ?? state.sim;
 
@@ -121,7 +142,7 @@ export function Dashboard({ store, slot, runtime, onSceneReady }: Props) {
       </div>
       <div className={`grid min-h-0 ${ui.agentView ? 'grid-cols-[28rem_minmax(0,1fr)]' : 'grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)_40rem]'}`}>
         <section aria-label="Vue spectateur" className="relative min-h-0">
-          <SpectatorView onReady={onSceneReady} />
+          <SpectatorView onReady={handleSceneReady} />
           <div className="absolute left-3 top-3 text-[12px] text-ink-dim">Vue spectateur</div>
           {/* Issue #23 : bandeau bref au réveil, en surimpression pour ne rien prendre aux autres colonnes. */}
           <div className="pointer-events-none absolute left-3 right-3 top-9">

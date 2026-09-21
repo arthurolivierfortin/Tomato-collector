@@ -6,15 +6,23 @@ import { useDashboardKeys } from './useDashboardKeys';
 
 afterEach(cleanup);
 
-function Probe({ store, lightboxOpen, pipelineOpen }: { store: ReturnType<typeof createDashboardStore>; lightboxOpen: boolean; pipelineOpen: boolean }) {
-  useDashboardKeys(store, () => undefined, lightboxOpen, pipelineOpen);
+interface ProbeProps {
+  store: ReturnType<typeof createDashboardStore>;
+  lightboxOpen: boolean;
+  pipelineOpen: boolean;
+  toggleFraming: () => void;
+}
+
+function Probe({ store, lightboxOpen, pipelineOpen, toggleFraming }: ProbeProps) {
+  useDashboardKeys(store, () => undefined, lightboxOpen, pipelineOpen, toggleFraming);
   return null;
 }
 
 function mount(lightboxOpen = false, pipelineOpen = false) {
   const store = createDashboardStore();
-  render(<Probe store={store} lightboxOpen={lightboxOpen} pipelineOpen={pipelineOpen} />);
-  return store;
+  const framings: number[] = [];
+  render(<Probe store={store} lightboxOpen={lightboxOpen} pipelineOpen={pipelineOpen} toggleFraming={() => framings.push(1)} />);
+  return Object.assign(store, { framings });
 }
 
 describe('useDashboardKeys', () => {
@@ -40,6 +48,14 @@ describe('useDashboardKeys', () => {
     store.dispatch({ type: 'local_pipeline_open', camera: 'front' });
     fireEvent.keyDown(window, { key: 'x' });
     expect(store.get().ui.pipelineCamera).toBeNull();
+  });
+
+  // Issue #42 : `k` bascule le cadrage spectateur large ↔ coupe.
+  it('toggles the spectator framing on k', () => {
+    const store = mount();
+    fireEvent.keyDown(window, { key: 'k' });
+    fireEvent.keyDown(window, { key: 'k' });
+    expect(store.framings).toHaveLength(2);
   });
 
   it('ignores keys typed in a field', () => {

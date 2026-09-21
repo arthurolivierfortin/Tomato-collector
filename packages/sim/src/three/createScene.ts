@@ -5,6 +5,7 @@ import {
 import type { Object3D } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { worldToThree } from './frame';
+import { WIDE_FRAMING } from './spectatorFraming';
 
 export interface SceneHandle {
   scene: Scene;
@@ -26,12 +27,14 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
   const scene = new Scene();
   scene.background = new Color('#0f1214');
 
+  // Cadrage par défaut : `WIDE_FRAMING` (issue #42), posé ici pour que la première frame soit déjà
+  // cadrée ; `attachFraming` le repose au montage du dashboard et gère la bascule vers la coupe.
   const camera = new PerspectiveCamera(40, 1, 1, 2000);
-  camera.position.copy(worldToThree([150, -170, 95]));
-  camera.lookAt(worldToThree([15, -10, 35]));
+  camera.position.copy(worldToThree(WIDE_FRAMING.eyeCm));
+  camera.lookAt(worldToThree(WIDE_FRAMING.targetCm));
 
   const controls = new OrbitControls(camera, canvas);
-  controls.target.copy(worldToThree([15, -10, 35]));
+  controls.target.copy(worldToThree(WIDE_FRAMING.targetCm));
   controls.enableDamping = true;
 
   scene.add(new HemisphereLight('#dfe9f3', '#2a2a2a', 0.9));
