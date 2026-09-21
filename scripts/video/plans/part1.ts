@@ -265,10 +265,19 @@ export const part1: PlanEntry[] = [
           output: 'the open V of the blades, the stem between them, the ripe tomato under it',
         },
       },
+      // La légende ne cite **aucun chiffre de la trace**, et c'est une correction. Elle annonçait
+      // « In the trace: 0.1 cm from the stem midpoint, cutting », relevé sur la prise du 2026-09-18,
+      // où l'agent coupait deux secondes après le retour en vue spectateur. Ce que la trace montre
+      // à `normal_view + 1,8 s` dépend entièrement de la vitesse de l'épisode : le 2026-09-21 elle
+      // affichait « Vues demandées : front, side », l'agent était encore à deux centimètres, et il a
+      // coupé vingt-six secondes plus tard. Le texte gravé contredisait le panneau qu'il encadre.
+      // Même règle que le segment `rotate` (README, « Marqueurs ») : la légende parle de l'appel qui
+      // est à l'écran, quel qu'il soit. Le chiffre de la coupe, lui, a déjà son arrêt sur image à
+      // `cut + 1 s`, où la trace porte forcément le résultat de `cut`.
       {
         at: { marker: 'normal_view', offsetS: 1.8 },
         durationS: 4.5,
-        caption: 'In the trace: 0.1 cm from the stem midpoint, cutting',
+        caption: 'The trace follows every call, as the agent makes it',
       },
       // La coupe elle-même : les lames fermées sur la tige, et le fruit qui part.
       {

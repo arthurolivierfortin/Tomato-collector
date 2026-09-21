@@ -75,19 +75,26 @@ export const detectionSegments: PlanEntry[] = [
     caption: "The tomato turns red. Watch the model's boxes.",
   },
   // (3) La première boîte `ripe`. L'arrêt sur image est posé sur le marqueur lui-même : la lecture
-  // amène la boîte à l'écran, puis l'image se fige trois secondes pour qu'on lise sa confiance.
-  // Valeur vérifiée sur l'image extraite à cet instant : « ripe 0,76 », « porte 1/5 · tomate 1 ».
+  // amène la boîte à l'écran, puis l'image se fige trois secondes pour qu'on la lise.
+  //
+  // La légende ne cite **ni la confiance ni le compteur de la porte**, et c'est une correction :
+  // elle annonçait « ripe 0.76 » et « the gate starts counting », valeurs relevées sur la prise
+  // du 2026-09-18. Ces deux nombres changent à chaque prise. Sur celle du 2026-09-21, le panneau
+  // affichait au même instant « ripe 0,36 » et « porte 0/5 · aucune tomate suivie » : la première
+  // boîte `ripe` peut passer sous le seuil de la porte, qui n'a donc pas encore commencé à compter.
+  // Le texte gravé contredisait l'image. Il ne dit plus que ce qui est vrai de toute prise : il y a
+  // une première boîte `ripe`, et la porte en veut cinq d'affilée — ce que montre l'arrêt suivant.
   {
     take: DETECTION,
     from: { marker: 'first_ripe_box' },
     to: { marker: 'gate_5' },
     split: RIPENING_SPLIT,
-    caption: 'First ripe box: ripe 0.76 on tomato 1. The gate starts counting.',
+    caption: 'First ripe box on tomato 1. The gate wants five in a row.',
     freezeAt: [
       {
         at: { marker: 'first_ripe_box' },
         durationS: HOLD_S,
-        caption: 'First ripe box: ripe 0.76 on tomato 1. The gate starts counting.',
+        caption: 'First ripe box on tomato 1. The gate wants five in a row.',
       },
     ],
   },

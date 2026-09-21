@@ -118,8 +118,11 @@ sur image de **3 s**, dans la même mise en page.
 - **Segment 2** : `ripening_20` → `first_ripe_box`. « The tomato turns red. Watch the model's
   boxes. » Dix secondes de lecture continue, sans coupe : la tomate rougit à gauche, le panneau
   suit à droite.
-- **Segment 3** : `first_ripe_box` → `gate_5`. « First ripe box: ripe 0.76 on tomato 1. The gate
-  starts counting. »
+- **Segment 3** : `first_ripe_box` → `gate_5`. « First ripe box on tomato 1. The gate wants five
+  in a row. » La légende ne cite ni la confiance ni le compteur de la porte : ils changent à chaque
+  prise. Elle annonçait « ripe 0.76 » et « the gate starts counting », relevés le 2026-09-18 ; le
+  2026-09-21 le panneau affichait « ripe 0,36 » et « porte 0/5 · aucune tomate suivie » au même
+  instant, et le texte gravé contredisait l'image.
   - **Arrêt sur image** — `first_ripe_box`, **3 s**, dans l'écran partagé.
 - **Segment 4** : `gate_5` → `wake` − 0,8 s. « Five consecutive ripe frames: the server is
   notified. »
@@ -271,7 +274,11 @@ droit de la colonne. Le sous-titre se range à sa gauche pendant tout le segment
     *Input:* the scissors pose the agent just set, seen from a camera bolted 17 cm behind the pivot ·
     *Done by:* the simulation, rendering a second pass of the spectator layer into the inset ·
     *Output:* the open V of the blades, the stem between them, the ripe tomato under it.
-  - `normal_view` + 1,8 s, **4,5 s** : « In the trace: 0.1 cm from the stem midpoint, cutting ».
+  - `normal_view` + 1,8 s, **4,5 s** : « The trace follows every call, as the agent makes it ».
+    La légende ne cite aucun chiffre : ce que la trace montre à cet instant dépend de la vitesse
+    de l'épisode. Elle annonçait « In the trace: 0.1 cm from the stem midpoint, cutting », vrai
+    le 2026-09-18 ; le 2026-09-21 la trace portait « Vues demandées : front, side » et la coupe
+    est arrivée vingt-six secondes plus tard. Le chiffre de la coupe a son arrêt à `cut` + 1 s.
     Une seule image porte toute la vérification : l'appel `Coupe` en haut, la phrase de l'agent juste
     dessous, et sous elle les vues redemandées avec leurs arguments et leur résultat.
   - `cut` + 0,4 s, **4 s**, *agrandissement de l'incrustation* :
