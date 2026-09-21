@@ -185,6 +185,11 @@ limites et reproduction dans [`docs/perception-model.md`](docs/perception-model.
   l'agent en direct, le replier pour donner toute la hauteur à la trace.
 - `b` : ouvre le schéma bloc en bandeau bas, utile pour montrer le flux agent ↔ serveur ↔ sim.
 - `c` : affiche les gizmos des trois caméras (masqués par défaut), utile pour expliquer d'où viennent les vues.
+- `k` : cadrage de la vue spectateur — « large » (plant, panier et bras entiers, cadrage par défaut) ou
+  « coupe » (rapproché sur la zone de coupe, socle du bras hors champ), transition de 0,8 s. Les deux
+  regardent la scène de face et de la droite du plant pour que l'avant-bras et les lames restent en
+  travers du cadre pendant l'approche et la coupe (issue #42) ; leurs valeurs sont dans
+  `packages/sim/src/three/spectatorFraming.ts`.
 - `z` : loupe plein écran sur la vue mise en avant (ou clic sur la grande vue) — molette pour zoomer de ×1 à ×4
   autour du curseur, glisser pour se déplacer, boutons `top` / `front` / `side` pour changer de caméra, Échap pour fermer.
 - `p` : panneau « Perception » — l'image d'entrée du détecteur et ses boîtes (voir la section Perception).

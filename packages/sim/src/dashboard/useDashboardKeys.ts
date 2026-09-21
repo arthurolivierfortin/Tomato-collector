@@ -8,9 +8,16 @@ function isEditable(target: EventTarget | null): boolean {
 /**
  * Raccourcis de tournage : `h` contrôles, `v` mode « ce que voit l'agent », `b` schéma bloc,
  * `c` gizmos de caméra, `z` loupe plein écran, `t` panneau « Session agent (brut) » (issue #23),
- * `p` panneau « Perception », `x` mode « Pipeline de traitement » plein écran (issue #36).
+ * `p` panneau « Perception », `x` mode « Pipeline de traitement » plein écran (issue #36),
+ * `k` cadrage de la vue spectateur, large ↔ zone de coupe (issue #42).
  */
-export function useDashboardKeys(store: DashboardStore, toggleCameraGizmos: () => void, lightboxOpen: boolean, pipelineOpen: boolean): void {
+export function useDashboardKeys(
+  store: DashboardStore,
+  toggleCameraGizmos: () => void,
+  lightboxOpen: boolean,
+  pipelineOpen: boolean,
+  toggleFraming: () => void,
+): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (isEditable(e.target) || e.altKey || e.ctrlKey || e.metaKey) return;
@@ -20,6 +27,7 @@ export function useDashboardKeys(store: DashboardStore, toggleCameraGizmos: () =
       else if (e.key === 't') store.dispatch({ type: 'local_toggle_session' });
       else if (e.key === 'p') store.dispatch({ type: 'local_toggle_perception' });
       else if (e.key === 'c') toggleCameraGizmos();
+      else if (e.key === 'k') toggleFraming();
       else if (e.key === 'x') {
         // La loupe est au même niveau que le pipeline : on la ferme avant, sinon elle reste dessous.
         if (lightboxOpen) store.dispatch({ type: 'local_lightbox_close' });
@@ -29,5 +37,5 @@ export function useDashboardKeys(store: DashboardStore, toggleCameraGizmos: () =
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [store, toggleCameraGizmos, lightboxOpen, pipelineOpen]);
+  }, [store, toggleCameraGizmos, lightboxOpen, pipelineOpen, toggleFraming]);
 }

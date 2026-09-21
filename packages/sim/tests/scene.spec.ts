@@ -1,8 +1,17 @@
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { CUT_FRAMING, WIDE_FRAMING } from '../src/three/spectatorFraming';
 
 const shotsDir = resolve(import.meta.dirname, '../../../data/shots');
+
+/** Position de la caméra spectateur, en monde (X droite, Y arrière, Z haut), arrondie au cm. */
+const eyeCm = async (page: Page): Promise<number[]> =>
+  page.evaluate(() => {
+    const p = window.__tomato!.runtime.ctx.scene!.camera.position;
+    return [Math.round(p.x), Math.round(-p.z), Math.round(p.y)];
+  });
 
 test('spectator scene renders the plant module and is captured', async ({ page }) => {
   const errors: string[] = [];
@@ -60,5 +69,23 @@ test('spectator scene renders the plant module and is captured', async ({ page }
   expect(states.states.filter((s) => s === 'unripe').length).toBeGreaterThanOrEqual(2);
   mkdirSync(shotsDir, { recursive: true });
   await page.screenshot({ path: resolve(shotsDir, 'scene.png') });
+  expect(errors).toEqual([]);
+});
+
+// Issue #42 : la vue spectateur s'ouvre sur le cadrage large, et `k` bascule sur la zone de coupe.
+test('the spectator view opens on the wide framing and k toggles the cut framing', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/');
+  await expect(page.getByTestId('spectator')).toBeVisible();
+  await page.waitForFunction(() => window.__tomato !== undefined && window.__tomato.runtime.ctx.scene !== null, undefined, { timeout: 30_000 });
+
+  expect(await eyeCm(page)).toEqual(WIDE_FRAMING.eyeCm);
+  await page.keyboard.press('k');
+  await expect.poll(() => eyeCm(page), { timeout: 5_000 }).toEqual(CUT_FRAMING.eyeCm);
+  mkdirSync(shotsDir, { recursive: true });
+  await page.screenshot({ path: resolve(shotsDir, 'scene-cut-framing.png') });
+  await page.keyboard.press('k');
+  await expect.poll(() => eyeCm(page), { timeout: 5_000 }).toEqual(WIDE_FRAMING.eyeCm);
   expect(errors).toEqual([]);
 });
