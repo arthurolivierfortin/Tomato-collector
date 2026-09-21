@@ -208,7 +208,7 @@ describe('visibleEnv', () => {
 describe.skipIf(process.platform !== 'win32')('fromFile, en vrai, sous Windows PowerShell', () => {
   const NON_ASCII = 'pitch -13.59° — occultée 40 %';
 
-  async function readBack(expression: string, file: string): Promise<string> {
+  async function readBack(expression: string): Promise<string> {
     const { execFile } = await import('node:child_process');
     return new Promise<string>((done, fail) => {
       execFile(
@@ -233,7 +233,7 @@ describe.skipIf(process.platform !== 'win32')('fromFile, en vrai, sous Windows P
     const dir = await mkdtemp(join(tmpdir(), 'tomato-enc-'));
     const file = join(dir, 'wake.txt');
     await writeFile(file, NON_ASCII, 'utf8');
-    const read = await readBack(visibleClaudeArgs({ ...INPUT, wakePromptPath: file })[1] ?? '', file);
+    const read = await readBack(visibleClaudeArgs({ ...INPUT, wakePromptPath: file })[1] ?? '');
     expect(read).toBe(`${NON_ASCII.length}|${NON_ASCII}`);
   }, 30_000);
 });
