@@ -22,6 +22,14 @@ describe('windowProbeArgs', () => {
   it('sait aussi demander la fermeture de la fenêtre, à la fin de la prise', () => {
     expect(windowProbeArgs(SCRIPT, 'T', { close: true })).toContain('-Close');
   });
+
+  // Claude Code reprend le titre de la fenetre quelques secondes apres son demarrage : une fois
+  // la fenetre trouvee, on ne la designe plus que par sa poignee.
+  it('désigne la fenêtre par sa poignée dès qu’on la connaît, le titre pouvant changer', () => {
+    const args = windowProbeArgs(SCRIPT, 'Claude Code headless', { handle: 2035468, topmost: true });
+    expect(args[args.indexOf('-Handle') + 1]).toBe('2035468');
+    expect(args).toContain('-Topmost');
+  });
 });
 
 describe('parseWindowProbe', () => {
