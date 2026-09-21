@@ -257,16 +257,33 @@ dit comme c'est.
 
 ### (h) La coupe et la chute dans le panier
 
+Depuis le positionnement fin, la vue spectateur est au **cadrage coupe** (touche `k`, pressée par
+le scénario au marqueur `rotate`) et la **caméra outil** s'est allumée toute seule dans le coin bas
+droit de la colonne. Le sous-titre se range à sa gauche pendant tout le segment
+(`TOOL_CAM_CAPTION`) : de sa largeur habituelle, il passerait juste dessus.
+
 - **Carton** (3,5 s) : **Cut, fall, basket**.
-- **Segment** : `normal_view` → `end`. Cadre sur la colonne de trace.
-- **Sous-titre** : « The stem is cut, the tomato falls, a sensor in the basket confirms the harvest ».
+- **Segment** : `normal_view` → `end`. Cadre sur la colonne de trace, sous-titre rétréci.
+- **Sous-titre** : « The stem is cut, the tomato falls into the basket ».
 - **Arrêts sur image** :
-  - `normal_view` + 1,8 s, **4,5 s** : « In the trace: views asked again, then 0.1 cm from the stem
-    midpoint, normal aligned. Cutting. » Une seule image porte toute la vérification : l'appel
-    `Coupe` en haut, la phrase de l'agent juste dessous, et sous elle les vues redemandées avec leurs
-    arguments et leur résultat.
-  - `cut` + 1 s, **4 s** : « cut returns the distance to the middle of the stem and the blade angle »
+  - `normal_view` + 0,9 s, **4 s**, *agrandissement de l'incrustation* (`ZONE.toolCamera`) :
+    « The tool camera rides on the scissors: both blades around the stem, nothing else ».
+    *Input:* the scissors pose the agent just set, seen from a camera bolted 17 cm behind the pivot ·
+    *Done by:* the simulation, rendering a second pass of the spectator layer into the inset ·
+    *Output:* the open V of the blades, the stem between them, the ripe tomato under it.
+  - `normal_view` + 1,8 s, **4,5 s** : « In the trace: 0.1 cm from the stem midpoint, cutting ».
+    Une seule image porte toute la vérification : l'appel `Coupe` en haut, la phrase de l'agent juste
+    dessous, et sous elle les vues redemandées avec leurs arguments et leur résultat.
+  - `cut` + 0,4 s, **4 s**, *agrandissement de l'incrustation* :
+    « Blades closed, stem severed, and the tomato starts to fall ».
+    *Input:* the cut call, once the blades sat within 0.5 cm of the stem midpoint ·
+    *Done by:* the simulation: the stem constraint is released and physics takes over ·
+    *Output:* the closed blades, the cut stem, and the fruit already leaving the frame.
+  - `cut` + 1 s, **4 s** : « cut returns the distance to the stem and the blade angle »
   - `landed` + 1,6 s, **4,5 s** : « The tomato lands in the basket: harvest confirmed »
+
+Deux secondes après la chute, le scénario represse `k` : le cadrage large revient au moment même où
+l'incrustation s'éteint d'elle-même, et le rapport se lit sur le robot entier.
 
 ---
 
@@ -278,7 +295,8 @@ n'est truqué ni accéléré. Dès le réveil, la capture du terminal est **incr
 610×168 en bas à droite (`PIP.corner`), posée sur la rangée de vignettes de vues et rognée par le
 bas pour garder les dernières lignes de la console lisibles : elle ne couvre ni la colonne de
 trace, ni la vue mise en avant, ni la vue spectateur, ni le bandeau de statuts, ni le schéma bloc
-et son étiquette d'activité, ni le sous-titre. `plans/demo.test.ts` le vérifie zone par zone.
+et son étiquette d'activité, ni l'incrustation de la caméra outil, ni le sous-titre.
+`plans/demo.test.ts` le vérifie zone par zone.
 
 | Carton | Durée |
 |---|---|
@@ -289,10 +307,19 @@ et son étiquette d'activité, ni le sous-titre. `plans/demo.test.ts` le vérifi
 | `murissement` − 2 s | `detection` | Ripening | non |
 | `detection` | `observation` | Detection, then the agent wakes up | vignette |
 | `observation` | `positionnement` | Observation: the agent asks for the three views and reads the scene | vignette |
-| `positionnement` | `coupe` | Positioning: basket under the tomato, scissors at the middle of the stem | vignette |
+| `positionnement` | `positionnement` + 3 s | Tool camera, bottom right | vignette |
+| `positionnement` + 3 s | `coupe` | Positioning: basket, then scissors on the stem | vignette |
 | `coupe` | `chute` | Cut | vignette |
 | `chute` | `rapport` | The fall into the basket | vignette |
 | `rapport` | `fin` | Report: the agent closes the episode and notes what it would do differently | vignette |
+
+Au premier `move_scissors`, deux choses arrivent ensemble : le pilote passe au **cadrage coupe**
+(`k`) et l'**incrustation de la caméra outil** s'allume d'elle-même dans le coin bas droit. Trois
+secondes de sous-titre la nomment, sans interrompre la prise, et on n'en reparle plus. De là
+jusqu'à deux secondes après la chute, les sous-titres se rangent **à gauche** de l'incrustation
+(`TOOL_CAM_CAPTION`, 30 caractères par ligne au lieu de 50) : de leur largeur habituelle ils
+passeraient juste dessus. Le retour au cadrage large est calé sur la seconde où l'incrustation
+s'éteint.
 
 Un sous-titre affiché moins de 2,5 s est illisible : le montage fusionne alors le segment avec le
 suivant et joint les deux légendes. Sur un épisode où la coupe et la chute se suivent de près,
@@ -300,7 +327,8 @@ suivant et joint les deux légendes. Sur un épisode où la coupe et la chute se
 
 Marqueurs posés par le scénario, dans l'ordre : `debut` (juste après la touche `h`), `murissement`,
 `detection` (phase `detected`), `reveil` (+1,5 s), `observation` (« Vues demandées » dans la trace),
-`positionnement` (« Ciseaux → »), `coupe` (« Coupe »), `chute` (« dans le panier »),
+`positionnement` (« Ciseaux → », suivi de la touche `k`), `coupe` (« Coupe »), `chute` (« dans le
+panier », puis 2 s et `k` à nouveau),
 `rapport` (« Rapport : »), `fin` (+3 s). La prise s'arrête **quatre secondes après le rapport** :
 au-delà, la tomate suivante mûrit et un second épisode payant démarrerait pendant les cartons de fin.
 

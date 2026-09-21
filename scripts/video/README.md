@@ -143,6 +143,38 @@ démarrage à froid, Vite optimise ses dépendances et recharge la page, ce qui 
 d'exécution du pilote (« Execution context was destroyed »). La première tentative échoue, la
 seconde passe ; c'est sans conséquence, la prise ratée est simplement réenregistrée.
 
+### Cadrage de la coupe et caméra outil
+
+Les deux prises en direct pressent `k` **au marqueur du positionnement fin** — « Ciseaux orientés »
+pour `concepts`, le premier `move_scissors` pour `cycle`, selon ce que chaque scénario sait
+détecter — et reviennent au cadrage large **deux secondes après la chute**. La transition dure
+0,8 s : elle se joue donc loin de la coupe, pas pendant. Le cadrage large montre le robot entier ;
+il ne montrera jamais un geste de 6 cm.
+
+**Aucune des deux ne presse `j`.** L'incrustation de la caméra outil a sa règle : elle s'allume
+dès que les ciseaux quittent leur pose de repos et s'éteint deux secondes après l'atterrissage du
+fruit. Un `j` de trop l'éteindrait pendant la coupe, et personne ne le verrait avant le montage.
+Le retour au cadrage large est calé sur la même seconde : les deux plans rapprochés s'en vont
+ensemble. En revanche `h` doit être pressée **avant** — c'est déjà la première étape des deux
+scénarios — sinon le panneau des contrôles, qui occupe le bas de la colonne spectateur, recouvre
+l'incrustation. `scenarios/framing.test.ts` tient les quatre règles.
+
+L'incrustation vit à **x 548, y 759, 240 × 180** dans l'image de 1920 × 1080, étiquette comprise
+à partir de y 741 : 30 % de la largeur du canvas spectateur, en 4:3, à 12 px du coin bas droit.
+Le rectangle est **mesuré** sur la page (`getBoundingClientRect` de `[data-testid="tool-camera"]`),
+pas estimé, et il est déclaré dans `plans/zones.ts` des deux côtés : `ZONE.toolCamera` pour les
+arrêts sur image qui l'agrandissent, `PROTECTED.toolCamera` pour ce qui doit lui laisser la place.
+
+Ce qui doit lui laisser la place, c'est d'abord **le sous-titre**. Le bandeau habituel part de x 6
+et court jusqu'à x 802 : il passe juste dessus, et il effacerait précisément le plan que la caméra
+outil vient montrer. Les segments dont la colonne spectateur est le sujet pendant qu'elle est
+allumée portent donc `TOOL_CAM_CAPTION` : le bandeau s'arrête à x 530, le bas gauche de la colonne
+reste libre comme avant, et les légendes concernées disent la même chose plus court (30 caractères
+par ligne au lieu de 50). Ailleurs — les segments de la trace, et le mode « ce que voit l'agent »
+où la colonne se réduit à 448 px et l'incrustation rétrécit avec elle — le sujet est une autre
+colonne et le bandeau garde toute sa largeur. La vignette du terminal, elle, est déjà loin : elle
+vit à x 1290. `plans/zones.test.ts` vérifie la géométrie, `plans/demo.test.ts` le plan.
+
 ### Queue de prise : sept secondes, pas plus
 
 Après le rapport de l'agent, `concepts` et `cycle` s'arrêtent en quatre secondes. Au-delà d'environ
@@ -234,7 +266,8 @@ dashboard. La vidéo filme donc, en parallèle de la page, **la sortie réelle d
    est redondante, et elle est **rognée par le bas** plutôt que réduite : on lit les dernières
    lignes de la console au lieu de la page entière devenue illisible. Les zones qu'aucune vignette
    ne doit recouvrir sont déclarées (`PROTECTED` dans `plans/zones.ts`) — bandeau de statuts, trace,
-   vue mise en avant, schéma bloc **et son étiquette d'activité**, bandeau de sous-titre — et
+   vue mise en avant, schéma bloc **et son étiquette d'activité**, incrustation de la caméra outil
+   **et son étiquette**, bandeau de sous-titre — et
    `plans/demo.test.ts` vérifie zone par zone qu'elle n'en touche aucune. Le demi-écran, lui,
    recouvre volontairement la trace et la vue mise en avant : un carton l'annonce, le terminal
    devient le sujet ; il laisse en revanche le sous-titre libre.
