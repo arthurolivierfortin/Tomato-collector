@@ -65,12 +65,19 @@ viennent d'ailleurs : la détection, de la prise `detection`, et le traitement d
 Prise `detection`, mode live, serveur `TOMATO_AGENT=off`. Touches et marqueurs : `h`, `p`, `start`,
 `ripening_20`, `ripening_60`, `first_ripe_box`, `gate_3`, `gate_5`, `wake`, `end`.
 
-### Ouverture (cartons seuls, 7,5 s)
+### Ouverture (cartons seuls, 8 s)
 
 | Durée | Carton |
 |---|---|
-| 4 s | **Tomato Collector** — *A Claude agent harvests tomatoes in a 3D simulation, using MCP tools and three annotated 2D views* |
-| 3,5 s | **Part 1: the concepts** — *The app, the plant, perception, the wake-up, the views, the tools, the cut* |
+| 4 s | **Tomato Collector** / *By Arthur-Olivier Fortin* / *A Claude agent harvests tomatoes in a 3D simulation* — carton de signature, en fondu au noir des deux côtés |
+| 4 s | **Part 1: the concepts** — *The app, the plant, perception, the wake-up, the views, the tools, the cut* |
+
+Le carton d'ouverture est un **carton de signature** : trois corps empilés (88, 44, 30 px), la pile
+centrée verticalement en pixels par `lib/titleCard.ts`, et un fondu au noir de 0,6 s à l'entrée
+comme à la sortie. Il remplace l'ancien carton de titre de la partie 1, qui disait la même chose
+sans le nom de l'auteur : deux cartons « Tomato Collector » de suite se regardaient mal. Le nom
+s'écrit tel qu'il s'écrit, avec un **trait d'union court** (U+002D) ; la règle « aucun tiret
+cadratin ni demi-cadratin » porte sur la ponctuation des textes gravés, pas sur un nom propre.
 
 ### (a) L'application
 
@@ -303,6 +310,7 @@ au-delà, la tomate suivante mûrit et un second épisode payant démarrerait pe
 |---|---|
 | 4 s | **Result: tomato harvested** — *12 tool calls · 61 s · $0.38* |
 | 4,5 s | **An LLM can drive a robot** — *given tools it can call and images it can read like text* |
+| 4 s | **Tomato Collector** / *By Arthur-Olivier Fortin* — la même signature qu'à l'ouverture, seule, en fondu au noir |
 
 Les valeurs du premier carton sont **lues dans le journal de l'épisode filmé**
 (`montage.ts --episode <fichier>` ou `--episode latest`) : `outcome`, `toolCalls`, `costUsd`, et la
