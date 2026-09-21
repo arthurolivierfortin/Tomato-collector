@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { manualLaunchNotice, parseWindowRect, windowLaunchArgs, windowLaunchLine, type WindowParams } from './cliTerminal';
+import {
+  closeWindowCommand,
+  manualLaunchNotice,
+  parseWindowHandle,
+  parseWindowRect,
+  startProcessCommand,
+  windowLaunchArgs,
+  windowLaunchLine,
+  type WindowParams,
+} from './cliTerminal';
 
 const PARAMS: WindowParams = {
   script: 'C:/Tomato-collector/scripts/video/claude-window.ps1',
@@ -78,5 +87,44 @@ describe('manualLaunchNotice', () => {
 
   it('montre la commande claude réellement construite', () => {
     expect(notice).toContain('claude --mcp-config');
+  });
+});
+
+describe('startProcessCommand', () => {
+  // Windows PowerShell 5.1 concatène `-ArgumentList` sans rien citer : un argument à espaces est
+  // coupé en morceaux et le script ne démarre pas. Mesuré ici : la fenêtre s'ouvrait et se
+  // refermait aussitôt dès que le titre contenait une espace.
+  it('cite chaque argument, sinon un titre à espaces casse la liaison des paramètres', () => {
+    const cmd = startProcessCommand('powershell', ['-File', 'C:/a b/x.ps1', '-Title', 'Claude Code']);
+    expect(cmd).toBe(`Start-Process 'powershell' -ArgumentList '"-File"','"C:/a b/x.ps1"','"-Title"','"Claude Code"'`);
+  });
+
+  it('double les apostrophes : une chaîne PowerShell entre apostrophes les échappe ainsi', () => {
+    expect(startProcessCommand('powershell', ["l'agent"])).toContain(`'"l''agent"'`);
+  });
+
+  it('échappe les guillemets d’un argument', () => {
+    expect(startProcessCommand('powershell', ['dit "oui"'])).toContain('\\"oui\\"');
+  });
+});
+
+describe('closeWindowCommand', () => {
+  it('ferme la fenêtre par sa poignée, proprement (WM_CLOSE)', () => {
+    const cmd = closeWindowCommand(123456);
+    expect(cmd).toContain('123456');
+    expect(cmd).toContain('0x0010');
+    expect(cmd).toContain('PostMessage');
+  });
+});
+
+describe('parseWindowHandle', () => {
+  it('lit la poignée écrite par la fenêtre, de quoi la refermer à la fin de la prise', () => {
+    expect(parseWindowHandle({ handle: 2163430, x: 33, y: 20, w: 2848, h: 1524 })).toBe(2163430);
+  });
+
+  it('rend null quand la fenêtre n’a pas été trouvée', () => {
+    expect(parseWindowHandle({ handle: 0 })).toBeNull();
+    expect(parseWindowHandle({})).toBeNull();
+    expect(parseWindowHandle(null)).toBeNull();
   });
 });

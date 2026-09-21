@@ -62,8 +62,49 @@ export function windowLaunchLine(p: WindowParams): string {
   return ['powershell', ...windowLaunchArgs(p).map(shellArg)].join(' ');
 }
 
+/** Un argument tel que `CreateProcess` le veut : entre guillemets, guillemets internes échappés. */
+function windowsQuoted(arg: string): string {
+  return `"${arg.replace(/(\\*)"/g, '$1$1\\"')}"`;
+}
+
+/** Une chaîne littérale PowerShell : entre apostrophes, apostrophes internes doublées. */
+function psLiteral(text: string): string {
+  return `'${text.replace(/'/g, "''")}'`;
+}
+
+/**
+ * Commande `Start-Process` qui ouvre une vraie fenêtre de console.
+ *
+ * C'est le seul moyen qui donne une fenêtre **visible** depuis un processus Node : un `spawn`
+ * direct de `powershell`, même `detached`, n'en ouvre aucune (mesuré ici). Et Windows PowerShell
+ * 5.1 **ne cite pas** les éléments de `-ArgumentList` : il les concatène tels quels. Un titre
+ * contenant une espace était donc coupé en plusieurs arguments, la liaison des paramètres du
+ * script échouait, et la fenêtre se refermait dans la seconde — exactement le symptôme d'un
+ * lancement « qui ne marche pas ». On cite donc chaque argument nous-mêmes.
+ */
+export function startProcessCommand(exe: string, args: readonly string[]): string {
+  const list = args.map((a) => psLiteral(windowsQuoted(a))).join(',');
+  return `Start-Process ${psLiteral(exe)} -ArgumentList ${list}`;
+}
+
+/** Commande PowerShell qui ferme une fenêtre par sa poignée, sans tuer le processus au couteau. */
+export function closeWindowCommand(handle: number): string {
+  return (
+    'Add-Type -Namespace TomatoClose -Name Api -MemberDefinition ' +
+    `'[DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);'; ` +
+    `[void][TomatoClose.Api]::PostMessage([IntPtr]${handle}, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)`
+  );
+}
+
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null;
+}
+
+/** Poignée de la fenêtre, de quoi la refermer à la fin de la prise ; `null` si elle est introuvable. */
+export function parseWindowHandle(x: unknown): number | null {
+  if (!isRecord(x)) return null;
+  const handle = x['handle'];
+  return typeof handle === 'number' && handle !== 0 ? handle : null;
 }
 
 /**
