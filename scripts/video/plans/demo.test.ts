@@ -248,7 +248,7 @@ describe('demoPlan', () => {
     // sont celles de la caméra embarquée, agrandies comme les tuiles du pipeline.
     const toolCam = zoomsOf('concepts').filter((z) => z.source === ZONE.toolCamera);
     expect(toolCam).toHaveLength(2);
-    expect(burnedTexts(plan)).toContain('The tool camera rides on the scissors: both blades around the stem, nothing else');
+    expect(burnedTexts(plan)).toContain('The tool camera rides on the scissors: the blades, the target stem, the ripe tomato');
   });
 
   it('annonce l’incrustation une fois en partie 2, au premier mouvement des ciseaux', () => {
@@ -267,7 +267,16 @@ describe('demoPlan', () => {
     const narrow = plan.segments.flatMap((e) =>
       'card' in e || e.captionWidth !== TOOL_CAM_CAPTION_WIDTH ? [] : [`${e.take}:${typeof e.from === 'object' ? e.from.marker : String(e.from)}`],
     );
-    expect(narrow).toEqual(['concepts:normal_view', 'cycle:positionnement', 'cycle:positionnement', 'cycle:coupe', 'cycle:chute']);
+    expect(narrow).toEqual([
+      // Le retour en vue spectateur avant la coupe, l'approche, puis la coupe et la chute.
+      'concepts:agent_view',
+      'concepts:normal_view',
+      'concepts:cut',
+      'cycle:positionnement',
+      'cycle:positionnement',
+      'cycle:coupe',
+      'cycle:chute',
+    ]);
   });
 
   it('tient chacun de ces sous-titres en deux lignes dans le bandeau rétréci', () => {
